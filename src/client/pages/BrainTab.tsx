@@ -32,7 +32,7 @@ export const BrainTab: React.FC = () => {
       setLearnings(res.learnings || []);
       setNodeCounts(res.nodeCounts || {});
       setDna(res.creatorDNA);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to load brain data:', err);
     } finally {
       setLoading(false);
@@ -40,9 +40,9 @@ export const BrainTab: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 w-full">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
+      <div className="glass-panel p-5 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
             <BrainIcon className="w-5 h-5 text-purple-400" />
@@ -54,33 +54,33 @@ export const BrainTab: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-xs font-semibold text-purple-300">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-purple-500/15 border border-purple-500/30 text-xs font-semibold text-purple-300">
             <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            Live Memory Graph
+            Live Memory Graph Active
           </div>
         </div>
       </div>
 
       {/* Creator DNA Card (4 Pillars) */}
       {dna && (
-        <div className="p-6 rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-md space-y-4 shadow-xl">
+        <div className="glass-panel p-6 rounded-3xl space-y-4 shadow-xl border border-purple-500/20">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
               Synthesized Creator DNA Profile
             </h3>
-            <span className="text-[10px] text-emerald-400 font-mono font-semibold px-2 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40">
+            <span className="text-[10px] text-emerald-400 font-mono font-semibold px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/40">
               High Confidence
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Voice Pillar */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="glass-card p-4 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-purple-400">
                 <Mic className="w-4 h-4" /> Voice & Delivery
               </div>
-              <p className="text-xs text-slate-300 font-medium">{dna.voice.tone}</p>
+              <p className="text-xs text-slate-200 font-medium">{dna.voice.tone}</p>
               <div className="text-[11px] text-slate-400">
                 <span className="text-slate-500">Mix:</span> {dna.voice.language_mix}
               </div>
@@ -91,7 +91,7 @@ export const BrainTab: React.FC = () => {
                 {dna.voice.catchphrases.map((phrase, i) => (
                   <span
                     key={i}
-                    className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20"
+                    className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 border border-purple-500/20"
                   >
                     "{phrase}"
                   </span>
@@ -100,11 +100,11 @@ export const BrainTab: React.FC = () => {
             </div>
 
             {/* Visual Pillar */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="glass-card p-4 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-cyan-400">
                 <Palette className="w-4 h-4" /> Visual & Thumbnail
               </div>
-              <p className="text-xs text-slate-300 font-medium">{dna.visual.composition}</p>
+              <p className="text-xs text-slate-200 font-medium">{dna.visual.composition}</p>
               <div className="text-[11px] text-slate-400">
                 <span className="text-slate-500">Text Words:</span> {dna.visual.text_overlay_words} words max
               </div>
@@ -114,7 +114,7 @@ export const BrainTab: React.FC = () => {
                   {dna.visual.thumbnail_palette.map((color, i) => (
                     <div
                       key={i}
-                      className="w-5 h-5 rounded-full border border-slate-700 shadow-sm"
+                      className="w-5 h-5 rounded-full border border-white/20 shadow-sm"
                       style={{ background: color }}
                       title={color}
                     />
@@ -124,16 +124,16 @@ export const BrainTab: React.FC = () => {
             </div>
 
             {/* Packaging Pillar */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="glass-card p-4 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
                 <Package className="w-4 h-4" /> Packaging & Titles
               </div>
-              <div className="text-xs text-slate-300 font-medium">
-                Avg Title Length: <span className="font-mono text-amber-300">{dna.packaging.title_avg_length} chars</span>
+              <div className="text-xs text-slate-200 font-medium">
+                Avg Title: <span className="font-mono text-amber-300">{dna.packaging.title_avg_length} chars</span>
               </div>
               <div className="space-y-1 pt-1">
                 {dna.packaging.title_patterns.slice(0, 2).map((pat, i) => (
-                  <div key={i} className="text-[10px] font-mono text-slate-400 truncate bg-slate-900 p-1 rounded">
+                  <div key={i} className="text-[10px] font-mono text-slate-400 truncate bg-white/[0.04] p-1.5 rounded-lg border border-white/[0.06]">
                     {pat}
                   </div>
                 ))}
@@ -144,11 +144,11 @@ export const BrainTab: React.FC = () => {
             </div>
 
             {/* Audience Pillar */}
-            <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+            <div className="glass-card p-4 rounded-2xl space-y-2">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-400">
                 <Users className="w-4 h-4" /> Audience & Intent
               </div>
-              <p className="text-xs text-slate-300 font-medium">{dna.audience.primary_demographic}</p>
+              <p className="text-xs text-slate-200 font-medium">{dna.audience.primary_demographic}</p>
               <div className="text-[11px] text-slate-400 mt-2">
                 <span className="text-slate-500">Buying Intent:</span> {dna.audience.buying_intent}
               </div>
@@ -158,37 +158,39 @@ export const BrainTab: React.FC = () => {
       )}
 
       {/* Main Interactive Graph View */}
-      <BrainGraph data={graphData} />
+      <div className="glass-panel rounded-3xl p-4 overflow-hidden shadow-2xl">
+        <BrainGraph data={graphData} />
+      </div>
 
       {/* Bottom Grid: Node Count Cards & Last 5 Learnings */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Node Counts (5 Cols) */}
-        <div className="lg:col-span-5 p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-3">
+        <div className="lg:col-span-5 glass-panel p-5 rounded-3xl space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
             Graph Topology Breakdown
           </h3>
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-purple-400 font-semibold">Styles</span>
               <span className="text-sm font-bold font-mono text-white">{nodeCounts.style || 0}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-emerald-400 font-semibold">Strengths</span>
               <span className="text-sm font-bold font-mono text-white">{nodeCounts.strength || 0}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-rose-400 font-semibold">Gaps</span>
               <span className="text-sm font-bold font-mono text-white">{nodeCounts.gap || 0}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-cyan-400 font-semibold">Audience</span>
               <span className="text-sm font-bold font-mono text-white">{nodeCounts.audience || 0}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-amber-400 font-semibold">Topics</span>
               <span className="text-sm font-bold font-mono text-white">{nodeCounts.topic || 0}</span>
             </div>
-            <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+            <div className="glass-card p-3 rounded-xl flex items-center justify-between">
               <span className="text-xs text-slate-300 font-semibold">Total Edges</span>
               <span className="text-sm font-bold font-mono text-white">{graphData.edges.length}</span>
             </div>
@@ -196,7 +198,7 @@ export const BrainTab: React.FC = () => {
         </div>
 
         {/* Last 5 Learnings (7 Cols) */}
-        <div className="lg:col-span-7 p-5 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md space-y-3">
+        <div className="lg:col-span-7 glass-panel p-5 rounded-3xl space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
             <Zap className="w-4 h-4 text-purple-400" />
             Last 5 Learnings & Autonomous Graph Updates
@@ -206,11 +208,11 @@ export const BrainTab: React.FC = () => {
             {learnings.map((l) => (
               <div
                 key={l.id}
-                className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1"
+                className="glass-card p-3.5 rounded-2xl space-y-1"
               >
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold text-white">{l.title}</h4>
-                  <span className="text-[10px] font-mono text-purple-400 px-2 py-0.5 rounded bg-purple-500/10">
+                  <span className="text-[10px] font-mono text-purple-300 px-2.5 py-0.5 rounded-full bg-purple-500/15 border border-purple-500/25">
                     {l.source_agent}
                   </span>
                 </div>

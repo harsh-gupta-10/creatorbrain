@@ -121,7 +121,8 @@ export class OpenAIProvider implements AIProvider {
     const formatted = this.formatMessages(messages);
 
     const openaiTools = tools.map((t) => {
-      const shape = t.parameters._def?.shape ? t.parameters._def.shape() : {};
+      const def = t.parameters._def as { shape?: unknown } | undefined;
+      const shape = (typeof def?.shape === 'function' ? (def.shape as () => Record<string, unknown>)() : (t.parameters.shape as Record<string, unknown>)) || {};
       const properties: Record<string, any> = {};
       const required: string[] = [];
 

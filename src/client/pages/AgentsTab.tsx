@@ -1,11 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Play,
-  Terminal,
-  RefreshCw,
-  Sparkles,
-  Bot,
-} from 'lucide-react';
+import { Bot, Play, RefreshCw, Terminal, Sparkles } from 'lucide-react';
 import { api } from '../lib/api';
 import type { AgentTrace } from '../../shared/types';
 
@@ -24,7 +18,7 @@ export const AgentsTab: React.FC = () => {
     try {
       const res = await api.agents.getTraces();
       setTraces(res.traces || []);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to load agent traces:', err);
     } finally {
       setLoading(false);
@@ -41,21 +35,22 @@ export const AgentsTab: React.FC = () => {
         `Orchestrator finished run. Next Best Action: "${res.nextBestAction}". Memory Curator logged new learning.`
       );
       setTimeout(() => setRunMessage(null), 6000);
-    } catch (err: any) {
-      setRunMessage(`Error running agents: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown agent error';
+      setRunMessage(`Error running agents: ${msg}`);
     } finally {
       setIsRunningAgents(false);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 w-full">
       {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
+      <div className="glass-panel p-5 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Bot className="w-5 h-5 text-cyan-400" />
-            Autonomous Agent Execution Timeline
+            <Bot className="w-5 h-5 text-indigo-400" />
+            Autonomous Agent Execution Fleet
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Real-time step-by-step traces of all 13 specialized AI agents in the CreatorBrain operating system.
@@ -65,7 +60,7 @@ export const AgentsTab: React.FC = () => {
         <button
           onClick={handleRunAgentsNow}
           disabled={isRunningAgents}
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-cyan-500/25 active:scale-95 disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold text-xs transition shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-50"
         >
           {isRunningAgents ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -77,8 +72,8 @@ export const AgentsTab: React.FC = () => {
       </div>
 
       {runMessage && (
-        <div className="p-3.5 rounded-xl bg-cyan-950/40 border border-cyan-800/60 text-xs text-cyan-300 flex items-center gap-2 animate-in fade-in">
-          <Sparkles className="w-4 h-4 text-cyan-400" />
+        <div className="p-3.5 rounded-2xl bg-indigo-950/40 border border-indigo-500/40 text-xs text-indigo-300 flex items-center gap-2 animate-in fade-in">
+          <Sparkles className="w-4 h-4 text-indigo-400" />
           {runMessage}
         </div>
       )}
@@ -89,27 +84,27 @@ export const AgentsTab: React.FC = () => {
           <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
             Recent Agent Traces ({traces.length})
           </h3>
-          <span className="text-[10px] text-slate-500 font-mono">Max 6 steps per run</span>
+          <span className="text-[10px] text-slate-500 font-mono">Max 6 steps per autonomous loop</span>
         </div>
 
-        <div className="relative border-l-2 border-slate-800 ml-4 space-y-6 pb-4">
+        <div className="relative border-l-2 border-white/[0.08] ml-4 space-y-6 pb-4">
           {traces.map((trace) => (
             <div key={trace.id} className="relative pl-6 group">
               {/* Timeline Dot */}
               <div
-                className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-slate-950 flex items-center justify-center ${
+                className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 border-[#05070e] flex items-center justify-center ${
                   trace.status === 'success'
-                    ? 'bg-emerald-500'
+                    ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50'
                     : trace.status === 'running'
-                    ? 'bg-cyan-500 animate-ping'
-                    : 'bg-rose-500'
+                    ? 'bg-indigo-400 animate-ping'
+                    : 'bg-rose-400'
                 }`}
               />
 
-              <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition space-y-3">
+              <div className="glass-card p-4 rounded-2xl space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white px-2.5 py-0.5 rounded-lg bg-cyan-950/60 text-cyan-300 border border-cyan-800/40">
+                    <span className="text-xs font-bold text-white px-2.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30">
                       {trace.agent_name}
                     </span>
                     <span className="text-[11px] text-slate-400 font-mono">
@@ -126,7 +121,7 @@ export const AgentsTab: React.FC = () => {
                 </p>
 
                 {trace.tool_called && (
-                  <div className="p-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] font-mono space-y-1">
+                  <div className="p-2.5 rounded-xl bg-black/40 border border-white/[0.06] text-[11px] font-mono space-y-1">
                     <div className="flex items-center gap-2 text-purple-400 font-semibold">
                       <Terminal className="w-3.5 h-3.5" /> Tool: {trace.tool_called}
                     </div>

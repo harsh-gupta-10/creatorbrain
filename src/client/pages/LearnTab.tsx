@@ -91,12 +91,13 @@ export const LearnTab: React.FC = () => {
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown tutor error';
       setTutorMessages((prev) => [
         ...prev,
         {
           role: 'tutor',
-          text: `Error connecting to Tutor: ${err.message}`,
+          text: `Error connecting to Tutor: ${msg}`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);

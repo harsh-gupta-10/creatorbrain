@@ -22,7 +22,7 @@ import {
 import { api } from '../lib/api';
 import type { Project, ProjectAsset, AssetType } from '../../shared/types';
 
-const ASSET_ICONS: Record<AssetType, any> = {
+const ASSET_ICONS: Record<AssetType, React.ComponentType<{ className?: string }>> = {
   titles: FileText,
   description: FileText,
   tags: Tag,
@@ -70,7 +70,7 @@ export const ContentStudioTab: React.FC = () => {
       if (res.projects?.length > 0 && !selectedProjectId) {
         selectProject(res.projects[0].id);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to load projects:', err);
     }
   };
@@ -95,7 +95,7 @@ export const ContentStudioTab: React.FC = () => {
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to select project:', err);
     }
   };
@@ -143,17 +143,38 @@ export const ContentStudioTab: React.FC = () => {
         const cur = res.assets.find((a) => a.type === activeAssetType);
         if (cur) setEditableContent(cur.content);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown generation error';
       setChatMessages((prev) => [
         ...prev,
         {
           role: 'agent',
-          text: `Error: ${err.message}. Please try again.`,
+          text: `⚠️ Error communicating with Studio Agent: ${message}. Please check provider setup in Settings.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleCreateNewProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    try {
+      const res = await api.studio.createProject({
+        title: newTitle.trim(),
+        brief: newBrief.trim(),
+        status: 'Idea',
+      });
+      setShowNewModal(false);
+      setNewTitle('');
+      setNewBrief('');
+      await loadProjects();
+      selectProject(res.project.id);
+    } catch (err: unknown) {
+      console.error('Failed to create project:', err);
     }
   };
 
@@ -167,10 +188,9 @@ export const ContentStudioTab: React.FC = () => {
         title: curAsset.title,
       });
       setIsEditing(false);
-      // Reload
       const res = await api.studio.getProject(selectedProjectId);
       setAssets(res.assets || []);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to save asset edit:', err);
     }
   };
@@ -197,48 +217,26 @@ ${a.content}
 `
   )
   .join('\n\n')}
-
----
-*Exported from CreatorBrain Agentic Creator OS*`;
+`;
 
     const blob = new Blob([markdownDoc], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${selectedProject.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_assets.md`;
+    link.download = `${selectedProject.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}-assets.md`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const handleCreateNewProject = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle.trim()) return;
-
-    try {
-      const res = await api.studio.createProject({
-        title: newTitle.trim(),
-        brief: newBrief.trim(),
-        status: 'Idea',
-      });
-      setShowNewModal(false);
-      setNewTitle('');
-      setNewBrief('');
-      await loadProjects();
-      selectProject(res.project.id);
-    } catch (err) {
-      console.error('Failed to create project:', err);
-    }
-  };
-
-  const handleStatusChange = async (newStatus: any) => {
+  const handleStatusChange = async (newStatus: Project['status']) => {
     if (!selectedProject) return;
     try {
-      const res = await api.studio.updateProject(selectedProject.id, { status: newStatus });
-      setSelectedProject(res.project);
+      const updated = { ...selectedProject, status: newStatus };
+      setSelectedProject(updated);
       setProjects((prev) =>
         prev.map((p) => (p.id === selectedProject.id ? { ...p, status: newStatus } : p))
       );
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to update status:', err);
     }
   };
@@ -246,11 +244,11 @@ ${a.content}
   const currentAsset = assets.find((a) => a.type === activeAssetType);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Project Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-md">
+    <div className="space-y-6 animate-in fade-in duration-300 w-full">
+      {/* Top Project Selector & Actions Bar */}
+      <div className="glass-panel rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+          <div className="p-2.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/25 text-indigo-300 shadow-sm">
             <FolderKanban className="w-5 h-5" />
           </div>
           <div>
@@ -258,7 +256,7 @@ ${a.content}
               <select
                 value={selectedProjectId}
                 onChange={(e) => selectProject(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:border-cyan-500"
+                className="bg-[#090d18] border border-white/[0.12] rounded-xl px-3 py-1.5 text-sm font-bold text-white focus:outline-none focus:border-indigo-500 transition"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -270,13 +268,13 @@ ${a.content}
               {selectedProject && (
                 <select
                   value={selectedProject.status}
-                  onChange={(e) => handleStatusChange(e.target.value)}
-                  className={`text-xs font-bold uppercase rounded-lg px-2.5 py-1.5 border focus:outline-none ${
+                  onChange={(e) => handleStatusChange(e.target.value as Project['status'])}
+                  className={`text-xs font-bold uppercase rounded-xl px-3 py-1.5 border focus:outline-none transition ${
                     selectedProject.status === 'Published'
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                      ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                       : selectedProject.status === 'Scripted'
-                      ? 'bg-purple-500/10 text-purple-300 border-purple-500/30'
-                      : 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                      : 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                   }`}
                 >
                   <option value="Idea">Idea</option>
@@ -296,14 +294,14 @@ ${a.content}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowNewModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-200 text-xs font-semibold border border-white/[0.08] transition active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
             New Project
           </button>
           <button
             onClick={handleExportMarkdown}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-bold border border-cyan-500/30 transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 hover:from-indigo-500/30 hover:to-purple-500/30 text-indigo-200 text-xs font-bold border border-indigo-500/30 transition active:scale-95 shadow-sm"
           >
             <Download className="w-3.5 h-3.5" />
             Export Markdown
@@ -314,17 +312,17 @@ ${a.content}
       {/* Main Studio Grid: Left Studio Chat & Right Asset Suite Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Column: AI Studio Chat (5 Cols) */}
-        <div className="lg:col-span-5 h-[620px] rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-xl flex flex-col overflow-hidden shadow-2xl">
+        <div className="lg:col-span-5 h-[620px] rounded-3xl glass-panel flex flex-col overflow-hidden shadow-2xl">
           {/* Chat Header */}
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+          <div className="p-4 border-b border-white/[0.06] flex items-center justify-between bg-black/20">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-xs font-bold text-white tracking-wide">Studio Agent</span>
-              <span className="text-[10px] text-slate-400 font-mono px-2 py-0.5 rounded bg-slate-800">
-                Creator DNA Guided
+              <span className="text-[10px] text-indigo-300 font-mono px-2 py-0.5 rounded-full bg-indigo-500/15 border border-indigo-500/25">
+                DNA Guided
               </span>
             </div>
-            <span className="text-[11px] text-slate-500">Autonomous Tool Loop</span>
+            <span className="text-[11px] text-slate-400 font-medium">Autonomous Tool Loop</span>
           </div>
 
           {/* Messages Scroll Area */}
@@ -339,8 +337,8 @@ ${a.content}
                 <div
                   className={`max-w-[88%] rounded-2xl p-3.5 text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-cyan-500 text-slate-950 font-medium rounded-tr-none shadow-md'
-                      : 'bg-slate-800/90 text-slate-200 border border-slate-700/60 rounded-tl-none shadow-md'
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-medium rounded-tr-none shadow-md'
+                      : 'bg-white/[0.04] text-slate-200 border border-white/[0.08] rounded-tl-none shadow-md'
                   }`}
                 >
                   {msg.text}
@@ -349,7 +347,7 @@ ${a.content}
               </div>
             ))}
             {isGenerating && (
-              <div className="flex items-center gap-2 p-3 text-xs text-cyan-400 bg-cyan-950/20 border border-cyan-800/40 rounded-xl animate-pulse">
+              <div className="flex items-center gap-2 p-3 text-xs text-indigo-300 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl animate-pulse">
                 <Sparkles className="w-3.5 h-3.5 animate-spin" />
                 Agents collaborating: Product Researcher, Studio Agent & Compliance Checker...
               </div>
@@ -357,18 +355,18 @@ ${a.content}
           </div>
 
           {/* Chat Input */}
-          <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-800 bg-slate-950/60 flex items-center gap-2">
+          <form onSubmit={handleSendMessage} className="p-3 border-t border-white/[0.06] bg-black/30 flex items-center gap-2">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="e.g. Making a review on Motorola Edge 50, budget ₹22k angle..."
-              className="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500"
+              className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
             />
             <button
               type="submit"
               disabled={isGenerating || !chatInput.trim()}
-              className="p-2 rounded-xl bg-cyan-500 text-slate-950 font-bold hover:bg-cyan-400 disabled:opacity-50 transition active:scale-95"
+              className="p-2.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 disabled:opacity-50 transition active:scale-95 shadow-md shadow-indigo-600/30"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -376,9 +374,9 @@ ${a.content}
         </div>
 
         {/* Right Column: Asset Suite Inspector (7 Cols) */}
-        <div className="lg:col-span-7 h-[620px] rounded-2xl bg-slate-900/70 border border-slate-800/80 backdrop-blur-xl flex flex-col overflow-hidden shadow-2xl">
+        <div className="lg:col-span-7 h-[620px] rounded-3xl glass-panel flex flex-col overflow-hidden shadow-2xl">
           {/* Asset Category Tabs Bar */}
-          <div className="border-b border-slate-800 bg-slate-950/50 p-2 overflow-x-auto flex items-center gap-1.5">
+          <div className="border-b border-white/[0.06] bg-black/25 p-2.5 overflow-x-auto flex items-center gap-1.5">
             {[
               { type: 'titles' as const, label: '5 Titles' },
               { type: 'description' as const, label: 'Description' },
@@ -397,10 +395,10 @@ ${a.content}
                 <button
                   key={tab.type}
                   onClick={() => handleAssetTabChange(tab.type)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                     isActive
-                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]'
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
@@ -411,7 +409,7 @@ ${a.content}
           </div>
 
           {/* Asset Content Header & Action Buttons */}
-          <div className="p-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/20">
+          <div className="p-4 border-b border-white/[0.06] flex items-center justify-between bg-black/15">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 {currentAsset?.title || activeAssetType}
@@ -423,7 +421,7 @@ ${a.content}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsEditing(!isEditing)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:bg-slate-700 transition"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/[0.06] text-slate-300 hover:bg-white/[0.1] border border-white/[0.08] transition"
               >
                 <Edit3 className="w-3.5 h-3.5" />
                 {isEditing ? 'Cancel' : 'Edit Asset'}
@@ -431,7 +429,7 @@ ${a.content}
               {isEditing && (
                 <button
                   onClick={handleSaveAssetEdit}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-500 transition shadow-md shadow-indigo-600/30"
                 >
                   <Save className="w-3.5 h-3.5" />
                   Save
@@ -439,7 +437,7 @@ ${a.content}
               )}
               <button
                 onClick={() => handleCopyAsset(editableContent, activeAssetType)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 text-slate-200 hover:bg-slate-700 transition border border-slate-700"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/[0.06] text-slate-200 hover:bg-white/[0.1] transition border border-white/[0.08]"
               >
                 {copiedType === activeAssetType ? (
                   <>
@@ -457,12 +455,12 @@ ${a.content}
           </div>
 
           {/* Asset Content Viewer / Editor */}
-          <div className="flex-1 p-4 overflow-y-auto bg-slate-950/40">
+          <div className="flex-1 p-4 overflow-y-auto bg-black/20">
             {isEditing ? (
               <textarea
                 value={editableContent}
                 onChange={(e) => setEditableContent(e.target.value)}
-                className="w-full h-full bg-slate-900 border border-slate-700 rounded-xl p-4 text-xs font-mono text-slate-100 focus:outline-none focus:border-cyan-500 resize-none leading-relaxed"
+                className="w-full h-full bg-[#080c16] border border-white/[0.1] rounded-2xl p-4 text-xs font-mono text-slate-100 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed"
               />
             ) : (
               <pre className="text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed select-text font-normal">
@@ -475,8 +473,8 @@ ${a.content}
 
       {/* New Project Modal */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-2xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-4">
+          <div className="w-full max-w-md glass-panel rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 border border-white/[0.1]">
             <h3 className="text-lg font-bold text-white">Create New Video Project</h3>
             <form onSubmit={handleCreateNewProject} className="space-y-4">
               <div>
@@ -487,7 +485,7 @@ ${a.content}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Vivo T3 Pro 5G Review: Battery King?"
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-[#090d18] border border-white/[0.1] rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
               <div>
@@ -499,20 +497,20 @@ ${a.content}
                   value={newBrief}
                   onChange={(e) => setNewBrief(e.target.value)}
                   placeholder="e.g. 8-minute in-depth review comparing battery life and cameras for students."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  className="w-full bg-[#090d18] border border-white/[0.1] rounded-xl px-3.5 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-cyan-500 text-slate-950 font-bold text-xs hover:bg-cyan-400 transition"
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-xs hover:from-indigo-400 hover:to-purple-500 transition shadow-lg shadow-indigo-600/30"
                 >
                   Create Project
                 </button>

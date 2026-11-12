@@ -70,8 +70,9 @@ export const ShortLinksTab: React.FC = () => {
       setLinkTitle('');
       setUtmCampaign('');
       await loadLinks();
-    } catch (err: any) {
-      setCreateError(err.message || 'Failed to create link');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to create link';
+      setCreateError(msg);
     }
   };
 

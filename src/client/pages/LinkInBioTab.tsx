@@ -369,7 +369,7 @@ export const LinkInBioTab: React.FC = () => {
                 <label className="block text-xs font-semibold text-slate-300 mb-1">Block Type</label>
                 <select
                   value={newBlockType}
-                  onChange={(e) => setNewBlockType(e.target.value as any)}
+                  onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none"
                 >
                   <option value="link">Custom Web Link</option>

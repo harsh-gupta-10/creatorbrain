@@ -1,5 +1,6 @@
 import type {
   Creator,
+  CreatorDNA,
   GraphData,
   Learning,
   Lesson,
@@ -9,6 +10,7 @@ import type {
   ProjectAsset,
   Product,
   ShortLink,
+  LinkClick,
   BioPage,
   BioBlock,
   ProviderSettings,
@@ -30,7 +32,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     let errorMsg = `HTTP Error ${res.status}`;
     try {
-      const errData = await res.json() as any;
+      const errData = (await res.json()) as { error?: string };
       if (errData?.error) errorMsg = errData.error;
     } catch {
       // ignore
@@ -45,16 +47,18 @@ export const api = {
   auth: {
     me: () => fetchJson<{ authenticated: boolean; isDemo: boolean; creator: Creator | null }>('/api/auth/me'),
     demo: () => fetchJson<{ success: boolean; isDemo: boolean; creator: Creator }>('/api/auth/demo', { method: 'POST' }),
-    login: (body: any) => fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-    signup: (body: any) => fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
+    login: (body: { email: string; password?: string }) =>
+      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+    signup: (body: { name: string; handle: string; email: string; password?: string }) =>
+      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
     logout: () => fetchJson<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
   },
   onboarding: {
     start: (body: { platform: string; urlOrHandle: string; consent: boolean }) =>
       fetchJson<{ success: boolean; jobId: string }>('/api/onboarding/start', { method: 'POST', body: JSON.stringify(body) }),
-    getJob: (jobId: string) => fetchJson<{ job: any }>(`/api/onboarding/job/${jobId}`),
+    getJob: (jobId: string) => fetchJson<{ job: import('../../shared/types').OnboardingJob }>(`/api/onboarding/job/${jobId}`),
     instagramLite: (body: { handle: string; sampleCaptions?: string[] }) =>
-      fetchJson<{ success: boolean; result: any }>('/api/onboarding/instagram-lite', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; result: Record<string, unknown> }>('/api/onboarding/instagram-lite', { method: 'POST', body: JSON.stringify(body) }),
   },
   studio: {
     getProjects: () => fetchJson<{ projects: Project[] }>('/api/studio/projects'),
@@ -66,7 +70,14 @@ export const api = {
     editAsset: (id: string, body: { content: string; title?: string }) =>
       fetchJson<{ success: boolean; versionId: string; nextVer: number }>(`/api/studio/assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
     chat: (body: { projectId: string; message: string; productAsin?: string }) =>
-      fetchJson<{ reply: string; product: Product | null; shortLink: string | null; compliance: any; assets: ProjectAsset[]; project: Project }>('/api/studio/chat', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{
+        reply: string;
+        product: Product | null;
+        shortLink: string | null;
+        compliance: Record<string, unknown>;
+        assets: ProjectAsset[];
+        project: Project;
+      }>('/api/studio/chat', { method: 'POST', body: JSON.stringify(body) }),
   },
   bio: {
     getMe: () => fetchJson<{ creator: Creator; bioPage: BioPage; blocks: BioBlock[] }>('/api/bio/me'),
@@ -77,10 +88,10 @@ export const api = {
   },
   links: {
     getLinks: () => fetchJson<{ links: ShortLink[] }>('/api/links'),
-    createLink: (body: any) =>
+    createLink: (body: Partial<ShortLink>) =>
       fetchJson<{ success: boolean; shortLink: ShortLink; shortUrl: string }>('/api/links/create', { method: 'POST', body: JSON.stringify(body) }),
     getLinkDetails: (id: string) =>
-      fetchJson<{ link: ShortLink; clicks: any[] }>(`/api/links/${id}`),
+      fetchJson<{ link: ShortLink; clicks: LinkClick[] }>(`/api/links/${id}`),
     reportAbuse: (body: { slug: string; reason?: string }) =>
       fetchJson<{ success: boolean; message: string }>('/api/links/report-abuse', { method: 'POST', body: JSON.stringify(body) }),
   },
@@ -102,7 +113,7 @@ export const api = {
   },
   brain: {
     getGraph: () =>
-      fetchJson<{ graph: GraphData; learnings: Learning[]; nodeCounts: any; creatorDNA: any }>('/api/brain/graph'),
+      fetchJson<{ graph: GraphData; learnings: Learning[]; nodeCounts: Record<string, number>; creatorDNA: CreatorDNA | null }>('/api/brain/graph'),
     getLearnings: () => fetchJson<{ learnings: Learning[] }>('/api/brain/learnings'),
   },
   learn: {
@@ -141,5 +152,18 @@ export const api = {
     updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
       fetchJson<{ success: boolean; message: string; hasCredentials: boolean; partnerTag: string; marketplace: string }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
     deleteData: () => fetchJson<{ success: boolean; message: string }>('/api/settings/delete-data', { method: 'POST' }),
+  },
+  copilot: {
+    chat: (body: {
+      message: string;
+      history?: { role: 'user' | 'assistant'; content: string }[];
+      mode?: 'brainstorm' | 'script' | 'review' | 'strategy';
+    }) =>
+      fetchJson<{
+        reply: string;
+        detectedProduct: Product | null;
+        proposedProject: { title: string; brief: string } | null;
+        suggestedPrompts: string[];
+      }>('/api/copilot/chat', { method: 'POST', body: JSON.stringify(body) }),
   },
 };

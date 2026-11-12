@@ -50,6 +50,20 @@ export interface Creator {
   updated_at: string;
 }
 
+export interface OnboardingJob {
+  id: string;
+  creator_id?: string;
+  platform: 'youtube' | 'instagram';
+  url_or_handle: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  current_step: string;
+  progress_percent: number;
+  result_json?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // ==========================================
 // GRAPH NODES & EDGES
 // ==========================================

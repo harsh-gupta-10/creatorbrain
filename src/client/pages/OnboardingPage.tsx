@@ -50,8 +50,9 @@ export const OnboardingPage: React.FC<OnboardingProps> = ({ onComplete }) => {
       if (res.jobId) {
         setJobId(res.jobId);
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to start channel onboarding analysis');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to start channel onboarding analysis';
+      setError(msg);
       setLoading(false);
       setJobStatus('failed');
     }
@@ -93,8 +94,9 @@ export const OnboardingPage: React.FC<OnboardingProps> = ({ onComplete }) => {
       setLoading(true);
       await api.auth.demo();
       onComplete();
-    } catch (err: any) {
-      setError(err.message || 'Failed to initialize demo creator');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to initialize demo creator';
+      setError(msg);
       setLoading(false);
     }
   };

@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import type { AIMessage, AIProvider, AIGenerateOptions } from './types';
+import type { AIMessage, AIProvider, AIGenerateOptions, WorkersAIBinding } from './types';
 
 export class WorkersAIProvider implements AIProvider {
   name = 'workers-ai';
-  private aiBinding?: any; // Cloudflare env.AI binding
+  private aiBinding?: WorkersAIBinding;
   private defaultModel: string;
 
-  constructor(aiBinding?: any, defaultModel = '@cf/meta/llama-3.1-8b-instruct') {
+  constructor(aiBinding?: WorkersAIBinding, defaultModel = '@cf/meta/llama-3.1-8b-instruct') {
     this.aiBinding = aiBinding;
     this.defaultModel = defaultModel;
   }
@@ -23,7 +23,8 @@ export class WorkersAIProvider implements AIProvider {
       temperature: options?.temperature ?? 0.7,
     });
 
-    return response?.response || '';
+    const outputText = typeof response?.response === 'string' ? response.response : '';
+    return outputText;
   }
 
   async generateStructured<T>(

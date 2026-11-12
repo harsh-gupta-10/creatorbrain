@@ -18,7 +18,7 @@ export interface AIToolDefinition {
   name: string;
   description: string;
   parameters: z.ZodObject<any>;
-  execute: (args: any, context?: any) => Promise<any>;
+  execute: (args: any, context?: Record<string, unknown>) => Promise<unknown>;
 }
 
 export interface AIGenerateOptions {
@@ -37,4 +37,8 @@ export interface AIProvider {
     schema: z.ZodType<T>,
     options?: AIGenerateOptions
   ): Promise<T>;
+}
+
+export interface WorkersAIBinding {
+  run: (model: string, input: Record<string, unknown>) => Promise<Record<string, unknown>>;
 }

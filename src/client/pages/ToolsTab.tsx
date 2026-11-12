@@ -35,8 +35,9 @@ export const ToolsTab: React.FC = () => {
         platform,
       });
       setGeneratedOutput(res.output);
-    } catch (err: any) {
-      setGeneratedOutput(`Error generating tool output: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown generation error';
+      setGeneratedOutput(`Error generating tool output: ${msg}`);
     } finally {
       setIsGenerating(false);
     }
@@ -134,7 +135,7 @@ export const ToolsTab: React.FC = () => {
               </label>
               <select
                 value={platform}
-                onChange={(e) => setPlatform(e.target.value as any)}
+                onChange={(e) => setPlatform(e.target.value as 'youtube' | 'shorts' | 'reels' | 'instagram')}
                 className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
               >
                 <option value="youtube">YouTube Long-Form (16:9)</option>

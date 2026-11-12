@@ -42,7 +42,7 @@ describe('Quality Gate 2: Agent Framework & Tool Validation Loop', () => {
         ghz: z.number().min(1.0).max(6.0),
         cores: z.number().int().positive(),
       }),
-      execute: async ({ ghz, cores }) => {
+      execute: async ({ ghz, cores }: { ghz: number; cores: number }) => {
         toolExecutionCount++;
         return { score: ghz * cores * 100 };
       },

@@ -17,8 +17,9 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle = 'techkab
         setCreator(res.creator);
         setBioPage(res.bioPage);
         setBlocks(res.blocks || []);
-      } catch (err: any) {
-        setError(err.message || 'Failed to load creator bio page');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Failed to load creator bio page';
+        setError(msg);
       } finally {
         setLoading(false);
       }

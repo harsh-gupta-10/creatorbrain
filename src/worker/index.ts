@@ -12,6 +12,7 @@ import { assessRoutes } from './routes/assess';
 import { toolsRoutes } from './routes/tools';
 import { agentsRoutes } from './routes/agents';
 import { settingsRoutes } from './routes/settings';
+import { copilotRoutes } from './routes/copilot';
 import { DBClient } from './db/queries';
 import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAndCurriculum';
 
@@ -55,6 +56,7 @@ app.route('/api/assess', assessRoutes);
 app.route('/api/tools', toolsRoutes);
 app.route('/api/agents', agentsRoutes);
 app.route('/api/settings', settingsRoutes);
+app.route('/api/copilot', copilotRoutes);
 
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)

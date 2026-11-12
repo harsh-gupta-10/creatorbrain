@@ -95,6 +95,31 @@ flowchart TD
 
 ---
 
+## 💬 Brain Copilot: Dedicated Conversational Creator AI
+
+In addition to project-based studio generation, CreatorBrain features a full-canvas **Brain Copilot** (`/copilot`) where creators can chat, brainstorm, and shape raw ideas into production-ready concepts exactly how they want:
+- **4 Operational Modes:**
+  - 💡 *Brainstorm:* Uncover viral, contrarian angles and teardowns.
+  - 🎬 *Script Architecture:* Structure 8-minute pacing with pattern interrupts to eliminate the minute-4 retention drop.
+  - 📦 *Amazon Deals:* Curate budget creator kits and price-to-performance recommendations.
+  - 🛡️ *Retention & Gaps:* Receive direct feedback on weakest channel topics grounded in the knowledge graph.
+- **Dynamic Amazon Creators API Integration:** Mentions of products (e.g. Motorola, Vivo, Mac Mini, Sony) automatically resolve live specs, images, timestamped pricing, and ASINs with embedded preview cards.
+- **1-Click Studio Conversion:** Turn any brainstormed concept directly into a formal Content Studio project with complete versioned assets!
+
+---
+
+## 📸 Screenshots & UI Gallery
+
+| View | Screenshot |
+|---|---|
+| **Dashboard Overview**<br>*(Next Best Action, Metrics, Copilot Idea Station)* | ![Overview](screenshots/01_tab_overview.png) |
+| **Brain Copilot Chatbot**<br>*(Conversational AI, Mode Toggles, Amazon Resolution)* | ![Brain Copilot](screenshots/01b_tab_copilot_chat.png) |
+| **Content Studio**<br>*(9-Asset Suite, Studio Agent, Versioned Edits)* | ![Content Studio](screenshots/02_tab_content_studio.png) |
+| **Brain Knowledge Graph**<br>*(Interactive SVG Graph, 4 DNA Pillars, Topology Breakdown)* | ![Brain Graph](screenshots/06_tab_brain.png) |
+| **Autonomous Agent Fleet**<br>*(Live Timeline & Step-by-Step Tool Traces)* | ![Agent Fleet](screenshots/10_tab_agents.png) |
+
+---
+
 ## 🎬 Content Studio Walkthrough: Motorola Edge 50 vs Vivo T3 Pro
 
 ### 1. Creator Prompt

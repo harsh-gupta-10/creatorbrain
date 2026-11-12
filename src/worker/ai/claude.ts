@@ -125,7 +125,8 @@ export class ClaudeProvider implements AIProvider {
     // Convert Zod schemas to Anthropic tool input_schema
     const anthropicTools = tools.map((t) => {
       // Basic JSON schema conversion from Zod object
-      const shape = t.parameters._def?.shape ? t.parameters._def.shape() : {};
+      const def = t.parameters._def as { shape?: unknown } | undefined;
+      const shape = (typeof def?.shape === 'function' ? (def.shape as () => Record<string, unknown>)() : (t.parameters.shape as Record<string, unknown>)) || {};
       const properties: Record<string, any> = {};
       const required: string[] = [];
 

@@ -49,8 +49,9 @@ export const SettingsTab: React.FC = () => {
         setPartnerTag(res.amazonConfig.partnerTag || '');
         setMarketplace(res.amazonConfig.marketplace || 'amazon.in');
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load settings');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to load settings';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -73,8 +74,9 @@ export const SettingsTab: React.FC = () => {
       });
       setSaveSuccess('AI routing settings updated successfully.');
       setTimeout(() => setSaveSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to update AI settings');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to update AI settings';
+      setError(msg);
     } finally {
       setSavingAi(false);
     }
@@ -96,8 +98,9 @@ export const SettingsTab: React.FC = () => {
       setSecretKey('');
       await fetchSettings();
       setTimeout(() => setSaveSuccess(null), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save Amazon credentials');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to save Amazon credentials';
+      setError(msg);
     } finally {
       setSavingAmazon(false);
     }
@@ -110,8 +113,9 @@ export const SettingsTab: React.FC = () => {
       const res = await api.settings.deleteData();
       alert(res.message || 'Your data has been wiped.');
       window.location.reload();
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete data');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to delete data';
+      setError(msg);
       setDeleting(false);
     }
   };
@@ -193,7 +197,7 @@ export const SettingsTab: React.FC = () => {
               </label>
               <select
                 value={preferredGeneral}
-                onChange={(e) => setPreferredGeneral(e.target.value as any)}
+                onChange={(e) => setPreferredGeneral(e.target.value as 'claude' | 'openai' | 'workers-ai')}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-indigo-500"
               >
                 <option value="claude">Claude 3.5 Sonnet (Anthropic - Recommended)</option>
