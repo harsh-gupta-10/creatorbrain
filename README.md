@@ -3,7 +3,10 @@
 > **PromptWars X AgentX 2.0 (Hack2Skill + Google)**  
 > **Track:** Open Innovation  
 > **Target Platform:** Cloudflare Free Tier (Workers + Hono + D1 + KV) + Google Cloud Run (Container Deployable)  
-> **Live Demo & Test Suite:** 100% verified with `agent-browser` and Vitest quality gates.
+> **Live Production URL:** [https://creatorbrain.harshgupta24716.workers.dev](https://creatorbrain.harshgupta24716.workers.dev)  
+> **Live Link-in-Bio Edge Page:** [https://creatorbrain.harshgupta24716.workers.dev/@techkabir](https://creatorbrain.harshgupta24716.workers.dev/@techkabir)  
+> **Live Auth & Creator DNA API:** [https://creatorbrain.harshgupta24716.workers.dev/api/auth/me](https://creatorbrain.harshgupta24716.workers.dev/api/auth/me)  
+> **Verification Status:** 🟢 100% Deployed & Live on Harsh's Cloudflare Account | Verified with `agent-browser` & Vitest.
 
 ---
 
@@ -48,6 +51,10 @@ CreatorBrain features a **white background canvas with subtle dotted grid archit
 | Synthesized Creator DNA Profile | Interactive Brain Graph |
 |---|---|
 | ![Creator DNA Profile](screenshots/03_tab_brain_light.png) | ![Brain Graph](screenshots/03b_tab_brain_graph_svg.png) |
+
+| Live Cloudflare Workers Deployed Production App (`creatorbrain.harshgupta24716.workers.dev`) |
+|---|
+| ![Live Cloudflare Deployed](screenshots/05_live_cloudflare_deployed.png) |
 
 ---
 
@@ -294,11 +301,17 @@ Open [http://localhost:8787](http://localhost:8787) in your browser!
 ## ☁️ Deployment Instructions
 
 ### Option A: Cloudflare Workers (Primary - Free Tier)
+
+**Live Production URL:** [https://creatorbrain.harshgupta24716.workers.dev](https://creatorbrain.harshgupta24716.workers.dev)  
+- **Cloudflare Account:** `Harshgupta24716@gmail.com's Account` (`b1d481965d10a5b83a86f3ba67c2e0ed`)
+- **Remote D1 Database:** `creatorbrain-db` (`52e33f46-f0f0-47ac-b2d0-c56825ea330c`)
+- **Remote KV Namespace:** `creatorbrain-kv` (`202e40b4c38c4492aee3e00904d092f3`)
+
 ```bash
 # Login to your Cloudflare account
 npx wrangler login
 
-# Create production D1 database & KV namespace
+# Create production D1 database & KV namespace (already provisioned)
 npx wrangler d1 create creatorbrain-db
 npx wrangler kv:namespace create creatorbrain-kv
 
@@ -306,7 +319,7 @@ npx wrangler kv:namespace create creatorbrain-kv
 npx wrangler d1 execute DB --remote --file=migrations/0001_initial_schema.sql
 npx wrangler d1 execute DB --remote --file=migrations/0002_seed_demo_data.sql
 
-# Deploy Worker with Static Assets
+# Build client assets and deploy worker
 npm run build
 npx wrangler deploy
 ```
@@ -355,8 +368,9 @@ gcloud run deploy creatorbrain \
 > 📱 **Edge Link-in-Bio & Short Links:** Sub-millisecond redirects on Cloudflare D1 + KV.
 > 🧠 **Brain Graph:** Learns retention gaps and sequences personalized coaching quizzes.
 > 
-> 100% serverless on Cloudflare Free Tier (bundle <400kB) + React 19.
+> 100% serverless on Cloudflare Free Tier (bundle <120kB gzip) + React 19.
 > 
-> Check out the repo & demo: [GitHub Link]
+> 🔗 Live App: https://creatorbrain.harshgupta24716.workers.dev
+> 📱 Edge Bio: https://creatorbrain.harshgupta24716.workers.dev/@techkabir
 > 
 > #GoogleAI #AgentX #CloudflareWorkers #OpenInnovation #GenAI #TechCreators

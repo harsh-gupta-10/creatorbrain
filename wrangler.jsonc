@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "creatorbrain",
+  "account_id": "b1d481965d10a5b83a86f3ba67c2e0ed",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-11-12",
   "compatibility_flags": [
@@ -15,18 +16,18 @@
     {
       "binding": "DB",
       "database_name": "creatorbrain-db",
-      "database_id": "creatorbrain-local-db",
+      "database_id": "52e33f46-f0f0-47ac-b2d0-c56825ea330c",
       "migrations_dir": "migrations"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "creatorbrain-kv"
+      "id": "202e40b4c38c4492aee3e00904d092f3"
     }
   ],
   "vars": {
-    "ENVIRONMENT": "development",
+    "ENVIRONMENT": "production",
     "ANTHROPIC_MODEL": "claude-sonnet-5-5",
     "ANTHROPIC_FAST_MODEL": "claude-haiku-5-5",
     "OPENAI_MODEL": "gpt-4o-mini",
