@@ -17,6 +17,7 @@ import { AgentsTab } from './pages/AgentsTab';
 import { SettingsTab } from './pages/SettingsTab';
 import { OnboardingPage } from './pages/OnboardingPage';
 import { PublicBioPage } from './pages/PublicBioPage';
+import { MarketingLandingPage } from './pages/MarketingLandingPage';
 
 type TabId =
   | 'overview'
@@ -72,6 +73,19 @@ export const App: React.FC = () => {
   const [runningAgents, setRunningAgents] = useState(false);
   const [lastAgentAction, setLastAgentAction] = useState<string>('Autonomous cron running hourly');
 
+  const [viewMode, setViewMode] = useState<'marketing' | 'app'>(() => {
+    if (typeof window === 'undefined') return 'marketing';
+    const path = window.location.pathname;
+    if (path.startsWith('/@') || path.startsWith('/%40') || path === '/onboarding') {
+      return 'app';
+    }
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tab') || params.get('app') === 'true') {
+      return 'app';
+    }
+    return 'marketing';
+  });
+
   // Handle URL path inspection (e.g. /@handle or ?tab=studio)
   useEffect(() => {
     const path = window.location.pathname;
@@ -87,17 +101,46 @@ export const App: React.FC = () => {
     const tabParam = params.get('tab') as TabId;
     if (tabParam && TABS.some((t) => t.id === tabParam)) {
       setActiveTab(tabParam);
+      setViewMode('app');
     }
   }, []);
 
   // Update query string on tab change
   const handleSelectTab = (tab: TabId) => {
     setActiveTab(tab);
+    setViewMode('app');
     setShowOnboarding(false);
     setMobileMenuOpen(false);
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tab);
+    url.searchParams.set('app', 'true');
     window.history.replaceState({}, '', url.toString());
+  };
+
+  const handleLaunchApp = (targetTab?: string) => {
+    setViewMode('app');
+    window.scrollTo(0, 0);
+    if (targetTab && TABS.some((t) => t.id === targetTab)) {
+      setActiveTab(targetTab as TabId);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', targetTab);
+      url.searchParams.set('app', 'true');
+      window.history.replaceState({}, '', url.toString());
+    } else {
+      const url = new URL(window.location.href);
+      url.searchParams.set('app', 'true');
+      window.history.replaceState({}, '', url.toString());
+    }
+  };
+
+  const handleGoToMarketing = () => {
+    setViewMode('marketing');
+    setShowOnboarding(false);
+    window.scrollTo(0, 0);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('app');
+    url.searchParams.delete('tab');
+    window.history.replaceState({}, '', url.pathname);
   };
 
   // Fetch current session
@@ -151,70 +194,76 @@ export const App: React.FC = () => {
         onComplete={() => {
           setShowOnboarding(false);
           setActiveTab('overview');
+          setViewMode('app');
           window.location.reload();
         }}
       />
     );
   }
 
+  // If marketing landing page requested
+  if (viewMode === 'marketing') {
+    return <MarketingLandingPage onLaunchApp={handleLaunchApp} />;
+  }
+
   return (
-    <div className="min-h-screen bg-[#05070e] text-slate-100 flex flex-col md:flex-row antialiased selection:bg-indigo-500/30 selection:text-indigo-200 relative">
+    <div className="min-h-screen bg-[#fafaf9] text-slate-900 canvas-grid flex flex-col md:flex-row antialiased selection:bg-orange-500/20 selection:text-orange-950 relative">
       {/* Ambient Radial Background Glow */}
       <div className="ambient-glow" />
 
       {/* Sidebar Navigation */}
       <aside
-        className={`fixed md:sticky top-0 left-0 z-40 h-screen w-64 bg-[#080b16]/90 border-r border-white/[0.08] flex flex-col transition-transform duration-200 backdrop-blur-2xl ${
+        className={`fixed md:sticky top-0 left-0 z-40 h-screen w-64 bg-white/95 border-r border-slate-200/90 flex flex-col transition-transform duration-200 backdrop-blur-2xl shadow-sm ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         {/* Brand Header */}
-        <div className="p-4 border-b border-white/[0.06] flex items-center justify-between">
+        <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 p-[1px] shadow-lg shadow-indigo-500/20">
-              <div className="w-full h-full bg-[#080b16] rounded-xl flex items-center justify-center text-base">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#ff5722] via-[#e11d48] to-[#9333ea] p-[1.5px] shadow-md shadow-orange-500/20">
+              <div className="w-full h-full bg-white rounded-xl flex items-center justify-center text-base">
                 🧠
               </div>
             </div>
             <div>
-              <div className="font-extrabold text-sm tracking-tight text-white flex items-center gap-1.5">
-                CreatorBrain <span className="text-[9px] px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 rounded-full font-mono border border-indigo-500/30">OS</span>
+              <div className="font-extrabold text-sm tracking-tight text-slate-900 flex items-center gap-1.5">
+                CreatorBrain <span className="text-[9px] px-1.5 py-0.5 bg-orange-500/10 text-orange-600 rounded-full font-mono border border-orange-500/20 font-bold">OS</span>
               </div>
-              <div className="text-[10px] text-zinc-400">Agentic Creator Operating System</div>
+              <div className="text-[10px] text-slate-500">Agentic Creator Operating System</div>
             </div>
           </div>
           <button
             onClick={() => setMobileMenuOpen(false)}
-            className="md:hidden text-zinc-400 hover:text-white text-lg p-1"
+            className="md:hidden text-slate-400 hover:text-slate-800 text-lg p-1"
           >
             ✕
           </button>
         </div>
 
         {/* Creator Profile Chip */}
-        <div className="p-3 mx-3 my-2.5 rounded-xl bg-zinc-900/60 border border-white/[0.07] flex items-center gap-3 backdrop-blur-md">
+        <div className="p-3 mx-3 my-2.5 rounded-xl bg-slate-50/90 border border-slate-200/90 flex items-center gap-3 shadow-xs">
           {creator?.avatar_url ? (
             <img
               src={creator.avatar_url}
               alt={creator.name}
-              className="w-9 h-9 rounded-full object-cover border border-indigo-500/40 shadow-sm"
+              className="w-9 h-9 rounded-full object-cover border border-orange-500/30 shadow-xs"
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow-sm">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
               {creator?.name?.slice(0, 2) || 'KV'}
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-semibold text-white truncate flex items-center gap-1">
+            <div className="text-xs font-semibold text-slate-900 truncate flex items-center gap-1">
               {creator?.name || 'Kabir Verma'}
-              <span className="text-emerald-400 text-[10px]" title="DNA Synced">●</span>
+              <span className="text-emerald-500 text-[10px]" title="DNA Synced">●</span>
             </div>
-            <div className="text-[11px] text-zinc-400 font-mono truncate">
+            <div className="text-[11px] text-slate-500 font-mono truncate">
               @{creator?.handle || 'techkabir'} · {creator?.subscribers ? `${(creator.subscribers / 1000).toFixed(1)}k` : '7.5k'}
             </div>
           </div>
           {isDemo && (
-            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md bg-emerald-500/10 text-emerald-700 border border-emerald-500/25">
               DEMO
             </span>
           )}
@@ -226,18 +275,20 @@ export const App: React.FC = () => {
             onClick={() => handleSelectTab('copilot')}
             className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between group ${
               activeTab === 'copilot'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 border-indigo-400/40 text-white shadow-lg shadow-indigo-600/30'
-                : 'bg-indigo-950/30 hover:bg-indigo-950/50 border-indigo-500/30 text-indigo-200'
+                ? 'bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] border-transparent text-white shadow-md shadow-orange-500/20'
+                : 'bg-gradient-to-r from-orange-50/80 to-purple-50/80 hover:from-orange-100/80 hover:to-purple-100/80 border-orange-200/70 text-slate-800'
             }`}
           >
             <div className="flex items-center gap-2">
               <span className="text-base group-hover:scale-110 transition-transform">💬</span>
               <div>
-                <div className="text-xs font-bold leading-tight">Brain Copilot</div>
-                <div className="text-[10px] text-indigo-300/80">Chat & ideate freely</div>
+                <div className={`text-xs font-bold leading-tight ${activeTab === 'copilot' ? 'text-white' : 'text-slate-900'}`}>Brain Copilot</div>
+                <div className={`text-[10px] ${activeTab === 'copilot' ? 'text-white/80' : 'text-slate-500'}`}>Chat & ideate freely</div>
               </div>
             </div>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/30 text-indigo-200">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+              activeTab === 'copilot' ? 'bg-white/20 text-white' : 'bg-orange-500/15 text-orange-700 border border-orange-500/20'
+            }`}>
               New
             </span>
           </button>
@@ -247,7 +298,7 @@ export const App: React.FC = () => {
         <nav className="flex-1 overflow-y-auto px-3 py-1 space-y-4 text-xs">
           {/* Core Creation */}
           <div className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Creation
             </div>
             {TABS.filter((t) => t.category === 'core').map((tab) => (
@@ -256,8 +307,8 @@ export const App: React.FC = () => {
                 onClick={() => handleSelectTab(tab.id)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium transition ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/25 border border-indigo-400/20'
-                    : 'text-zinc-300 hover:bg-white/[0.05] hover:text-white'
+                    ? 'bg-slate-900 text-white shadow-sm font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -269,7 +320,7 @@ export const App: React.FC = () => {
                     className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold border ${
                       activeTab === tab.id
                         ? 'bg-white/20 text-white border-white/20'
-                        : tab.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}
                   >
                     {tab.badge}
@@ -281,7 +332,7 @@ export const App: React.FC = () => {
 
           {/* Growth & Monetization */}
           <div className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Monetization
             </div>
             {TABS.filter((t) => t.category === 'growth').map((tab) => (
@@ -290,8 +341,8 @@ export const App: React.FC = () => {
                 onClick={() => handleSelectTab(tab.id)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium transition ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/25 border border-indigo-400/20'
-                    : 'text-zinc-300 hover:bg-white/[0.05] hover:text-white'
+                    ? 'bg-slate-900 text-white shadow-sm font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -304,7 +355,7 @@ export const App: React.FC = () => {
 
           {/* Creator Intelligence */}
           <div className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Intelligence
             </div>
             {TABS.filter((t) => t.category === 'intelligence').map((tab) => (
@@ -313,8 +364,8 @@ export const App: React.FC = () => {
                 onClick={() => handleSelectTab(tab.id)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium transition ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/25 border border-indigo-400/20'
-                    : 'text-zinc-300 hover:bg-white/[0.05] hover:text-white'
+                    ? 'bg-slate-900 text-white shadow-sm font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -326,7 +377,7 @@ export const App: React.FC = () => {
                     className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold border ${
                       activeTab === tab.id
                         ? 'bg-white/20 text-white border-white/20'
-                        : tab.badgeColor || 'bg-zinc-800 text-zinc-300 border-zinc-700'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
                     }`}
                   >
                     {tab.badge}
@@ -338,7 +389,7 @@ export const App: React.FC = () => {
 
           {/* System Settings */}
           <div className="space-y-1">
-            <div className="px-3 text-[10px] font-bold text-zinc-500 uppercase tracking-wider">
+            <div className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               System
             </div>
             {TABS.filter((t) => t.category === 'system').map((tab) => (
@@ -347,8 +398,8 @@ export const App: React.FC = () => {
                 onClick={() => handleSelectTab(tab.id)}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-xl font-medium transition ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white shadow-md shadow-indigo-600/25 border border-indigo-400/20'
-                    : 'text-zinc-300 hover:bg-white/[0.05] hover:text-white'
+                    ? 'bg-slate-900 text-white shadow-sm font-semibold'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -361,14 +412,20 @@ export const App: React.FC = () => {
         </nav>
 
         {/* Sidebar Footer */}
-        <div className="p-3 border-t border-white/[0.06] space-y-2">
+        <div className="p-3 border-t border-slate-200/80 space-y-2 bg-white/60">
+          <button
+            onClick={handleGoToMarketing}
+            className="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2 shadow-xs"
+          >
+            <span>🌐</span> View Marketing Site
+          </button>
           <button
             onClick={() => setShowOnboarding(true)}
-            className="w-full py-2 px-3 bg-zinc-900 hover:bg-zinc-800 border border-white/10 text-zinc-300 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2"
+            className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2"
           >
             <span>✨</span> Onboard New Channel
           </button>
-          <div className="flex items-center justify-between text-[10px] text-zinc-500 px-1 font-mono">
+          <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 font-mono">
             <span>Cloudflare Edge</span>
             <span>v1.2.0</span>
           </div>
@@ -378,11 +435,11 @@ export const App: React.FC = () => {
       {/* Main Content Viewport */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto relative z-10">
         {/* Top Navbar */}
-        <header className="sticky top-0 z-30 bg-[#080b16]/85 backdrop-blur-xl border-b border-white/[0.08] px-4 py-3 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-xl border-b border-slate-200/80 px-4 py-3 flex items-center justify-between gap-4 shadow-xs">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden text-zinc-400 hover:text-white p-1"
+              className="md:hidden text-slate-600 hover:text-slate-900 p-1"
             >
               ☰
             </button>
@@ -390,7 +447,7 @@ export const App: React.FC = () => {
               <span className="text-lg">
                 {TABS.find((t) => t.id === activeTab)?.icon}
               </span>
-              <h2 className="text-base font-bold text-white tracking-tight">
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
                 {TABS.find((t) => t.id === activeTab)?.label}
               </h2>
             </div>
@@ -398,11 +455,19 @@ export const App: React.FC = () => {
 
           {/* Quick Actions & Live Status */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={handleGoToMarketing}
+              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition shadow-xs"
+            >
+              <span>🌐</span>
+              <span>Website</span>
+            </button>
+
             {/* Quick Copilot Chat Button */}
             {activeTab !== 'copilot' && (
               <button
                 onClick={() => handleSelectTab('copilot')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600/30 to-purple-600/30 hover:from-indigo-600/40 hover:to-purple-600/40 border border-indigo-500/40 text-indigo-200 rounded-xl text-xs font-semibold transition shadow-sm"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-500/10 to-rose-500/10 hover:from-orange-500/15 hover:to-rose-500/15 border border-orange-300/60 text-orange-800 rounded-xl text-xs font-semibold transition shadow-xs"
               >
                 <span>💬</span>
                 <span className="hidden sm:inline">Ask Copilot</span>
@@ -414,7 +479,7 @@ export const App: React.FC = () => {
               href={`/@${creator?.handle || 'techkabir'}`}
               target="_blank"
               rel="noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-zinc-900/80 hover:bg-zinc-800 border border-white/10 text-zinc-300 rounded-xl text-xs font-mono transition"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-mono transition shadow-xs"
             >
               <span>🌐</span> /@{creator?.handle || 'techkabir'}
             </a>
@@ -423,7 +488,7 @@ export const App: React.FC = () => {
             <button
               onClick={handleRunAgentsGlobal}
               disabled={runningAgents}
-              className="px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 rounded-xl text-xs font-medium transition flex items-center gap-1.5"
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition flex items-center gap-1.5 shadow-xs"
             >
               <span className={runningAgents ? 'animate-spin' : ''}>🤖</span>
               <span className="hidden sm:inline">
@@ -435,9 +500,9 @@ export const App: React.FC = () => {
 
         {/* Dynamic Agent Broadcast Ticker */}
         {lastAgentAction && (
-          <div className="bg-zinc-950/70 border-b border-white/[0.05] px-4 py-1.5 text-[11px] text-zinc-400 flex items-center gap-2 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            <span className="font-semibold text-zinc-300 shrink-0">Orchestrator:</span>
+          <div className="bg-amber-50/80 border-b border-amber-200/70 px-4 py-1.5 text-[11px] text-amber-900 flex items-center gap-2 backdrop-blur-md">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="font-semibold text-amber-950 shrink-0">Orchestrator:</span>
             <span className="truncate">{lastAgentAction}</span>
           </div>
         )}

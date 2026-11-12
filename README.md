@@ -12,6 +12,45 @@
 
 ---
 
+## 🎨 Visual Design & Marketing Website (Inspired by Synclify.ai)
+
+CreatorBrain features a **white background canvas with subtle dotted grid architecture** (`#FAFAF9`), gradient text accents (`#FF5722` to `#9333EA`), crisp dark typography (`#0F172A`), and refined borders (`rgba(226, 232, 240, 0.9)`).
+
+### 1. Detailed Marketing Website (`/`)
+- **Hero & Floating Notifications:** Real-time channel sync pills, value proposition, and interactive mobile preview.
+- **Interactive Simulated App Sandbox:** Clickable question prompts (`Motorola Edge vs Vivo`, `Retention Dip`, `Hinglish Voice`), role switchers (`Tech Creator`, `Brand`, `Agency`), macOS window frame, and live Amazon product card resolution.
+- **Omnichannel 13-Agent Execution:** Interactive showcase demonstrating how a single prompt orchestrates scripts, links, bio updates, and FTC audits simultaneously.
+- **Tool Replacement & Savings Calculator:** Dynamic checklist showing how CreatorBrain replaces ₹11,070/month in fragmented subscriptions (`ChatGPT Plus`, `Manychat`, `TubeBuddy`, `Linktree`, `Bitly`, `Compliance`) with ₹0 Cloudflare hosting.
+- **FAQ Accordion & Final CTA Banner:** Detailed answers on Cloudflare free-tier limits, Amazon Creators API, and Creator DNA.
+
+| Marketing Hero | Interactive App Sandbox |
+|---|---|
+| ![Marketing Hero](screenshots/00_marketing_hero.png) | ![Interactive Sandbox](screenshots/00_marketing_sandbox_window.png) |
+
+| Omnichannel 13-Agent Execution | Tool Replacement & Savings Calculator |
+|---|---|
+| ![Omnichannel Grid](screenshots/00_marketing_calculator.png) | ![Savings Calculator](screenshots/00_marketing_calculator_bottom.png) |
+
+### 2. Creator OS Application & Brain Copilot Chatbot
+- **Dashboard Overview:** Greeting banner, orchestrator broadcast ticker, next best action, and active projects pipeline.
+- **Brain Copilot Chatbot:** Dedicated persistent AI co-strategist with mode switchers (`Brainstorm`, `Script Architecture`, `Amazon Deals`, `Retention & Gaps`), prompt chips, and one-click "Open in Studio" project generation.
+- **Content Studio:** 9-asset generation in Creator DNA voice with editable asset suite and markdown exports.
+- **Brain Graph:** Interactive SVG knowledge graph and synthesized Creator DNA profile.
+
+| Dashboard Overview | Brain Copilot Chatbot |
+|---|---|
+| ![Dashboard Overview](screenshots/01_tab_overview_top_clean.png) | ![Brain Copilot](screenshots/01b_tab_copilot_light.png) |
+
+| Copilot Live Product Resolution | Content Studio 9-Asset Suite |
+|---|---|
+| ![Copilot Live Response](screenshots/01c_copilot_response.png) | ![Content Studio](screenshots/02_tab_content_studio_light.png) |
+
+| Synthesized Creator DNA Profile | Interactive Brain Graph |
+|---|---|
+| ![Creator DNA Profile](screenshots/03_tab_brain_light.png) | ![Brain Graph](screenshots/03b_tab_brain_graph_svg.png) |
+
+---
+
 ## 🚀 The Problem & Open Innovation Vision
 
 ### The Creator Fragmentation Crisis

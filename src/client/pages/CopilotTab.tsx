@@ -186,30 +186,30 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     return lines.map((line, idx) => {
       if (line.startsWith('### ')) {
         return (
-          <h3 key={idx} className="text-sm font-extrabold text-white mt-2.5 mb-1 tracking-tight">
+          <h3 key={idx} className="text-sm font-extrabold text-slate-900 mt-2.5 mb-1 tracking-tight">
             {line.replace('### ', '')}
           </h3>
         );
       }
       if (line.startsWith('#### ')) {
         return (
-          <h4 key={idx} className="text-xs font-bold text-indigo-300 mt-2 mb-0.5">
+          <h4 key={idx} className="text-xs font-bold text-orange-600 mt-2 mb-0.5">
             {line.replace('#### ', '')}
           </h4>
         );
       }
       if (line.startsWith('- ')) {
         return (
-          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-200">
-            <span className="text-indigo-400 font-bold">•</span>
+          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
+            <span className="text-orange-500 font-bold">•</span>
             <span>{renderInline(line.replace('- ', ''))}</span>
           </div>
         );
       }
       if (/^\d+\.\s/.test(line)) {
         return (
-          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-200">
-            <span className="text-indigo-400 font-mono font-bold text-[11px]">{line.match(/^\d+\./)?.[0]}</span>
+          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
+            <span className="text-orange-500 font-mono font-bold text-[11px]">{line.match(/^\d+\./)?.[0]}</span>
             <span>{renderInline(line.replace(/^\d+\.\s*/, ''))}</span>
           </div>
         );
@@ -218,7 +218,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         return <div key={idx} className="h-1.5" />;
       }
       return (
-        <p key={idx} className="my-0.5 text-slate-300">
+        <p key={idx} className="my-0.5 text-slate-700">
           {renderInline(line)}
         </p>
       );
@@ -228,89 +228,89 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
       {/* Top Banner / Mode Switcher */}
-      <div className="bg-gradient-to-r from-zinc-900/90 via-indigo-950/40 to-zinc-900/90 border border-white/10 rounded-2xl p-4 sm:p-5 backdrop-blur-xl shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">
+            <span className="p-1.5 rounded-lg bg-orange-500/10 text-orange-600 border border-orange-500/20">
               <Sparkles className="w-4 h-4" />
             </span>
-            <h1 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+            <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
               CreatorBrain Copilot
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-mono font-bold">
                 DNA Synced
               </span>
             </h1>
           </div>
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-slate-500">
             Describe your video ideas in plain words. 13 autonomous agents research specs, build hooks in your voice, and prep your assets.
           </p>
         </div>
 
         {/* Mode Selector */}
-        <div className="flex items-center gap-1.5 p-1 bg-black/40 border border-white/10 rounded-xl self-start md:self-auto overflow-x-auto text-xs">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl self-start md:self-auto overflow-x-auto text-xs">
           <button
             onClick={() => setActiveMode('brainstorm')}
             className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
               activeMode === 'brainstorm'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Lightbulb className="w-3.5 h-3.5" />
+            <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
             Brainstorm
           </button>
           <button
             onClick={() => setActiveMode('script')}
             className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
               activeMode === 'script'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Film className="w-3.5 h-3.5" />
+            <Film className="w-3.5 h-3.5 text-purple-500" />
             Script Architecture
           </button>
           <button
             onClick={() => setActiveMode('review')}
             className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
               activeMode === 'review'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ShoppingBag className="w-3.5 h-3.5" />
+            <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
             Amazon Deals
           </button>
           <button
             onClick={() => setActiveMode('strategy')}
             className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
               activeMode === 'strategy'
-                ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <ShieldCheck className="w-3.5 h-3.5" />
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
             Retention & Gaps
           </button>
         </div>
       </div>
 
       {createdProjectSuccess && (
-        <div className="p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in">
-          <Check className="w-4 h-4 text-emerald-400" />
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in shadow-xs font-medium">
+          <Check className="w-4 h-4 text-emerald-600" />
           {createdProjectSuccess}
         </div>
       )}
 
       {/* Main Conversation Canvas */}
-      <div className="flex-1 min-h-0 bg-zinc-950/70 border border-white/10 rounded-2xl p-4 sm:p-6 overflow-y-auto space-y-6 backdrop-blur-md shadow-2xl">
+      <div className="flex-1 min-h-0 bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 overflow-y-auto space-y-6 shadow-xs">
         {messages.map((msg) => (
           <div
             key={msg.id}
             className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 border border-indigo-400/30 flex items-center justify-center text-white shrink-0 shadow-lg shadow-indigo-600/20">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#ff5722] to-[#9333ea] flex items-center justify-center text-white shrink-0 shadow-xs">
                 <Bot className="w-4 h-4" />
               </div>
             )}
@@ -319,10 +319,10 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               {/* Message Header */}
               <div
                 className={`flex items-center gap-2 text-[11px] ${
-                  msg.role === 'user' ? 'justify-end text-zinc-400' : 'text-zinc-400'
+                  msg.role === 'user' ? 'justify-end text-slate-500' : 'text-slate-500'
                 }`}
               >
-                <span className="font-semibold text-zinc-300">
+                <span className="font-semibold text-slate-700">
                   {msg.role === 'user' ? creator?.name || 'You' : 'CreatorBrain Copilot'}
                 </span>
                 <span>•</span>
@@ -331,10 +331,10 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
               {/* Message Bubble */}
               <div
-                className={`p-4 rounded-2xl text-xs leading-relaxed shadow-lg ${
+                className={`p-4 rounded-2xl text-xs leading-relaxed shadow-xs ${
                   msg.role === 'user'
-                    ? 'bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-tr-none'
-                    : 'bg-[#0e1424]/90 border border-white/[0.08] text-slate-200 rounded-tl-none font-sans backdrop-blur-md'
+                    ? 'bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] text-white rounded-tr-none font-medium'
+                    : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-tl-none font-sans'
                 }`}
               >
                 {renderContent(msg.content)}
@@ -342,21 +342,21 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
               {/* Embedded Resolved Amazon Product Card */}
               {msg.product && (
-                <div className="p-3.5 bg-black/60 border border-amber-500/30 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xl animate-in fade-in backdrop-blur-md">
+                <div className="p-3.5 bg-amber-50/70 border border-amber-300/80 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={msg.product.image_url}
                       alt={msg.product.title}
-                      className="w-12 h-12 object-contain rounded-xl bg-zinc-950 p-1 border border-white/[0.08] shrink-0"
+                      className="w-12 h-12 object-contain rounded-xl bg-white p-1 border border-amber-200 shrink-0"
                     />
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
                         <span>📦</span> Amazon Creators API Resolved
                       </div>
-                      <h4 className="font-semibold text-white truncate text-xs">{msg.product.title}</h4>
-                      <p className="text-[11px] text-zinc-400">
+                      <h4 className="font-semibold text-slate-900 truncate text-xs">{msg.product.title}</h4>
+                      <p className="text-[11px] text-slate-600">
                         {msg.product.price_str}{' '}
-                        <span className="text-[9px] text-zinc-500">
+                        <span className="text-[9px] text-slate-500">
                           (price as of {formatPriceTimestamp(msg.product.price_timestamp)})
                         </span>
                       </p>
@@ -370,7 +370,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                         `In-depth review and teardown of ${msg.product?.title} (ASIN: ${msg.product?.asin}) targeting budget tech buyers.`
                       )
                     }
-                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0"
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
                     Open in Studio
@@ -380,12 +380,12 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
               {/* Action Button: Create Project from Proposed Concept */}
               {msg.proposedProject && (
-                <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl flex items-center justify-between gap-3 text-xs">
+                <div className="p-3 bg-orange-50/70 border border-orange-200 rounded-xl flex items-center justify-between gap-3 text-xs shadow-xs">
                   <div>
-                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block">
                       Proposed Studio Project
                     </span>
-                    <span className="text-white font-semibold">{msg.proposedProject.title}</span>
+                    <span className="text-slate-900 font-semibold">{msg.proposedProject.title}</span>
                   </div>
                   <button
                     onClick={() =>
@@ -394,7 +394,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                         msg.proposedProject!.brief
                       )
                     }
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-md shadow-indigo-600/30"
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
                   >
                     Create Project →
                   </button>
@@ -403,7 +403,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             </div>
 
             {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-xl bg-zinc-800 border border-white/10 flex items-center justify-center text-zinc-300 shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
                 <User className="w-4 h-4" />
               </div>
             )}
@@ -411,8 +411,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         ))}
 
         {loading && (
-          <div className="flex gap-3.5 items-center text-xs text-indigo-400 animate-pulse py-2">
-            <div className="w-8 h-8 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+          <div className="flex gap-3.5 items-center text-xs text-orange-600 animate-pulse py-2">
+            <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-600">
               <RefreshCw className="w-4 h-4 animate-spin" />
             </div>
             <span>CreatorBrain Copilot is analyzing your idea against Creator DNA and Amazon catalog...</span>
@@ -425,8 +425,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       {/* Starter Prompt Chips */}
       {messages.length <= 2 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-400" />
+          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+            <Zap className="w-3 h-3 text-amber-500" />
             Quick Ideas to Try
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
@@ -437,13 +437,13 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                   setActiveMode(item.mode);
                   handleSend(item.prompt);
                 }}
-                className="p-2.5 rounded-xl bg-zinc-900/60 hover:bg-zinc-800 border border-white/5 hover:border-indigo-500/40 text-left transition text-xs space-y-1 group"
+                className="p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-orange-300 text-left transition text-xs space-y-1 group shadow-xs"
               >
-                <div className="font-semibold text-zinc-200 group-hover:text-indigo-300 flex items-center justify-between">
+                <div className="font-semibold text-slate-800 group-hover:text-orange-600 flex items-center justify-between">
                   <span>{item.label}</span>
-                  <ArrowRight className="w-3 h-3 text-zinc-500 group-hover:text-indigo-400" />
+                  <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-orange-600" />
                 </div>
-                <div className="text-[11px] text-zinc-400 line-clamp-1">{item.prompt}</div>
+                <div className="text-[11px] text-slate-500 line-clamp-1">{item.prompt}</div>
               </button>
             ))}
           </div>
@@ -456,7 +456,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
           e.preventDefault();
           handleSend();
         }}
-        className="bg-zinc-900/90 border border-white/10 rounded-2xl p-2.5 backdrop-blur-xl shadow-2xl space-y-2"
+        className="bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-sm space-y-2"
       >
         <div className="flex items-end gap-2">
           <textarea
@@ -466,22 +466,22 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={`Describe your video idea, comparison, or review angle in plain words... (Press Enter to send)`}
-            className="flex-1 bg-transparent border-0 text-xs text-white placeholder-zinc-500 focus:outline-none resize-none px-2 py-1 leading-relaxed"
+            className="flex-1 bg-transparent border-0 text-xs text-slate-900 placeholder-slate-400 focus:outline-none resize-none px-2 py-1 leading-relaxed"
           />
 
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="p-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-indigo-600/30 disabled:opacity-40 shrink-0"
+            className="p-3 bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] hover:opacity-95 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-40 shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-zinc-500 px-2 pt-1 border-t border-white/5">
+        <div className="flex items-center justify-between text-[11px] text-slate-400 px-2 pt-1 border-t border-slate-100">
           <div className="flex items-center gap-2">
             <span>Mode:</span>
-            <span className="font-semibold text-indigo-400 capitalize">{activeMode}</span>
+            <span className="font-semibold text-orange-600 capitalize">{activeMode}</span>
             <span>•</span>
             <span>Grounding: Creator DNA + Cloudflare D1 Graph</span>
           </div>
