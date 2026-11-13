@@ -220,14 +220,14 @@ export const App: React.FC = () => {
         {/* Brand Header */}
         <div className="p-4 border-b border-slate-200/80 flex items-center justify-between bg-white/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#ff5722] via-[#e11d48] to-[#9333ea] p-[1.5px] shadow-md shadow-orange-500/20">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/80 p-[1.5px] shadow-xs">
               <div className="w-full h-full bg-white rounded-xl flex items-center justify-center text-base">
                 🧠
               </div>
             </div>
             <div>
               <div className="font-extrabold text-sm tracking-tight text-slate-900 flex items-center gap-1.5">
-                CreatorBrain <span className="text-[9px] px-1.5 py-0.5 bg-orange-500/10 text-orange-600 rounded-full font-mono border border-orange-500/20 font-bold">OS</span>
+                CreatorBrain <span className="text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-700 rounded-full font-mono border border-indigo-200 font-bold">OS</span>
               </div>
               <div className="text-[10px] text-slate-500">Agentic Creator Operating System</div>
             </div>
@@ -246,10 +246,10 @@ export const App: React.FC = () => {
             <img
               src={creator.avatar_url}
               alt={creator.name}
-              className="w-9 h-9 rounded-full object-cover border border-orange-500/30 shadow-xs"
+              className="w-9 h-9 rounded-full object-cover border border-slate-200 shadow-xs"
             />
           ) : (
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-purple-600 text-white font-bold flex items-center justify-center text-xs shadow-xs">
+            <div className="w-9 h-9 rounded-full bg-slate-900 text-white font-bold flex items-center justify-center text-xs shadow-xs">
               {creator?.name?.slice(0, 2) || 'KV'}
             </div>
           )}
@@ -275,19 +275,19 @@ export const App: React.FC = () => {
             onClick={() => handleSelectTab('copilot')}
             className={`w-full p-2.5 rounded-xl border text-left transition flex items-center justify-between group ${
               activeTab === 'copilot'
-                ? 'bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] border-transparent text-white shadow-md shadow-orange-500/20'
-                : 'bg-gradient-to-r from-orange-50/80 to-purple-50/80 hover:from-orange-100/80 hover:to-purple-100/80 border-orange-200/70 text-slate-800'
+                ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                : 'bg-white hover:bg-slate-50 border-slate-200/80 text-slate-800'
             }`}
           >
             <div className="flex items-center gap-2">
               <span className="text-base group-hover:scale-110 transition-transform">💬</span>
               <div>
                 <div className={`text-xs font-bold leading-tight ${activeTab === 'copilot' ? 'text-white' : 'text-slate-900'}`}>Brain Copilot</div>
-                <div className={`text-[10px] ${activeTab === 'copilot' ? 'text-white/80' : 'text-slate-500'}`}>Chat & ideate freely</div>
+                <div className={`text-[10px] ${activeTab === 'copilot' ? 'text-white/70' : 'text-slate-500'}`}>Chat & ideate freely</div>
               </div>
             </div>
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-              activeTab === 'copilot' ? 'bg-white/20 text-white' : 'bg-orange-500/15 text-orange-700 border border-orange-500/20'
+              activeTab === 'copilot' ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
             }`}>
               New
             </span>
@@ -467,7 +467,7 @@ export const App: React.FC = () => {
             {activeTab !== 'copilot' && (
               <button
                 onClick={() => handleSelectTab('copilot')}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-orange-500/10 to-rose-500/10 hover:from-orange-500/15 hover:to-rose-500/15 border border-orange-300/60 text-orange-800 rounded-xl text-xs font-semibold transition shadow-xs"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 rounded-xl text-xs font-semibold transition shadow-xs"
               >
                 <span>💬</span>
                 <span className="hidden sm:inline">Ask Copilot</span>
@@ -479,7 +479,7 @@ export const App: React.FC = () => {
               href={`/@${creator?.handle || 'techkabir'}`}
               target="_blank"
               rel="noreferrer"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-mono transition shadow-xs"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-mono transition shadow-xs"
             >
               <span>🌐</span> /@{creator?.handle || 'techkabir'}
             </a>
@@ -488,7 +488,7 @@ export const App: React.FC = () => {
             <button
               onClick={handleRunAgentsGlobal}
               disabled={runningAgents}
-              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-medium transition flex items-center gap-1.5 shadow-xs"
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition flex items-center gap-1.5 shadow-xs active:scale-95"
             >
               <span className={runningAgents ? 'animate-spin' : ''}>🤖</span>
               <span className="hidden sm:inline">
@@ -500,10 +500,12 @@ export const App: React.FC = () => {
 
         {/* Dynamic Agent Broadcast Ticker */}
         {lastAgentAction && (
-          <div className="bg-amber-50/80 border-b border-amber-200/70 px-4 py-1.5 text-[11px] text-amber-900 flex items-center gap-2 backdrop-blur-md">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-            <span className="font-semibold text-amber-950 shrink-0">Orchestrator:</span>
-            <span className="truncate">{lastAgentAction}</span>
+          <div className="bg-white/95 border-b border-slate-200/70 px-4 py-1.5 text-[11px] text-slate-600 flex items-center gap-2.5 backdrop-blur-md">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 text-[10px] font-semibold shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Orchestrator
+            </span>
+            <span className="truncate text-slate-700 font-medium">{lastAgentAction}</span>
           </div>
         )}
 
@@ -523,7 +525,7 @@ export const App: React.FC = () => {
           )}
           {activeTab === 'studio' && <ContentStudioTab />}
           {activeTab === 'tools' && <ToolsTab />}
-          {activeTab === 'bio' && <LinkInBioTab />}
+          {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
           {activeTab === 'links' && <ShortLinksTab />}
           {activeTab === 'amazon' && <AmazonAffiliateTab />}
           {activeTab === 'brain' && <BrainTab />}

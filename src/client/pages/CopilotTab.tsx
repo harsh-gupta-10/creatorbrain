@@ -172,7 +172,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <strong key={i} className="font-bold text-white">
+          <strong key={i} className="font-bold text-slate-900">
             {part.slice(2, -2)}
           </strong>
         );
@@ -193,7 +193,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       }
       if (line.startsWith('#### ')) {
         return (
-          <h4 key={idx} className="text-xs font-bold text-orange-600 mt-2 mb-0.5">
+          <h4 key={idx} className="text-xs font-bold text-indigo-700 mt-2 mb-0.5">
             {line.replace('#### ', '')}
           </h4>
         );
@@ -201,7 +201,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       if (line.startsWith('- ')) {
         return (
           <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
-            <span className="text-orange-500 font-bold">•</span>
+            <span className="text-indigo-500 font-bold">•</span>
             <span>{renderInline(line.replace('- ', ''))}</span>
           </div>
         );
@@ -209,7 +209,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       if (/^\d+\.\s/.test(line)) {
         return (
           <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
-            <span className="text-orange-500 font-mono font-bold text-[11px]">{line.match(/^\d+\./)?.[0]}</span>
+            <span className="text-indigo-600 font-mono font-bold text-[11px]">{line.match(/^\d+\./)?.[0]}</span>
             <span>{renderInline(line.replace(/^\d+\.\s*/, ''))}</span>
           </div>
         );
@@ -218,7 +218,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         return <div key={idx} className="h-1.5" />;
       }
       return (
-        <p key={idx} className="my-0.5 text-slate-700">
+        <p key={idx} className="my-0.5 text-slate-700 leading-relaxed">
           {renderInline(line)}
         </p>
       );
@@ -231,7 +231,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-orange-500/10 text-orange-600 border border-orange-500/20">
+            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/80">
               <Sparkles className="w-4 h-4" />
             </span>
             <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
@@ -310,7 +310,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#ff5722] to-[#9333ea] flex items-center justify-center text-white shrink-0 shadow-xs">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
                 <Bot className="w-4 h-4" />
               </div>
             )}
@@ -333,7 +333,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               <div
                 className={`p-4 rounded-2xl text-xs leading-relaxed shadow-xs ${
                   msg.role === 'user'
-                    ? 'bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] text-white rounded-tr-none font-medium'
+                    ? 'bg-slate-900 text-white rounded-tr-none font-medium'
                     : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-tl-none font-sans'
                 }`}
               >
@@ -342,15 +342,15 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
               {/* Embedded Resolved Amazon Product Card */}
               {msg.product && (
-                <div className="p-3.5 bg-amber-50/70 border border-amber-300/80 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
+                <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={msg.product.image_url}
                       alt={msg.product.title}
-                      className="w-12 h-12 object-contain rounded-xl bg-white p-1 border border-amber-200 shrink-0"
+                      className="w-12 h-12 object-contain rounded-xl bg-slate-50 p-1 border border-slate-200 shrink-0"
                     />
                     <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1">
+                      <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1">
                         <span>📦</span> Amazon Creators API Resolved
                       </div>
                       <h4 className="font-semibold text-slate-900 truncate text-xs">{msg.product.title}</h4>
@@ -370,7 +370,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                         `In-depth review and teardown of ${msg.product?.title} (ASIN: ${msg.product?.asin}) targeting budget tech buyers.`
                       )
                     }
-                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
                   >
                     <FolderPlus className="w-3.5 h-3.5" />
                     Open in Studio
@@ -380,9 +380,9 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
               {/* Action Button: Create Project from Proposed Concept */}
               {msg.proposedProject && (
-                <div className="p-3 bg-orange-50/70 border border-orange-200 rounded-xl flex items-center justify-between gap-3 text-xs shadow-xs">
+                <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center justify-between gap-3 text-xs shadow-xs">
                   <div>
-                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
                       Proposed Studio Project
                     </span>
                     <span className="text-slate-900 font-semibold">{msg.proposedProject.title}</span>
@@ -411,8 +411,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         ))}
 
         {loading && (
-          <div className="flex gap-3.5 items-center text-xs text-orange-600 animate-pulse py-2">
-            <div className="w-8 h-8 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-600">
+          <div className="flex gap-3.5 items-center text-xs text-indigo-600 animate-pulse py-2">
+            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600">
               <RefreshCw className="w-4 h-4 animate-spin" />
             </div>
             <span>CreatorBrain Copilot is analyzing your idea against Creator DNA and Amazon catalog...</span>
@@ -426,7 +426,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       {messages.length <= 2 && (
         <div className="space-y-1.5">
           <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-            <Zap className="w-3 h-3 text-amber-500" />
+            <Zap className="w-3 h-3 text-indigo-600" />
             Quick Ideas to Try
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
@@ -437,11 +437,11 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                   setActiveMode(item.mode);
                   handleSend(item.prompt);
                 }}
-                className="p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-orange-300 text-left transition text-xs space-y-1 group shadow-xs"
+                className="p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 text-left transition text-xs space-y-1 group shadow-xs"
               >
-                <div className="font-semibold text-slate-800 group-hover:text-orange-600 flex items-center justify-between">
+                <div className="font-semibold text-slate-800 group-hover:text-indigo-600 flex items-center justify-between">
                   <span>{item.label}</span>
-                  <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-orange-600" />
+                  <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-indigo-600" />
                 </div>
                 <div className="text-[11px] text-slate-500 line-clamp-1">{item.prompt}</div>
               </button>
@@ -472,7 +472,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="p-3 bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] hover:opacity-95 text-white rounded-xl text-xs font-bold transition shadow-sm disabled:opacity-40 shrink-0"
+            className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-600/20 disabled:opacity-40 shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>
@@ -481,7 +481,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         <div className="flex items-center justify-between text-[11px] text-slate-400 px-2 pt-1 border-t border-slate-100">
           <div className="flex items-center gap-2">
             <span>Mode:</span>
-            <span className="font-semibold text-orange-600 capitalize">{activeMode}</span>
+            <span className="font-semibold text-indigo-600 capitalize">{activeMode}</span>
             <span>•</span>
             <span>Grounding: Creator DNA + Cloudflare D1 Graph</span>
           </div>

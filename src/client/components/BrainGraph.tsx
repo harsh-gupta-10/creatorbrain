@@ -7,12 +7,12 @@ interface BrainGraphProps {
 }
 
 const TYPE_COLORS: Record<NodeType, { fill: string; stroke: string; text: string; bg: string }> = {
-  Style: { fill: '#8b5cf6', stroke: '#a78bfa', text: '#ddd6fe', bg: 'rgba(139, 92, 246, 0.15)' },
-  Strength: { fill: '#10b981', stroke: '#34d399', text: '#a7f3d0', bg: 'rgba(16, 185, 129, 0.15)' },
-  Gap: { fill: '#ef4444', stroke: '#f87171', text: '#fecaca', bg: 'rgba(239, 68, 68, 0.15)' },
-  Audience: { fill: '#06b6d4', stroke: '#22d3ee', text: '#a5f3fc', bg: 'rgba(6, 182, 212, 0.15)' },
-  Topic: { fill: '#f59e0b', stroke: '#fbbf24', text: '#fde68a', bg: 'rgba(245, 158, 11, 0.15)' },
-  Concept: { fill: '#3b82f6', stroke: '#60a5fa', text: '#bfdbfe', bg: 'rgba(59, 130, 246, 0.15)' },
+  Style: { fill: '#6366f1', stroke: '#4f46e5', text: '#4338ca', bg: '#e0e7ff' },
+  Strength: { fill: '#10b981', stroke: '#059669', text: '#065f46', bg: '#d1fae5' },
+  Gap: { fill: '#ef4444', stroke: '#dc2626', text: '#991b1b', bg: '#fee2e2' },
+  Audience: { fill: '#0ea5e9', stroke: '#0284c7', text: '#075985', bg: '#e0f2fe' },
+  Topic: { fill: '#f59e0b', stroke: '#d97706', text: '#92400e', bg: '#fef3c7' },
+  Concept: { fill: '#8b5cf6', stroke: '#7c3aed', text: '#5b21b6', bg: '#ede9fe' },
 };
 
 export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) => {
@@ -67,20 +67,20 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
   }, [data.nodes, filterType]);
 
   return (
-    <div className="relative w-full h-[540px] bg-slate-950/70 border border-slate-800/80 rounded-2xl overflow-hidden backdrop-blur-xl shadow-2xl flex flex-col">
+    <div className="relative w-full h-[540px] bg-slate-50/40 border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs flex flex-col">
       {/* Top Controls Bar */}
       <div className="absolute top-4 left-4 z-10 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mr-1">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider mr-1">
           Filter Graph:
         </span>
         {['all', 'Strength', 'Gap', 'Style', 'Audience', 'Topic'].map((t) => (
           <button
             key={t}
             onClick={() => setFilterType(t)}
-            className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-all ${
+            className={`px-2.5 py-1 text-xs rounded-lg font-semibold transition-all ${
               filterType === t
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm shadow-cyan-500/20'
-                : 'bg-slate-900/80 text-slate-400 border border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white text-slate-600 border border-slate-200 hover:text-slate-900 hover:bg-slate-50 shadow-2xs'
             }`}
           >
             {t === 'all' ? 'All Nodes' : t}
@@ -94,22 +94,18 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
         className="w-full h-full cursor-crosshair select-none"
       >
         <defs>
-          <radialGradient id="graphGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.12" />
-            <stop offset="100%" stopColor="#090d16" stopOpacity="0" />
+          <radialGradient id="graphGlowLight" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.06" />
+            <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
           </radialGradient>
-          <filter id="glowEffect" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
         </defs>
 
         {/* Center Glow */}
-        <circle cx="400" cy="260" r="300" fill="url(#graphGlow)" />
+        <circle cx="400" cy="260" r="300" fill="url(#graphGlowLight)" />
 
         {/* Orbit helper rings */}
-        <circle cx="400" cy="260" r="210" fill="none" stroke="rgba(51, 65, 85, 0.25)" strokeDasharray="4 6" />
-        <circle cx="400" cy="260" r="120" fill="none" stroke="rgba(51, 65, 85, 0.15)" strokeDasharray="2 4" />
+        <circle cx="400" cy="260" r="210" fill="none" stroke="rgba(203, 213, 225, 0.7)" strokeDasharray="4 6" />
+        <circle cx="400" cy="260" r="120" fill="none" stroke="rgba(203, 213, 225, 0.5)" strokeDasharray="2 4" />
 
         {/* Edges */}
         {data.edges.map((edge) => {
@@ -127,8 +123,8 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
               : edge.relation === 'NEEDS_WORK'
               ? '#ef4444'
               : edge.relation === 'LEARNED_FROM'
-              ? '#8b5cf6'
-              : '#06b6d4';
+              ? '#6366f1'
+              : '#0ea5e9';
 
           return (
             <g key={edge.id}>
@@ -139,7 +135,7 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
                 y2={t.y}
                 stroke={strokeColor}
                 strokeWidth={isConnectedToSelected ? 2.5 : 1.2}
-                strokeOpacity={isConnectedToSelected ? 0.9 : 0.3}
+                strokeOpacity={isConnectedToSelected ? 0.9 : 0.4}
                 strokeDasharray={edge.relation === 'NEEDS_WORK' ? '4 3' : undefined}
                 className="transition-all duration-300"
               />
@@ -182,17 +178,16 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
               <circle
                 r={radius}
                 fill={style.fill}
-                stroke={isSelected ? '#ffffff' : style.stroke}
-                strokeWidth={isSelected ? 3 : 1.5}
-                filter="url(#glowEffect)"
-                className="transition-all duration-200"
+                stroke={isSelected ? '#0f172a' : '#ffffff'}
+                strokeWidth={isSelected ? 3 : 2}
+                className="transition-all duration-200 shadow-sm"
               />
 
               {/* Node Label Text */}
               <text
                 dy={radius + 16}
                 textAnchor="middle"
-                className="text-[11px] font-medium tracking-tight fill-slate-300 pointer-events-none drop-shadow"
+                className="text-[11px] font-semibold tracking-tight fill-slate-800 pointer-events-none"
               >
                 {node.label.length > 20 ? `${node.label.slice(0, 18)}…` : node.label}
               </text>
@@ -203,30 +198,30 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
 
       {/* Selected Node Details Drawer */}
       {selectedNode && (
-        <div className="absolute bottom-4 left-4 right-4 bg-slate-900/95 border border-slate-700/80 rounded-xl p-4 backdrop-blur-md shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2">
+        <div className="absolute bottom-4 left-4 right-4 bg-white border border-slate-200 rounded-2xl p-4.5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in slide-in-from-bottom-2">
           <div className="flex items-start gap-3">
             <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-md flex-shrink-0"
+              className="w-10 h-10 rounded-xl flex items-center justify-center font-bold text-white shadow-xs flex-shrink-0"
               style={{ background: TYPE_COLORS[selectedNode.type]?.fill || '#6366f1' }}
             >
               {selectedNode.type.slice(0, 2)}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-white">{selectedNode.label}</h4>
-                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                <h4 className="text-sm font-bold text-slate-900">{selectedNode.label}</h4>
+                <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   {selectedNode.type}
                 </span>
-                <span className="text-[11px] text-emerald-400 font-semibold font-mono">
+                <span className="text-[11px] text-emerald-700 font-semibold font-mono">
                   {Math.round((selectedNode.confidence || 0) * 100)}% Confidence
                 </span>
               </div>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl">{selectedNode.description}</p>
+              <p className="text-xs text-slate-600 mt-1 max-w-2xl">{selectedNode.description}</p>
             </div>
           </div>
           <button
             onClick={() => setSelectedNode(null)}
-            className="text-xs text-slate-400 hover:text-white px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition"
+            className="text-xs text-slate-600 hover:text-slate-900 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 transition font-medium"
           >
             Close Details
           </button>

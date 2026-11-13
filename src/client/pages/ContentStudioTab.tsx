@@ -248,7 +248,7 @@ ${a.content}
       {/* Top Project Selector & Actions Bar */}
       <div className="bg-white border border-slate-200/90 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-600 shadow-xs">
+          <div className="p-2.5 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 shadow-xs">
             <FolderKanban className="w-5 h-5" />
           </div>
           <div>
@@ -256,7 +256,7 @@ ${a.content}
               <select
                 value={selectedProjectId}
                 onChange={(e) => selectProject(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-orange-500 transition shadow-xs"
+                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition shadow-xs"
               >
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -318,7 +318,7 @@ ${a.content}
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-xs font-bold text-slate-900 tracking-wide">Studio Agent</span>
-              <span className="text-[10px] text-orange-700 font-mono font-semibold px-2 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20">
+              <span className="text-[10px] text-indigo-700 font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/80">
                 DNA Guided
               </span>
             </div>
@@ -337,7 +337,7 @@ ${a.content}
                 <div
                   className={`max-w-[88%] rounded-2xl p-3.5 text-xs leading-relaxed ${
                     msg.role === 'user'
-                      ? 'bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] text-white font-medium rounded-tr-none shadow-xs'
+                      ? 'bg-slate-900 text-white font-medium rounded-tr-none shadow-xs'
                       : 'bg-slate-50 text-slate-800 border border-slate-200/80 rounded-tl-none shadow-xs'
                   }`}
                 >
@@ -347,8 +347,8 @@ ${a.content}
               </div>
             ))}
             {isGenerating && (
-              <div className="flex items-center gap-2 p-3 text-xs text-orange-700 bg-orange-50/80 border border-orange-200 rounded-2xl animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 animate-spin text-orange-600" />
+              <div className="flex items-center gap-2 p-3 text-xs text-indigo-700 bg-indigo-50/80 border border-indigo-200 rounded-2xl animate-pulse">
+                <Sparkles className="w-3.5 h-3.5 animate-spin text-indigo-600" />
                 Agents collaborating: Product Researcher, Studio Agent & Compliance Checker...
               </div>
             )}
@@ -361,12 +361,12 @@ ${a.content}
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="e.g. Making a review on Motorola Edge 50, budget ₹22k angle..."
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-orange-500 transition"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
             />
             <button
               type="submit"
               disabled={isGenerating || !chatInput.trim()}
-              className="p-2.5 rounded-xl bg-gradient-to-r from-[#ff5722] to-[#9333ea] text-white font-bold hover:opacity-95 disabled:opacity-40 transition active:scale-95 shadow-xs"
+              className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-40 transition active:scale-95 shadow-sm shadow-indigo-600/20"
             >
               <Send className="w-4 h-4" />
             </button>
@@ -460,7 +460,7 @@ ${a.content}
               <textarea
                 value={editableContent}
                 onChange={(e) => setEditableContent(e.target.value)}
-                className="w-full h-full bg-white border border-slate-200 rounded-2xl p-4 text-xs font-mono text-slate-900 focus:outline-none focus:border-orange-500 resize-none leading-relaxed shadow-xs"
+                className="w-full h-full bg-white border border-slate-200 rounded-2xl p-4 text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed shadow-xs"
               />
             ) : (
               <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text font-normal">
@@ -485,7 +485,7 @@ ${a.content}
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="e.g. Vivo T3 Pro 5G Review: Battery King?"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-orange-500 transition"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
               <div>
@@ -497,7 +497,7 @@ ${a.content}
                   value={newBrief}
                   onChange={(e) => setNewBrief(e.target.value)}
                   placeholder="e.g. 8-minute in-depth review comparing battery life and cameras for students."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-orange-500 transition"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition"
                 />
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -510,7 +510,7 @@ ${a.content}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] text-white font-bold text-xs hover:opacity-95 transition shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm shadow-indigo-600/20 active:scale-95"
                 >
                   Create Project
                 </button>

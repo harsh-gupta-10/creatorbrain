@@ -62,13 +62,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
   return (
     <div className="space-y-8 animate-in fade-in duration-300 w-full">
       {/* Top Banner: Creator Greeting & Next Best Action */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-r from-orange-50/70 via-rose-50/50 to-purple-50/70 p-6 md:p-8 backdrop-blur-2xl shadow-sm">
-        <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 bg-purple-400/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/70 to-indigo-50/30 p-6 md:p-8 backdrop-blur-2xl shadow-xs">
+        <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 bg-slate-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-400/30 text-xs font-semibold text-orange-700">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-xs font-semibold text-indigo-700">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               Autonomous Agent Orchestration Active
             </div>
@@ -76,7 +76,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
               Welcome back, {creator?.name || 'Creator'} 👋
             </h1>
             <p className="text-sm md:text-base text-slate-600 max-w-2xl leading-relaxed">
-              <span className="font-semibold text-orange-600">Today's Next Best Action:</span>{' '}
+              <span className="font-bold text-indigo-700">Today's Next Best Action:</span>{' '}
               <span className="text-slate-800">{nextBestAction}</span>
             </p>
           </div>
@@ -84,7 +84,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => onNavigateTab('copilot')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#ff5722] via-[#e11d48] to-[#9333ea] hover:opacity-95 text-white font-bold text-sm transition-all shadow-md shadow-orange-500/20 active:scale-95"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-sm shadow-indigo-600/20 active:scale-95"
             >
               <MessageSquare className="w-4 h-4" />
               Chat with Copilot
@@ -93,7 +93,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
               onClick={() => onNavigateTab('studio')}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm transition active:scale-95 shadow-xs"
             >
-              <FolderKanban className="w-4 h-4 text-orange-500" />
+              <FolderKanban className="w-4 h-4 text-indigo-600" />
               Content Studio
             </button>
             <button
@@ -108,18 +108,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
       </div>
 
       {/* Brain Copilot Idea Station Feature Card */}
-      <div className="bg-white rounded-3xl p-6 relative overflow-hidden border border-orange-200/70 shadow-xs">
-        <div className="absolute top-0 right-1/4 -mt-12 w-64 h-64 bg-orange-500/5 rounded-full blur-2xl pointer-events-none" />
+      <div className="bg-white rounded-3xl p-6 relative overflow-hidden border border-slate-200/90 shadow-xs">
+        <div className="absolute top-0 right-1/4 -mt-12 w-64 h-64 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-1.5 max-w-xl">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center text-orange-600">
+              <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600">
                 <Sparkles className="w-4 h-4" />
               </div>
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
                 Brain Copilot Idea Studio
               </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-700 border border-orange-500/20">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                 Grounded in Creator DNA
               </span>
             </div>

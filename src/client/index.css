@@ -16,7 +16,7 @@
 
 /* Synclify Dotted Canvas Grid */
 .canvas-grid {
-  background-image: radial-gradient(rgba(148, 163, 184, 0.3) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(148, 163, 184, 0.18) 1px, transparent 1px);
   background-size: 24px 24px;
 }
 

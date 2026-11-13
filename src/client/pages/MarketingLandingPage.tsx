@@ -139,14 +139,14 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ onLa
               onClick={() => onLaunchApp('overview')}
               className="flex items-center gap-2.5 cursor-pointer group"
             >
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-orange-500 via-rose-500 to-purple-600 p-[1.5px] shadow-sm">
+              <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/80 p-[1.5px] shadow-xs">
                 <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center text-sm">
                   🧠
                 </div>
               </div>
               <span className="font-extrabold text-base tracking-tight text-slate-950 flex items-center gap-1.5">
                 CreatorBrain
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
                   OS
                 </span>
               </span>
@@ -279,7 +279,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ onLa
             <div className="relative mx-auto max-w-md">
               {/* Floating notification badge (Synclify style) */}
               <div className="absolute -top-4 -left-4 z-20 bg-white/95 border border-slate-200/90 rounded-2xl p-3.5 shadow-xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-rose-500 flex items-center justify-center text-white text-base shadow-sm">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-base shadow-sm">
                   ⚡
                 </div>
                 <div>
@@ -836,7 +836,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ onLa
 
                 <button
                   onClick={() => onLaunchApp('overview')}
-                  className="w-full py-3.5 rounded-xl bg-gradient-to-r from-orange-500 via-rose-500 to-purple-600 hover:opacity-95 text-white font-bold text-sm transition shadow-lg shadow-rose-500/25 active:scale-95"
+                  className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/25 active:scale-95"
                 >
                   Start Saving with CreatorBrain →
                 </button>
@@ -984,7 +984,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ onLa
       <footer className="border-t border-slate-200/80 bg-white py-12 px-5 md:px-8 text-xs text-slate-500 relative z-10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-orange-500 to-rose-500 flex items-center justify-center text-white text-xs">
+            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-xs">
               🧠
             </div>
             <span className="font-extrabold text-sm text-slate-900 tracking-tight">CreatorBrain OS</span>
