@@ -73,6 +73,8 @@ export async function runProductResearcher(
  */
 export async function runContentStudioAgent(options: {
   amazon?: AmazonCreatorsClient;
+  /** How drafts are written; see lib/language.ts */
+  languageRule?: string;
   creatorId: string;
   projectId: string;
   brief: string;
@@ -122,7 +124,9 @@ Affiliate Link: ${affiliateUrl}`
 Always follow Amazon compliance:
 - Must include conspicuous disclosure: "${amazonClient.getMandatoryDisclosure()}"
 - Must state price snapshot with timestamp ("as of recorded date")
-- Never use deceptive cloaking or unverifiable claims.`;
+- Never use deceptive cloaking or unverifiable claims.
+
+${options.languageRule || ''}`;
 
   const inputPrompt = `Generate the complete content asset suite for project "${brief}":
 1. 5 High-CTR title options following the creator's title patterns.

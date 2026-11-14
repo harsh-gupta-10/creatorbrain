@@ -15,6 +15,7 @@ import { CreatorDNASchema } from '../../../shared/types';
 import { fetchYouTubeChannel, fetchChannelWithDataApi, ChannelNotFoundError, type DataApiVideo, type FetchedVideo } from '../../content/youtube';
 import { analyzeContentItem, pendingItems, type VideoAnalysis } from '../../content/analyze';
 import type { Env } from '../../env';
+import { ANALYSIS_LANGUAGE_RULE } from '../../lib/language';
 
 export type StudyStep = 'fetch' | 'video' | 'synthesize' | 'plan';
 export const STUDY_STEPS: StudyStep[] = ['fetch', 'video', 'synthesize', 'plan'];
@@ -448,7 +449,7 @@ async function stepSynthesize(db: D1Database, router: AIRouter, creator: Creator
           {
             role: 'system',
             content:
-              'You are a channel strategist studying a creator\'s real recent content. Be specific to the titles given. Never invent numbers that are not in the data. Return JSON only.',
+              `You are a channel strategist studying a creator's real recent content. Be specific to the titles given. Never invent numbers that are not in the data. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
           },
           {
             role: 'user',

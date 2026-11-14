@@ -51,6 +51,7 @@ export interface Creator {
   youtube_channel_id?: string | null;
   instagram_handle?: string | null;
   content_language?: string | null;
+  script_language?: 'english' | 'hinglish' | 'hindi' | 'match' | null;
   upload_cadence?: string | null;
   goals_json?: string | null;
   monetization_json?: string | null;

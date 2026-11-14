@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { appendToThread } from '../lib/chats';
+import { chatLanguageRule } from '../lib/language';
 import { creatorDna } from '../lib/dna';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
@@ -49,6 +50,7 @@ learnRoutes.post('/tutor', async (c) => {
 
   const reply = await runTutorChat({
     creatorId: creator.id,
+    languageRule: chatLanguageRule(creator),
     userMessage: message,
     dna,
     graph,

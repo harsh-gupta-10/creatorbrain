@@ -20,6 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { ScriptLanguagePicker } from '../components/ScriptLanguagePicker';
 import { PageHeader, EmptyState, ErrorNote, Spinner, ICON, Dialog } from '../components/ui';
 import type { Project, ProjectAsset, AssetType } from '../../shared/types';
 
@@ -278,6 +279,7 @@ ${a.content}
         description="One project per video. Draft every asset with the studio agent, then edit, copy or export"
         actions={
           <>
+            <ScriptLanguagePicker />
             <button
               onClick={() => {
                 setModalError(null);

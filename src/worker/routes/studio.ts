@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { appendToThread } from '../lib/chats';
+import { draftLanguageRule } from '../lib/language';
 import { creatorDna } from '../lib/dna';
 import { amazonClientFor } from '../amazon/credentials';
 import type { AppEnv } from '../env';
@@ -168,6 +169,7 @@ studioRoutes.post('/chat', async (c) => {
   // Step 2: Content Studio Agent generates or refines all assets
   const generated = await runContentStudioAgent({
     amazon,
+    languageRule: draftLanguageRule(creator),
     creatorId: creator.id,
     projectId,
     brief: `${project.brief} - Refinement: ${message}`,

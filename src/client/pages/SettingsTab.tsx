@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowUpRight, Check } from 'lucide-react';
+import { ScriptLanguagePicker } from '../components/ScriptLanguagePicker';
 import { api } from '../lib/api';
 import { ErrorNote, ICON, PageHeader, Spinner, formatDate } from '../components/ui';
 
@@ -265,6 +266,15 @@ export const SettingsTab: React.FC = () => {
       </SettingsSection>
 
       {/* Monetization */}
+      <SettingsSection
+        title="Writing"
+        description="The language your scripts, titles and captions are drafted in. You can film in Hindi and still read everything in English."
+      >
+        <div className="card p-5">
+          <ScriptLanguagePicker compact={false} />
+        </div>
+      </SettingsSection>
+
       <SettingsSection
         title="Monetization"
         description="How you earn from your content. Drafts include affiliate links and disclosures to match."

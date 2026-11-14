@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, FolderPlus, Check, Package, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { ScriptLanguagePicker } from '../components/ScriptLanguagePicker';
 import { PageHeader, ErrorNote, Segmented, Spinner, ICON } from '../components/ui';
 import type { Product, Creator } from '../../shared/types';
 
@@ -259,6 +260,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         description="Talk through a video idea. Answers draw on your published content and live Amazon data"
         actions={
           <>
+          <ScriptLanguagePicker />
           {messages.length > 1 && (
             <button className="btn btn-ghost btn-sm" onClick={clearConversation}>
               <Trash2 {...ICON} />

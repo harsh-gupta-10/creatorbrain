@@ -11,6 +11,7 @@ import {
   PARTNER_TAG_RE,
 } from '../amazon/credentials';
 import { SAMPLE_CREATOR_ID } from './auth';
+import { SCRIPT_LANGUAGES } from '../lib/language';
 import type { ProviderSettings } from '../../shared/types';
 
 export const settingsRoutes = new Hono<AppEnv>();
@@ -69,6 +70,25 @@ settingsRoutes.put('/monetization', async (c) => {
   if (amazon) await saveAmazonCredentials(c.env.DB, c.env, creator.id, { partnerTag, marketplace });
 
   return c.json({ success: true, monetization: { amazon, partnerTag: amazon ? partnerTag : '', marketplace, other } });
+});
+
+const PreferencesSchema = z.object({
+  scriptLanguage: z.enum(SCRIPT_LANGUAGES).optional(),
+  contentLanguage: z.string().trim().min(2).max(60).optional(),
+});
+
+// Writing preferences: which language drafts are written in, and what the videos are in
+settingsRoutes.put('/preferences', async (c) => {
+  const creator = c.get('creator');
+  const parsed = PreferencesSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
+  const { scriptLanguage, contentLanguage } = parsed.data;
+  await c.env.DB.prepare(
+    'UPDATE creators SET script_language = COALESCE(?, script_language), content_language = COALESCE(?, content_language), updated_at = ? WHERE id = ?'
+  )
+    .bind(scriptLanguage ?? null, contentLanguage ?? null, new Date().toISOString(), creator.id)
+    .run();
+  return c.json({ success: true, scriptLanguage: scriptLanguage ?? creator.script_language, contentLanguage: contentLanguage ?? creator.content_language });
 });
 
 // Update AI provider settings & budget

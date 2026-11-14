@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { appendToThread } from '../lib/chats';
+import { draftLanguageRule } from '../lib/language';
 import { creatorDna } from '../lib/dna';
 import type { AppEnv } from '../env';
 import { AIRouter } from '../ai/router';
@@ -29,7 +30,9 @@ You generate content specifically aligned with this creator's DNA:
 - Hook Formula: ${dna.voice.hook_formula}
 - Thumbnail Palette: ${dna.visual.thumbnail_palette.join(', ')}
 - Platform: ${platform}
-- Target Product: ${targetProduct || 'N/A'}`;
+- Target Product: ${targetProduct || 'N/A'}
+
+${draftLanguageRule(creator)}`;
 
   let userPrompt = '';
   if (toolType === 'hook') {

@@ -38,6 +38,7 @@ CreatorBrain treats the creator's own back catalogue as the source of truth.
 | A video beats the channel median | Recorded as a strength, with that video as evidence; its title and hook patterns feed the Studio |
 | Titles run long, few use numbers, uploads are irregular, hooks are weak | Recorded as gaps; each gap maps to a lesson and a baseline quiz question |
 | Goals chosen at signup | Passed to the synthesis prompt so strengths, gaps and lessons lean toward them |
+| Creator films in Hindi but reads in English | Drafts follow their "Write in" choice (English, Hinglish in Roman letters, Hindi in Devanagari, or same as their videos); captions are still fetched in the video's language; breakdowns and insights always stay in English, with Hindi quotes transliterated and translated |
 | `GEMINI_API_KEY` set | Gemini watches each video and its thumbnail in one call, and transcribes videos that have no captions |
 | No AI provider reachable | Falls back to transcript and view statistics. The study still finishes, and nothing is invented |
 | Shared sample workspace | Readable, with every write blocked server-side |

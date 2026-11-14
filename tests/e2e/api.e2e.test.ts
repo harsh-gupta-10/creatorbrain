@@ -249,6 +249,17 @@ describe('Brand deals', () => {
   });
 });
 
+describe('Writing preferences', () => {
+  it('saves the script language and rejects unknown values', async () => {
+    const api = client();
+    await signup(api);
+    expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'klingon' } })).status).toBe(400);
+    expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'hinglish' } })).status).toBe(200);
+    const me = (await (await api('/api/auth/me')).json()) as any;
+    expect(me.creator.script_language).toBe('hinglish');
+  });
+});
+
 describe('Saved conversations', () => {
   it('validates thread names and starts empty for a new creator', async () => {
     const api = client();

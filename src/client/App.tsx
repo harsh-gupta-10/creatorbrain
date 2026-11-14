@@ -42,6 +42,7 @@ import { MarketingLandingPage } from './pages/MarketingLandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { LibraryTab } from './pages/LibraryTab';
 import { StudyBanner } from './components/StudyBanner';
+import { resetScriptLanguageCache } from './components/ScriptLanguagePicker';
 import { DealsTab } from './pages/DealsTab';
 import { AuditPage } from './pages/AuditPage';
 
@@ -160,6 +161,7 @@ export const App: React.FC = () => {
         onSessionChanged={refreshSession}
         onSignOut={async () => {
           await api.auth.logout().catch(() => {});
+          resetScriptLanguageCache();
           setSession({ loading: false, creator: null, isSample: false });
           navigate('/');
         }}

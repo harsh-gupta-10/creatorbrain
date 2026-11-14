@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { saveAmazonCredentials, MARKETPLACES, PARTNER_TAG_RE } from '../amazon/credentials';
+import { SCRIPT_LANGUAGES } from '../lib/language';
 import { AIRouter } from '../ai/router';
 import { runStudyStep, stepVideo, stepFetch, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
 import { ChannelNotFoundError } from '../content/youtube';
@@ -13,6 +14,7 @@ const ProfileSchema = z
   .object({
     niche: z.string().trim().min(2, 'Tell us what your channel is about').max(80),
     language: z.string().trim().max(60).default('English'),
+    scriptLanguage: z.enum(SCRIPT_LANGUAGES).default('english'),
     cadence: z.enum(['weekly', 'biweekly', 'monthly', 'irregular']).default('weekly'),
     youtube: z.string().trim().max(200).optional().default(''),
     instagram: z.string().trim().max(60).optional().default(''),
@@ -50,11 +52,11 @@ onboardingRoutes.post('/profile', async (c) => {
   const stmts: D1PreparedStatement[] = [
     db
       .prepare(
-        `UPDATE creators SET niche = ?, content_language = ?, upload_cadence = ?, youtube_input = ?, instagram_handle = ?,
+        `UPDATE creators SET niche = ?, content_language = ?, script_language = ?, upload_cadence = ?, youtube_input = ?, instagram_handle = ?,
            platform = ?, goals_json = ?, monetization_json = ?, onboarding_status = 'ready', updated_at = ?
          WHERE id = ?`
       )
-      .bind(p.niche, p.language, p.cadence, p.youtube || null, p.instagram.replace(/^@/, '') || null, platform, JSON.stringify(p.goals), JSON.stringify(monetization), ts, creator.id),
+      .bind(p.niche, p.language, p.scriptLanguage, p.cadence, p.youtube || null, p.instagram.replace(/^@/, '') || null, platform, JSON.stringify(p.goals), JSON.stringify(monetization), ts, creator.id),
     db.prepare("DELETE FROM content_items WHERE creator_id = ? AND platform = 'instagram'").bind(creator.id),
     ...p.instagramCaptions
       .filter(Boolean)

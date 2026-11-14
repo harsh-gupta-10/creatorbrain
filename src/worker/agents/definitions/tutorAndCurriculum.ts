@@ -12,6 +12,8 @@ export async function runTutorChat(options: {
   graph: GraphData;
   router: AIRouter;
   db?: D1Database;
+  /** Explanations in English, example lines in the creator's script language */
+  languageRule?: string;
 }): Promise<string> {
   const { creatorId, userMessage, dna, graph, router, db } = options;
 
@@ -24,7 +26,8 @@ You have direct real-time access to the creator's Brain Knowledge Graph and Crea
 - Known Strengths: ${strengths.map((s) => s.label).join(', ')}
 - Critical Knowledge Gaps: ${gaps.map((g) => g.label).join(', ')}
 
-Provide actionable, supportive, high-clarity advice grounded in YouTube retention data, Amazon affiliate conversion tactics, and video packaging. Be encouraging, concise, and specific.`;
+Provide actionable, supportive, high-clarity advice grounded in YouTube retention data, Amazon affiliate conversion tactics, and video packaging. Be encouraging, concise, and specific.
+${options.languageRule || ''}`;
 
   const result = await runAgent({
     name: 'Tutor',

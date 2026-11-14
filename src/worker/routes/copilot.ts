@@ -3,6 +3,7 @@ import { amazonClientFor } from '../amazon/credentials';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { appendToThread, loadThread } from '../lib/chats';
+import { chatLanguageRule } from '../lib/language';
 import { AIRouter } from '../ai/router';
 import { runProductResearcher } from '../agents/definitions/studioAndResearch';
 import type { Product } from '../../shared/types';
@@ -85,14 +86,14 @@ CURRENT MODE: ${mode.toUpperCase()}
 ${detectedProduct ? `RESOLVED AMAZON PRODUCT:
 - Title: ${detectedProduct.title}
 - ASIN: ${detectedProduct.asin}
-- Price: ${detectedProduct.price_str} (${detectedProduct.price_timestamp})
-- Tag: ${creator.handle}-21` : ''}
+- Price: ${detectedProduct.price_str} (${detectedProduct.price_timestamp})` : ''}
 
 INSTRUCTIONS:
 1. Speak as a peer collaborator who deeply understands ${creator.name}'s exact editing style, audience, and revenue goals.
 2. Structure your suggestions clearly with Markdown headers, bullet points, and high-CTR hooks.
 3. If discussing products or reviews, automatically suggest 2-3 viral angles, the ideal retention structure, and affiliate link placement.
-4. Keep advice crisp, actionable, and formatted for fast scanning.`;
+4. Keep advice crisp, actionable, and formatted for fast scanning.
+5. ${chatLanguageRule(creator)}`;
 
   // Context comes from the saved conversation, so it survives refreshes and other devices
   const saved = await loadThread(c.env.DB, creator.id, 'copilot', 12);

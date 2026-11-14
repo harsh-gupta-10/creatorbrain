@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, ArrowLeft, ArrowRight, SquarePlay, Camera } from 'lucide-react';
 import { api, type OnboardingProfile } from '../lib/api';
+import { SCRIPT_LANGUAGE_OPTIONS } from '../components/ScriptLanguagePicker';
 import { Logo, Spinner, ErrorNote, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
@@ -58,6 +59,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
   const [profile, setProfile] = useState<OnboardingProfile>({
     niche: creator.niche || '',
     language: creator.content_language || 'English',
+    scriptLanguage: (creator.script_language as OnboardingProfile['scriptLanguage']) || 'english',
     cadence: (creator.upload_cadence as OnboardingProfile['cadence']) || 'weekly',
     youtube: creator.youtube_input || '',
     instagram: creator.instagram_handle || '',
@@ -267,6 +269,24 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       <option value="irregular">No set rhythm</option>
                     </select>
                   </div>
+                  <fieldset className="sm:col-span-2">
+                    <legend className="field-label">Write my scripts and titles in</legend>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {SCRIPT_LANGUAGE_OPTIONS.map((o) => (
+                        <Choice
+                          key={o.value}
+                          type="radio"
+                          name="script-language"
+                          checked={profile.scriptLanguage === o.value}
+                          onChange={() => set('scriptLanguage', o.value)}
+                          description={o.hint}
+                        >
+                          {o.label}
+                        </Choice>
+                      ))}
+                    </div>
+                    <p className="field-hint">You can film in Hindi and still read drafts in English. Insights are always in English</p>
+                  </fieldset>
                 </div>
               </div>
             </div>

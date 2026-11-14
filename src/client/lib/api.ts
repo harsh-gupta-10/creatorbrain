@@ -26,9 +26,12 @@ export interface Monetization {
   other?: string[];
 }
 
+export type ScriptLanguage = 'english' | 'hinglish' | 'hindi' | 'match';
+
 export interface OnboardingProfile {
   niche: string;
   language: string;
+  scriptLanguage: ScriptLanguage;
   cadence: 'weekly' | 'biweekly' | 'monthly' | 'irregular';
   youtube: string;
   instagram: string;
@@ -335,6 +338,11 @@ export const api = {
       fetchJson<{ success: boolean; providerSettings: ProviderSettings }>('/api/settings/providers', { method: 'PUT', body: JSON.stringify(body) }),
     updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
       fetchJson<{ success: boolean; message: string; hasCredentials: boolean; partnerTag: string; marketplace: string }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
+    updatePreferences: (body: { scriptLanguage?: ScriptLanguage; contentLanguage?: string }) =>
+      fetchJson<{ success: boolean; scriptLanguage: ScriptLanguage; contentLanguage: string }>('/api/settings/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
     updateMonetization: (body: Monetization) =>
       fetchJson<{ success: boolean; monetization: Monetization }>('/api/settings/monetization', { method: 'PUT', body: JSON.stringify(body) }),
     deleteData: () => fetchJson<{ success: boolean; message: string }>('/api/settings/delete-data', { method: 'POST' }),

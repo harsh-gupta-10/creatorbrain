@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Copy, Check, Mic, FileCode, Image as ImageIcon, Hash, Wrench } from 'lucide-react';
 import { api } from '../lib/api';
+import { ScriptLanguagePicker } from '../components/ScriptLanguagePicker';
 import { PageHeader, EmptyState, ErrorNote, Spinner, ICON } from '../components/ui';
 
 type ToolType = 'hook' | 'script' | 'thumbnail' | 'caption_hashtag';
@@ -84,6 +85,7 @@ export const ToolsTab: React.FC = () => {
       <PageHeader
         title="Tools"
         description="Single-purpose generators for hooks, scripts, thumbnails and captions, written in your voice"
+        actions={<ScriptLanguagePicker />}
       />
 
       <div className="flex flex-wrap gap-1 p-[2px] mb-6 rounded-[8px] bg-raised w-fit" role="group" aria-label="Tool">

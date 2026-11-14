@@ -15,6 +15,7 @@
 import { z } from 'zod';
 import type { AIRouter } from '../ai/router';
 import type { Env } from '../env';
+import { ANALYSIS_LANGUAGE_RULE } from '../lib/language';
 import { fetchTranscript, fetchVideoDetails, formatTimestamp, type TranscriptSegment } from './youtube';
 
 // Missing or null fields become the fallback, never the text "undefined"
@@ -240,6 +241,7 @@ export async function analyzeContentItem(db: D1Database, _env: Env, router: AIRo
           `You are studying one video from a creator's channel to learn their style. Watch it and look at the attached thumbnail.
 ${contextLines(enriched, medianViews, durationSeconds, tags)}
 ${segs.length ? '' : 'There are no captions, so also return "transcript": [{"start": seconds, "text": "..."}] with the spoken words of the first 2 minutes verbatim and one line per later section.'}
+${ANALYSIS_LANGUAGE_RULE}
 Return JSON only with this shape: ${ANALYSIS_SHAPE}`,
           thumb ? { mimeType: thumb.mimeType, base64: toBase64(thumb.bytes) } : undefined
         );
@@ -282,7 +284,7 @@ Return JSON only with this shape: ${ANALYSIS_SHAPE}`,
               {
                 role: 'system',
                 content:
-                  "You study one piece of a creator's content to learn their style. Quote the transcript where you can. Never invent numbers. Return JSON only.",
+                  `You study one piece of a creator's content to learn their style. Quote the transcript where you can. Never invent numbers. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
               },
               {
                 role: 'user',
