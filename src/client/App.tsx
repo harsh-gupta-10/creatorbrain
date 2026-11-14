@@ -355,7 +355,7 @@ const AppShell: React.FC<{
           <div className="border-b border-line bg-surface">
             <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[13px] text-fg-2">
-                You are viewing a sample workspace for a tech reviewer. Editing is turned off
+                You are viewing a sample workspace built from a real channel, IzooG10. Editing is turned off
               </span>
               <a {...linkProps('/signup')} className="btn btn-accent btn-sm">
                 Create your account

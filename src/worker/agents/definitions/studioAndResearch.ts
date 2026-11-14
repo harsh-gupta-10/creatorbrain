@@ -75,6 +75,8 @@ export async function runContentStudioAgent(options: {
   amazon?: AmazonCreatorsClient;
   /** How drafts are written; see lib/language.ts */
   languageRule?: string;
+  /** Only creators in Amazon Associates get affiliate links and disclosures */
+  usesAmazon?: boolean;
   creatorId: string;
   projectId: string;
   brief: string;
@@ -103,7 +105,7 @@ export async function runContentStudioAgent(options: {
 You speak and write in this Creator's exact DNA Voice:
 - Pace: ${dna.voice.pace}
 - Tone: ${dna.voice.tone}
-- Catchphrases to use naturally: ${dna.voice.catchphrases.join(', ')}
+- Phrases they repeat (use at most one, only where it fits naturally in the script; never in titles): ${dna.voice.catchphrases.join(', ') || 'none learned'}
 - Language mix: ${dna.voice.language_mix}
 - Hook formula: ${dna.voice.hook_formula}
 - Thumbnail palette: ${dna.visual.thumbnail_palette.join(', ')}
@@ -121,10 +123,15 @@ Affiliate Link: ${affiliateUrl}`
     : 'General creator video topic'
 }
 
-Always follow Amazon compliance:
-- Must include conspicuous disclosure: "${amazonClient.getMandatoryDisclosure()}"
-- Must state price snapshot with timestamp ("as of recorded date")
-- Never use deceptive cloaking or unverifiable claims.
+${
+  options.usesAmazon
+    ? `This creator is an Amazon Associate. Follow Amazon compliance:
+- Include this disclosure where links appear: "${amazonClient.getMandatoryDisclosure()}"
+- State prices only with "as of" the recording date
+- Use the affiliate link exactly as given above; if none is given, write [product link]`
+    : `This creator does not use Amazon affiliate links. Do not add affiliate links, Amazon disclosures or shopping calls to action.`
+}
+Never invent URLs, short links, prices or dates. Use placeholders like [link] or [price] instead.
 
 ${options.languageRule || ''}`;
 

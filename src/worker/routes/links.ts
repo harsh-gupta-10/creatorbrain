@@ -115,7 +115,7 @@ linkRoutes.post('/create', async (c) => {
   return c.json({
     success: true,
     shortLink: newLink,
-    shortUrl: `https://creatorbrain.dev/s/${slug}`,
+    shortUrl: `${new URL(c.req.url).origin}/s/${slug}`,
   });
 });
 

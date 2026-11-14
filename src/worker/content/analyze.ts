@@ -126,7 +126,7 @@ function parseJsonObject(raw: string): unknown {
 }
 
 const ANALYSIS_SHAPE = `{"summary":"2 sentences","hook":{"text":"the opening line(s) quoted","type":"question|bold claim|result first|story|tease|other","strength":0.0-1.0,"note":"why it works or not"},
-"structure":[{"at":"m:ss","label":"section"}],"topics":["..."],"tone":"...","pacing":"...","calls_to_action":["..."],"products_mentioned":["..."],"catchphrases":["recurring phrases quoted"],
+"structure":[{"at":"m:ss","label":"section"}],"topics":["..."],"tone":"...","pacing":"...","calls_to_action":["..."],"products_mentioned":["..."],"catchphrases":["short spoken phrases the creator says out of habit, quoted; not product, brand or app names"],
 "title":{"pattern":"generalized with [Placeholders]","note":"..."},
 "thumbnail":{"text_overlay":"exact words or none","faces":"none|creator|other","emotion":"...","colors":["..."],"composition":"...","note":"..."},
 "what_worked":["..."],"to_improve":["concrete fix"],"recreate":["how to make another video like this: angle, hook, shot or format"],"packaging_score":0.0-1.0}`;

@@ -170,6 +170,13 @@ studioRoutes.post('/chat', async (c) => {
   const generated = await runContentStudioAgent({
     amazon,
     languageRule: draftLanguageRule(creator),
+    usesAmazon: (() => {
+      try {
+        return JSON.parse(creator.monetization_json || '{}').amazon === true;
+      } catch {
+        return false;
+      }
+    })(),
     creatorId: creator.id,
     projectId,
     brief: `${project.brief} - Refinement: ${message}`,

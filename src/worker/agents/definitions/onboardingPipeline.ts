@@ -233,7 +233,7 @@ interface Stats {
 }
 
 const STOP = new Set(
-  'the a an and or but of to in on for with is it this that my your i you we our at by from vs how what why when best new review video top'.split(' ')
+  'the a an and or but of to in on for with is it this that my your i you we our at by from vs how what why when best new review video top hindi english'.split(' ')
 );
 
 export function computeStats(items: ContentRow[]): Stats {
@@ -464,7 +464,7 @@ Recent content, with per-video breakdowns from transcripts and thumbnails:
 ${list}
 
 Return JSON with this exact shape:
-{"dna":{"voice":{"pace":"","tone":"","catchphrases":[""],"language_mix":"","hook_formula":""},"visual":{"thumbnail_palette":[],"composition":"","text_overlay_words":3},"packaging":{"title_avg_length":${stats.avgTitleLength},"title_patterns":["pattern with [Placeholder]"],"disclosure_position":""},"audience":{"primary_demographic":"","buying_intent":""}},
+{"dna":{"voice":{"pace":"","tone":"","catchphrases":["phrases they repeat, in Roman letters"],"language_mix":"","hook_formula":""},"visual":{"thumbnail_palette":[],"composition":"","text_overlay_words":3},"packaging":{"title_avg_length":${stats.avgTitleLength},"title_patterns":["a generalized pattern of their real titles, e.g. [Product] review after [N] days: [verdict]"],"disclosure_position":""},"audience":{"primary_demographic":"","buying_intent":""}},
 "topics":["up to 6 recurring topics"],
 "strengths":[{"label":"short","description":"one sentence citing a title"}],
 "gaps":[{"label":"short","description":"one sentence with a concrete fix","category":"Packaging|Voice|Retention|SEO|Compliance"}]}
@@ -484,17 +484,34 @@ Give 2 to 3 strengths and 2 to 3 gaps.`,
 
   if (!study) study = heuristicStudy(creator, stats, monetization);
 
+  // Insights stay readable: drop non-Latin quotes and copied template text
+  {
+    const latin = (t: string) => !/[\u0900-\u097F]/.test(t);
+    const notTemplate = (t: string) => !/pattern with|e\.g\.|\[placeholder\]/i.test(t);
+    const named = new Set(analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase()));
+    study.dna.voice.catchphrases = study.dna.voice.catchphrases.filter(
+      (c) => c && latin(c) && notTemplate(c) && !named.has(c.toLowerCase())
+    );
+    study.dna.packaging.title_patterns = study.dna.packaging.title_patterns.filter((t) => t && notTemplate(t));
+    if (!study.dna.packaging.title_patterns.length && studied) {
+      study.dna.packaging.title_patterns = tally(analyses.map((x) => x.a.title.pattern).filter(notTemplate), 3);
+    }
+  }
+
   // Fill voice and visual traits straight from the per-video breakdowns
   if (studied) {
     const d = study.dna;
-    const catchphrases = tally(analyses.flatMap((x) => x.a.catchphrases), 5);
+    const productNames = new Set(analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase()));
+    const catchphrases = tally(analyses.flatMap((x) => x.a.catchphrases), 8)
+      .filter((c) => !productNames.has(c.toLowerCase()))
+      .slice(0, 5);
     const hooks = tally(analyses.map((x) => x.a.hook.type), 2);
     const overlays = analyses.map((x) => x.a.thumbnail.text_overlay).filter((t) => t && !/^none$/i.test(t));
     study.dna = {
       ...d,
       voice: {
         ...d.voice,
-        catchphrases: d.voice.catchphrases.length ? d.voice.catchphrases : catchphrases,
+        catchphrases: d.voice.catchphrases.length ? d.voice.catchphrases : catchphrases.filter((c) => !/[\u0900-\u097F]/.test(c)),
         pace: /not measured/i.test(d.voice.pace) ? tally(analyses.map((x) => x.a.pacing), 1)[0] || d.voice.pace : d.voice.pace,
         tone: /titles only/i.test(d.voice.tone) ? tally(analyses.map((x) => x.a.tone), 1)[0] || d.voice.tone : d.voice.tone,
         hook_formula: hooks.length ? `Mostly ${hooks.join(' and ')} openings` : d.voice.hook_formula,
@@ -613,7 +630,8 @@ async function writeBrain(
       for (const st of strengths) edges.push({ source: vid.id, target: st.id, relation: 'EVIDENCE_FOR', weight: 0.8 });
     }
     link(vid, trait('Hook', `${a.hook.type} openings`, 'How videos start', 0.7), 'USES', item.id);
-    for (const p of a.catchphrases.slice(0, 3)) link(vid, trait('Phrase', `"${p.replace(/^["“]|["”]$/g, '')}"`, 'Something you say again and again', 0.7), 'SAYS', item.id);
+    const named = new Set([...a.products_mentioned, ...a.topics].map((v) => v.toLowerCase()));
+    for (const p of a.catchphrases.filter((c) => !named.has(c.toLowerCase().replace(/^["“]|["”]$/g, ''))).slice(0, 3)) link(vid, trait('Phrase', `"${p.replace(/^["“]|["”]$/g, '')}"`, 'Something you say again and again', 0.7), 'SAYS', item.id);
     for (const pr of a.products_mentioned.slice(0, 4)) link(vid, trait('Product', pr, 'Mentioned in your videos', 0.65), 'MENTIONS', item.id);
     for (const cta of a.calls_to_action.slice(0, 2)) link(vid, trait('CTA', cta, 'What you ask viewers to do', 0.6), 'ASKS', item.id);
     if (a.thumbnail.composition) link(vid, trait('Thumbnail', a.thumbnail.composition, 'A thumbnail style you use', 0.65), 'LOOKS_LIKE', item.id);
