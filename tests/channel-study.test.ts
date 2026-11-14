@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseFeed, normalizeYouTubeInput } from '../src/worker/content/youtube';
 import { computeStats } from '../src/worker/agents/definitions/onboardingPipeline';
+import { auditChannel } from '../src/worker/content/audit';
 
 const FEED = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
@@ -68,5 +69,41 @@ describe('YouTube channel study', () => {
     expect(stats.best[0].id).toBe('1');
     expect(stats.topWords[0]).toBe('dal');
     expect(stats.questionShare).toBeCloseTo(1 / 3);
+  });
+});
+
+
+describe('Free channel audit', () => {
+  const day = (d: number) => new Date(Date.UTC(2026, 10, 14) - d * 86400000).toISOString();
+  const channel = {
+    channelId: 'UC123',
+    title: 'Maya Cooks',
+    url: 'https://www.youtube.com/channel/UC123',
+    subscribers: 200000,
+    videos: Array.from({ length: 12 }, (_, i) => ({
+      id: `v${i}`,
+      title: i === 3 ? 'One-pan dal in 20 minutes' : `Weeknight recipe number ${i} that everyone in my family loves to eat`,
+      description: '',
+      url: `https://www.youtube.com/watch?v=v${i}`,
+      thumbnailUrl: '',
+      views: i === 3 ? 150000 : 40000 + i * 1000,
+      likes: 0,
+      publishedAt: day(i * 7),
+    })),
+  };
+
+  it('scores real numbers and names the top performer in a fix', () => {
+    const a = auditChannel(channel, new Date(Date.UTC(2026, 10, 15)));
+    expect(a.score).toBeGreaterThan(0);
+    expect(a.score).toBeLessThanOrEqual(100);
+    expect(a.categories.map((c) => c.key)).toEqual(['consistency', 'packaging', 'reach', 'momentum']);
+    expect(a.outliers[0].id).toBe('v3');
+    expect(a.fixes).toHaveLength(3);
+    expect(a.heatmap.reduce((n, h) => n + h.count, 0)).toBe(12);
+    expect(a.stats.daysSinceLastUpload).toBe(1);
+  });
+
+  it('refuses a channel with no uploads', () => {
+    expect(() => auditChannel({ ...channel, videos: [] })).toThrow();
   });
 });

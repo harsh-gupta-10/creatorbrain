@@ -7,6 +7,7 @@ import {
   Link2,
   Link,
   ShoppingBag,
+  Handshake,
   Network,
   Library,
   GraduationCap,
@@ -41,6 +42,8 @@ import { MarketingLandingPage } from './pages/MarketingLandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { LibraryTab } from './pages/LibraryTab';
 import { StudyBanner } from './components/StudyBanner';
+import { DealsTab } from './pages/DealsTab';
+import { AuditPage } from './pages/AuditPage';
 
 type TabId =
   | 'overview'
@@ -50,6 +53,7 @@ type TabId =
   | 'bio'
   | 'links'
   | 'amazon'
+  | 'deals'
   | 'library'
   | 'brain'
   | 'learn'
@@ -72,6 +76,7 @@ const TABS: TabItem[] = [
   { id: 'bio', label: 'Link in bio', icon: Link2, group: 'Earn' },
   { id: 'links', label: 'Short links', icon: Link, group: 'Earn' },
   { id: 'amazon', label: 'Amazon', icon: ShoppingBag, group: 'Earn' },
+  { id: 'deals', label: 'Brand deals', icon: Handshake, group: 'Earn' },
   { id: 'library', label: 'Library', icon: Library, group: 'Brain' },
   { id: 'brain', label: 'Brain', icon: Network, group: 'Brain' },
   { id: 'learn', label: 'Lessons', icon: GraduationCap, group: 'Brain' },
@@ -116,6 +121,10 @@ export const App: React.FC = () => {
   if (path.startsWith('/@') || path.startsWith('/%40')) {
     const handle = decodeURIComponent(path).replace(/^\/@/, '');
     return <PublicBioPage handle={handle} />;
+  }
+
+  if (path === '/audit') {
+    return <AuditPage session={session} />;
   }
 
   if (path === '/login' || path === '/signup') {
@@ -363,6 +372,7 @@ const AppShell: React.FC<{
           {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
           {activeTab === 'links' && <ShortLinksTab />}
           {activeTab === 'amazon' && <AmazonAffiliateTab />}
+          {activeTab === 'deals' && <DealsTab />}
           {activeTab === 'library' && <LibraryTab />}
           {activeTab === 'brain' && <BrainTab />}
           {activeTab === 'learn' && <LearnTab />}

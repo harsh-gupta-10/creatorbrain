@@ -4,7 +4,7 @@ import type { AppEnv } from './env';
 import { getSession } from './routes/auth';
 
 /** API paths reachable without a session */
-const PUBLIC_API = [/^\/api\/auth\//, /^\/api\/bio\/click\//, /^\/api\/links\/report-abuse$/, /^\/api\/health$/];
+const PUBLIC_API = [/^\/api\/auth\//, /^\/api\/bio\/click\//, /^\/api\/links\/report-abuse$/, /^\/api\/health$/, /^\/api\/public\//];
 
 const isWrite = (method: string) => !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
@@ -52,6 +52,8 @@ export const authRateLimit: MiddlewareHandler<AppEnv> = async (c, next) => {
 /** Conservative security headers for every response */
 export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
+  // Responses from the assets binding have immutable headers; copy before editing
+  c.res = new Response(c.res.body, c.res);
   const h = c.res.headers;
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');

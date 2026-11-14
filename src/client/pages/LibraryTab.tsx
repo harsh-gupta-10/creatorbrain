@@ -393,6 +393,7 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
           <div className="grid gap-6 sm:grid-cols-2">
             <ListBlock title="What worked" items={a.what_worked} tone="positive" />
             <ListBlock title="To improve" items={a.to_improve} tone="neutral" />
+            <ListBlock title="Make another like it" items={a.recreate || []} tone="neutral" />
           </div>
 
           <div className="flex flex-col gap-3 text-[13px]">

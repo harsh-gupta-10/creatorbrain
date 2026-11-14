@@ -223,6 +223,43 @@ describe('Study in the app', () => {
   });
 });
 
+describe('Brand deals', () => {
+  it('creates, moves and deletes a deal, scoped to its creator', async () => {
+    const api = client();
+    await signup(api);
+    expect((await api('/api/deals', { method: 'POST', json: { brand: '' } })).status).toBe(400);
+    const created = await api('/api/deals', {
+      method: 'POST',
+      json: { brand: 'Spice Co.', amount: 600, currency: 'USD', stage: 'posted', due_date: '2026-11-10' },
+    });
+    expect(created.status).toBe(201);
+    const { deal } = (await created.json()) as any;
+
+    const paid = (await (await api(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'paid' } })).json()) as any;
+    expect(paid.deal.stage).toBe('paid');
+    expect(paid.deal.paid_at).toBeTruthy();
+
+    const other = client();
+    await signup(other);
+    expect((await other(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'talking' } })).status).toBe(404);
+    expect(((await (await other('/api/deals')).json()) as any).deals).toHaveLength(0);
+
+    expect((await api(`/api/deals/${deal.id}`, { method: 'DELETE' })).status).toBe(200);
+    expect(((await (await api('/api/deals')).json()) as any).deals).toHaveLength(0);
+  });
+});
+
+describe('Free audit', () => {
+  it('is public and validates input', async () => {
+    const res = await fetch(`${base}/api/public/audit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': '10.8.8.8' },
+      body: JSON.stringify({ channel: '' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('Amazon credentials', () => {
   it('stores keys encrypted and only ever returns a hint', async () => {
     const api = client();

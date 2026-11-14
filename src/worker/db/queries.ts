@@ -499,24 +499,27 @@ export class DBClient {
   }
 
   async deleteCreatorData(creatorId: string): Promise<void> {
-    // Delete all rows belonging to creatorId across all tables
-    await this.db.batch([
-      this.db.prepare('DELETE FROM creators WHERE id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM nodes WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM edges WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM learnings WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM lessons WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM quizzes WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM agent_traces WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM projects WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM assets WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM products WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM affiliate_links WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM short_links WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM bio_pages WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM provider_settings WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM credentials_encrypted WHERE creator_id = ?').bind(creatorId),
-      this.db.prepare('DELETE FROM earnings_reports WHERE creator_id = ?').bind(creatorId),
-    ]);
+    // Every table holding creator data, children first, then the creator row itself
+    const tables = [
+      'edges', 'nodes', 'learnings', 'lessons', 'quizzes', 'agent_traces', 'asset_versions_by_creator',
+      'assets', 'projects', 'affiliate_links', 'link_clicks', 'short_links', 'bio_blocks_by_creator', 'bio_pages',
+      'products', 'provider_settings', 'credentials_encrypted', 'earnings_reports', 'content_items',
+      'brand_deals', 'analysis_jobs', 'sessions',
+    ];
+    const stmts = tables.map((t) => {
+      if (t === 'asset_versions_by_creator') {
+        return this.db
+          .prepare('DELETE FROM asset_versions WHERE asset_id IN (SELECT id FROM assets WHERE creator_id = ?)')
+          .bind(creatorId);
+      }
+      if (t === 'bio_blocks_by_creator') {
+        return this.db
+          .prepare('DELETE FROM bio_blocks WHERE bio_page_id IN (SELECT id FROM bio_pages WHERE creator_id = ?)')
+          .bind(creatorId);
+      }
+      return this.db.prepare(`DELETE FROM ${t} WHERE creator_id = ?`).bind(creatorId);
+    });
+    stmts.push(this.db.prepare('DELETE FROM creators WHERE id = ?').bind(creatorId));
+    await this.db.batch(stmts);
   }
 }

@@ -13,6 +13,8 @@ import { agentsRoutes } from './routes/agents';
 import { settingsRoutes } from './routes/settings';
 import { copilotRoutes } from './routes/copilot';
 import { contentRoutes } from './routes/content';
+import { publicRoutes } from './routes/public';
+import { dealsRoutes } from './routes/deals';
 import { analyzeContentItem, pendingItems } from './content/analyze';
 import { AIRouter } from './ai/router';
 import { DBClient } from './db/queries';
@@ -48,6 +50,8 @@ app.route('/api/agents', agentsRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/copilot', copilotRoutes);
 app.route('/api/content', contentRoutes);
+app.route('/api/public', publicRoutes);
+app.route('/api/deals', dealsRoutes);
 
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)

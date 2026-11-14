@@ -22,7 +22,7 @@ Creators make the same decisions every week: what to make next, how to title it,
 CreatorBrain treats the creator's own back catalogue as the source of truth.
 
 1. **Ask only what can't be inferred.** Signup is name, handle, email and password. Onboarding asks for the channel, niche, language, upload rhythm, how the creator earns (Amazon Associates or not, sponsorships, own products, memberships) and up to three goals.
-2. **Study every video in depth.** For each upload it pulls the timestamped transcript, looks at the thumbnail with a vision model, and has a language model break down the hook, structure, topics, tone, pacing, calls to action, products mentioned, recurring phrases, title pattern, what worked and what to improve.
+2. **Study every video in depth.** For each upload it pulls the timestamped transcript, looks at the thumbnail with a vision model, and has a language model break down the hook, structure, topics, tone, pacing, calls to action, products mentioned, recurring phrases, title pattern, what worked, what to improve and how to make another like it.
 3. **Synthesize a Creator DNA** across all those breakdowns: voice, visual style, packaging patterns and audience, plus specific strengths and gaps, each tied to the videos that show it.
 4. **Store it as a graph** (videos, topics, strengths, gaps, style and audience as nodes in D1) that the creator can browse and that every drafting feature reads from.
 5. **Decide from context.** Suggestions, lessons and tools depend on what was learned and what the creator told us (logic below).
@@ -84,6 +84,8 @@ Link in bio · Short links   ◄──────────── /@handle (s
 - **Studio, Copilot, Quick tools:** drafting grounded in the Creator DNA
 - **Lessons and Assessments:** planned from the creator's own gaps
 - **Link in bio, Short links, Amazon:** a public page at `/@handle`, tracked redirects, product cards and earnings import
+- **Brand deals:** a pipeline from first conversation to paid, with amounts, post and payment dates, and overdue flags
+- **Free channel audit (`/audit`, no account):** a 0–100 score across consistency, titles, reach and momentum, a weekday posting heatmap, top uploads, and three fixes written from the channel's real numbers. It is deterministic, so it uses no AI quota; results are cached for 6 hours and rate limited per IP
 
 ## Project structure
 

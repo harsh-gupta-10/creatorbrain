@@ -134,6 +134,7 @@ export interface VideoAnalysis {
   thumbnail: { text_overlay: string; faces: string; emotion: string; colors: string[]; composition: string; note: string };
   what_worked: string[];
   to_improve: string[];
+  recreate?: string[];
   packaging_score: number;
 }
 
@@ -146,7 +147,45 @@ export interface LibraryItemDetail extends LibraryItem {
   analysis_error?: string;
 }
 
+export interface ChannelAudit {
+  channel: { id: string; title: string; url: string; avatarUrl?: string; subscribers?: number };
+  score: number;
+  categories: { key: string; label: string; score: number; detail: string }[];
+  fixes: { title: string; detail: string }[];
+  heatmap: { weekday: number; count: number; medianViews: number }[];
+  stats: { videos: number; medianViews: number; uploadsPerMonth: number; daysSinceLastUpload: number; avgTitleLength: number; numberShare: number };
+  outliers: { id: string; title: string; url: string; thumbnailUrl: string; views: number; ratio: number }[];
+  generatedAt: string;
+}
+
+export type DealStage = 'talking' | 'agreed' | 'posted' | 'paid';
+export interface BrandDeal {
+  id: string;
+  brand: string;
+  contact?: string;
+  deliverable?: string;
+  amount: number;
+  currency: 'USD' | 'INR' | 'EUR' | 'GBP' | 'CAD';
+  stage: DealStage;
+  due_date?: string | null;
+  post_date?: string | null;
+  notes?: string;
+  paid_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+export type DealInput = Partial<Omit<BrandDeal, 'id' | 'created_at' | 'updated_at' | 'paid_at'>>;
+
 export const api = {
+  publicAudit: (channel: string) =>
+    fetchJson<{ audit: ChannelAudit; cached: boolean }>('/api/public/audit', { method: 'POST', body: JSON.stringify({ channel }) }),
+  deals: {
+    list: () => fetchJson<{ deals: BrandDeal[] }>('/api/deals'),
+    create: (body: DealInput) => fetchJson<{ deal: BrandDeal }>('/api/deals', { method: 'POST', body: JSON.stringify(body) }),
+    update: (id: string, body: DealInput) =>
+      fetchJson<{ deal: BrandDeal }>(`/api/deals/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
+    remove: (id: string) => fetchJson<{ success: boolean }>(`/api/deals/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  },
   content: {
     list: (params: { status?: string; platform?: string } = {}) =>
       fetchJson<{ items: LibraryItem[]; counts: Record<string, number> }>(

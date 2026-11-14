@@ -345,3 +345,9 @@
     transform: none;
   }
 }
+
+/* In-page anchors land below the sticky header */
+section[id],
+[id$='-h'] {
+  scroll-margin-top: 80px;
+}

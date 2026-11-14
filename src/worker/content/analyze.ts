@@ -57,6 +57,7 @@ export const VideoAnalysisSchema = z.object({
     .catch({ text_overlay: '', faces: '', emotion: '', colors: [], composition: '', note: '' }),
   what_worked: strList(4),
   to_improve: strList(4),
+  recreate: strList(4),
   packaging_score: score,
 });
 export type VideoAnalysis = z.infer<typeof VideoAnalysisSchema>;
@@ -127,7 +128,7 @@ const ANALYSIS_SHAPE = `{"summary":"2 sentences","hook":{"text":"the opening lin
 "structure":[{"at":"m:ss","label":"section"}],"topics":["..."],"tone":"...","pacing":"...","calls_to_action":["..."],"products_mentioned":["..."],"catchphrases":["recurring phrases quoted"],
 "title":{"pattern":"generalized with [Placeholders]","note":"..."},
 "thumbnail":{"text_overlay":"exact words or none","faces":"none|creator|other","emotion":"...","colors":["..."],"composition":"...","note":"..."},
-"what_worked":["..."],"to_improve":["concrete fix"],"packaging_score":0.0-1.0}`;
+"what_worked":["..."],"to_improve":["concrete fix"],"recreate":["how to make another video like this: angle, hook, shot or format"],"packaging_score":0.0-1.0}`;
 
 function contextLines(item: ItemRow, medianViews: number, durationSeconds: number, tags: string[]): string {
   return [

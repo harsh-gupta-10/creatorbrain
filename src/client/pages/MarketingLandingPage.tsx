@@ -1,12 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRight,
-  Clapperboard,
-  MessageSquare,
-  Link2,
-  ShoppingBag,
-  Network,
-  GraduationCap,
   ChevronDown,
   Menu,
   X,
@@ -14,44 +8,13 @@ import {
 import { api } from '../lib/api';
 import { linkProps } from '../lib/router';
 import { Logo, Meter, Spinner, ICON, SkipLink } from '../components/ui';
+import { AskDemo, BreakdownShowcase, ModuleTour, AuditSection, ControlSection, SiteFooter } from './landing/sections';
 import type { Creator } from '../../shared/types';
 
 interface MarketingLandingPageProps {
   session: { loading: boolean; creator: Creator | null; isSample: boolean };
 }
 
-const FEATURES = [
-  {
-    icon: Clapperboard,
-    title: 'Studio',
-    body: 'Turn an idea into titles, a script outline, description, pinned comment and captions, drafted from how your past uploads were written',
-  },
-  {
-    icon: MessageSquare,
-    title: 'Copilot',
-    body: 'Talk through a video idea. It knows your topics, what worked and what did not, and can hand the idea to the Studio',
-  },
-  {
-    icon: Network,
-    title: 'Brain',
-    body: 'Strengths, gaps, topics and audience learned from your content, each with a confidence level and the uploads behind it',
-  },
-  {
-    icon: GraduationCap,
-    title: 'Lessons',
-    body: 'Short lessons and a quiz planned from the gaps in your own channel, not a generic course',
-  },
-  {
-    icon: Link2,
-    title: 'Link in bio and short links',
-    body: 'A public page at your handle and tracked short links for descriptions, with clicks by country and device',
-  },
-  {
-    icon: ShoppingBag,
-    title: 'Amazon affiliate',
-    body: 'Only if you use it: tagged links, product cards, dated prices and disclosures placed where they belong',
-  },
-];
 
 const STEPS = [
   { n: '01', title: 'Tell us where you publish', body: 'Your YouTube channel, Instagram captions, your niche and how you earn' },
@@ -60,6 +23,10 @@ const STEPS = [
 ];
 
 const FAQS = [
+  {
+    q: 'Is the channel audit really free',
+    a: 'Yes. It needs no account and reads only your public uploads feed: titles, dates and view counts. The full study, with transcripts and thumbnails, starts when you create an account.',
+  },
   {
     q: 'What does it read from my channel',
     a: 'Your public YouTube uploads feed: titles, descriptions, publish dates, view and like counts for your latest 15 videos. For Instagram, only the captions you paste during setup. It never posts or comments for you.',
@@ -71,6 +38,10 @@ const FAQS = [
   {
     q: 'How does it keep learning',
     a: 'Once a day it checks your channel for new uploads and refreshes your stats. You can also study your channel again from the dashboard at any time.',
+  },
+  {
+    q: 'Can it track brand deals',
+    a: 'Yes. Brand deals is a simple pipeline from first conversation to paid, with amounts, post dates and payment due dates. Overdue payments are flagged so nothing slips.',
   },
   {
     q: 'Which AI does it use',
@@ -121,6 +92,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
           <nav className="hidden md:flex items-center gap-8 text-[14px] text-fg-2" aria-label="Primary">
             <a href="#how" className="hover:text-fg transition-colors">How it works</a>
             <a href="#features" className="hover:text-fg transition-colors">Features</a>
+            <a {...linkProps('/audit')} className="hover:text-fg transition-colors">Free audit</a>
             <a href="#faq" className="hover:text-fg transition-colors">Questions</a>
           </nav>
           <div className="hidden md:flex items-center gap-4">
@@ -147,6 +119,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
           <nav id="landing-mobile-menu" aria-label="Primary" className="md:hidden border-t border-line px-5 py-4 flex flex-col gap-3 text-[14px]">
             <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
             <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
+            <a {...linkProps('/audit')}>Free audit</a>
             <a href="#faq" onClick={() => setMenuOpen(false)}>Questions</a>
             <div className="flex gap-2 pt-2">
               <a {...linkProps('/login')} className="btn btn-secondary btn-sm flex-1">Sign in</a>
@@ -176,13 +149,24 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
               </button>
             )}
           </div>
+          <p className="mt-4 text-[14px] text-fg-2">
+            Not ready to sign up?{' '}
+            <a href="#audit" className="text-fg underline underline-offset-4 decoration-line-strong hover:decoration-fg">
+              Get a free channel audit
+            </a>
+          </p>
         </div>
 
         <HeroPreview />
       </section>
 
+      <AskDemo />
+      <BreakdownShowcase />
+      <ModuleTour />
+      <AuditSection signedIn={signedIn} />
+
       {/* How it works */}
-      <section id="how" className="border-t border-line bg-surface">
+      <section id="how" className="border-t border-line">
         <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-20 md:py-28">
           <h2 className="text-[32px] leading-[40px] font-medium tracking-[-0.02em] max-w-[560px]">
             Set up once. It keeps studying
@@ -199,28 +183,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="border-t border-line">
-        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-20 md:py-28">
-          <div className="grid gap-12 md:grid-cols-[1fr_2fr]">
-            <div>
-              <h2 className="text-[32px] leading-[40px] font-medium tracking-[-0.02em]">One workspace for the work around a video</h2>
-              <p className="mt-4 text-fg-2">
-                Ideas, drafts, links and what you learned live in one place, so each video starts where the last one left off
-              </p>
-            </div>
-            <div className="grid gap-px bg-line rounded-[16px] overflow-hidden border border-line sm:grid-cols-2">
-              {FEATURES.map((f) => (
-                <div key={f.title} className="bg-surface p-6">
-                  <f.icon {...ICON} className="text-fg-2" />
-                  <h3 className="mt-4 font-medium">{f.title}</h3>
-                  <p className="mt-2 text-[14px] text-fg-2 leading-[22px]">{f.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+      <ControlSection />
 
       {/* FAQ */}
       <section id="faq" className="border-t border-line bg-surface">
@@ -264,12 +227,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
       </section>
       </main>
 
-      <footer className="border-t border-line">
-        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between text-[13px] text-fg-3">
-          <Logo />
-          <span>Runs on Cloudflare</span>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 };
