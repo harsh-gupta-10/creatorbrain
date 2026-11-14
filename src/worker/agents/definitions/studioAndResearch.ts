@@ -157,7 +157,6 @@ Always follow Amazon compliance:
 
 Check Live Amazon Deals & Discounts:
 👉 Buy on Amazon: ${affiliateUrl}
-👉 My Recommended Creator Gear: https://creatorbrain.dev/@techkabir
 
 Affiliate Disclosure: As an Amazon Associate, I earn from qualifying purchases made through links above at no extra cost to you. Pricing and availability accurate as of video upload (${product?.price_timestamp || 'recent'}).
 
@@ -194,7 +193,7 @@ In this video, we pop the hood and examine real performance, build quality, and 
   const scriptOutline =
     extractSection(responseText, 'script outline', 'script') ||
     `### 0:00 - 0:40: The Teardown Hook
-- Macro shot of product. Kabir: "Most reviewers claim this is flawless. They're wrong. Let's pop the hood."
+- Macro shot of product. You: "Most reviewers claim this is flawless. They're wrong. Let's pop the hood."
 - Forward loop: "Stay until minute 5 for the thermal stress test that shocked me."
 
 ### 0:40 - 2:30: Build & Hardware Internals
@@ -213,7 +212,7 @@ In this video, we pop the hood and examine real performance, build quality, and 
     extractSection(responseText, 'thumbnail ideas', 'thumbnail') ||
     `Concept 1:
 - Left: Product with dramatic cyan/amber rim light.
-- Right: Kabir with shock reaction pointing to screen.
+- Right: You, reacting pointing to screen.
 - Text: "DON'T BUY THIS!" (Bold electric yellow)
 
 Concept 2:

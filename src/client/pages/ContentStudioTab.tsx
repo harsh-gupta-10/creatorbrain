@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  FolderKanban,
-  Send,
-  Sparkles,
+  ArrowUp,
   Copy,
   Check,
   Download,
@@ -18,11 +16,14 @@ import {
   FileCode,
   Image as ImageIcon,
   HelpCircle,
+  FolderKanban,
+  type LucideIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { PageHeader, EmptyState, ErrorNote, Spinner, ICON } from '../components/ui';
 import type { Project, ProjectAsset, AssetType } from '../../shared/types';
 
-const ASSET_ICONS: Record<AssetType, React.ComponentType<{ className?: string }>> = {
+const ASSET_ICONS: Record<AssetType, LucideIcon> = {
   titles: FileText,
   description: FileText,
   tags: Tag,
@@ -45,7 +46,7 @@ export const ContentStudioTab: React.FC = () => {
   // Chat State
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<
-    { role: 'user' | 'agent'; text: string; time: string }[]
+    { role: 'user' | 'agent'; text: string; time: string; isError?: boolean }[]
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -58,6 +59,9 @@ export const ContentStudioTab: React.FC = () => {
   const [showNewModal, setShowNewModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newBrief, setNewBrief] = useState('');
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -72,6 +76,7 @@ export const ContentStudioTab: React.FC = () => {
       }
     } catch (err: unknown) {
       console.error('Failed to load projects:', err);
+      setError(err instanceof Error ? err.message : 'Could not load projects');
     }
   };
 
@@ -91,12 +96,13 @@ export const ContentStudioTab: React.FC = () => {
       setChatMessages([
         {
           role: 'agent',
-          text: `Studio Agent ready for project "${res.project.title}". You can ask me to research new products, write scripts in your DNA voice, refine title options, or check compliance!`,
+          text: `Working on "${res.project.title}". Ask for product research, a script in your voice, new title options or a disclosure check.`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
     } catch (err: unknown) {
       console.error('Failed to select project:', err);
+      setError(err instanceof Error ? err.message : 'Could not open the project');
     }
   };
 
@@ -149,7 +155,8 @@ export const ContentStudioTab: React.FC = () => {
         ...prev,
         {
           role: 'agent',
-          text: `⚠️ Error communicating with Studio Agent: ${message}. Please check provider setup in Settings.`,
+          text: `Could not get a reply: ${message}. Check the model provider in Settings.`,
+          isError: true,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         },
       ]);
@@ -162,6 +169,7 @@ export const ContentStudioTab: React.FC = () => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    setModalError(null);
     try {
       const res = await api.studio.createProject({
         title: newTitle.trim(),
@@ -175,6 +183,7 @@ export const ContentStudioTab: React.FC = () => {
       selectProject(res.project.id);
     } catch (err: unknown) {
       console.error('Failed to create project:', err);
+      setModalError(err instanceof Error ? err.message : 'Could not create the project');
     }
   };
 
@@ -182,6 +191,8 @@ export const ContentStudioTab: React.FC = () => {
     const curAsset = assets.find((a) => a.type === activeAssetType);
     if (!curAsset) return;
 
+    setError(null);
+    setIsSaving(true);
     try {
       await api.studio.editAsset(curAsset.id, {
         content: editableContent,
@@ -192,6 +203,9 @@ export const ContentStudioTab: React.FC = () => {
       setAssets(res.assets || []);
     } catch (err: unknown) {
       console.error('Failed to save asset edit:', err);
+      setError(err instanceof Error ? err.message : 'Could not save the edit');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -244,149 +258,159 @@ ${a.content}
   const currentAsset = assets.find((a) => a.type === activeAssetType);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 w-full">
-      {/* Top Project Selector & Actions Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-3xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-2xl bg-indigo-50 border border-indigo-200/80 text-indigo-600 shadow-xs">
-            <FolderKanban className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
+    <div className="w-full">
+      <PageHeader
+        title="Content Studio"
+        description="One project per video. Draft every asset with the studio agent, then edit, copy or export"
+        actions={
+          <>
+            <button
+              onClick={() => {
+                setModalError(null);
+                setShowNewModal(true);
+              }}
+              className="btn btn-secondary"
+            >
+              <Plus {...ICON} />
+              New project
+            </button>
+            <button onClick={handleExportMarkdown} disabled={!selectedProject} className="btn btn-primary">
+              <Download {...ICON} />
+              Export Markdown
+            </button>
+          </>
+        }
+      />
+
+      {error && (
+        <div className="mb-4">
+          <ErrorNote>{error}</ErrorNote>
+        </div>
+      )}
+
+      <div className="card p-4 mb-6 flex flex-col md:flex-row md:items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="studio-project" className="sr-only">
+            Project
+          </label>
+          <select
+            id="studio-project"
+            value={selectedProjectId}
+            onChange={(e) => selectProject(e.target.value)}
+            className="input w-auto min-w-0 max-w-sm font-medium"
+          >
+            {projects.length === 0 && <option value="">No projects yet</option>}
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </select>
+
+          {selectedProject && (
+            <div className="relative">
+              <span
+                className={`dot absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none ${
+                  selectedProject.status === 'Published' ? 'bg-positive' : 'bg-fg-3'
+                }`}
+                aria-hidden="true"
+              />
+              <label htmlFor="studio-status" className="sr-only">
+                Status
+              </label>
               <select
-                value={selectedProjectId}
-                onChange={(e) => selectProject(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-sm font-bold text-slate-900 focus:outline-none focus:border-indigo-500 transition shadow-xs"
+                id="studio-status"
+                value={selectedProject.status}
+                onChange={(e) => handleStatusChange(e.target.value as Project['status'])}
+                className="input w-auto pl-7"
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))}
+                <option value="Idea">Idea</option>
+                <option value="Scripted">Scripted</option>
+                <option value="Filmed">Filmed</option>
+                <option value="Edited">Edited</option>
+                <option value="Published">Published</option>
               </select>
-
-              {selectedProject && (
-                <select
-                  value={selectedProject.status}
-                  onChange={(e) => handleStatusChange(e.target.value as Project['status'])}
-                  className={`text-xs font-bold uppercase rounded-xl px-3 py-1.5 border focus:outline-none transition shadow-xs ${
-                    selectedProject.status === 'Published'
-                      ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/25'
-                      : selectedProject.status === 'Scripted'
-                      ? 'bg-purple-500/10 text-purple-700 border-purple-500/25'
-                      : 'bg-amber-500/10 text-amber-700 border-amber-500/25'
-                  }`}
-                >
-                  <option value="Idea">Idea</option>
-                  <option value="Scripted">Scripted</option>
-                  <option value="Filmed">Filmed</option>
-                  <option value="Edited">Edited</option>
-                  <option value="Published">Published</option>
-                </select>
-              )}
             </div>
-            <p className="text-xs text-slate-500 mt-1 max-w-xl truncate">
-              {selectedProject?.brief || 'No brief provided yet'}
-            </p>
-          </div>
+          )}
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 transition active:scale-95 shadow-xs"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            New Project
-          </button>
-          <button
-            onClick={handleExportMarkdown}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition active:scale-95 shadow-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export Markdown
-          </button>
-        </div>
+        <p className="text-[13px] text-fg-2 min-w-0 truncate">{selectedProject?.brief || 'No brief yet'}</p>
       </div>
 
-      {/* Main Studio Grid: Left Studio Chat & Right Asset Suite Inspector */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: AI Studio Chat (5 Cols) */}
-        <div className="lg:col-span-5 h-[620px] rounded-3xl bg-white border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-          {/* Chat Header */}
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
-            <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs font-bold text-slate-900 tracking-wide">Studio Agent</span>
-              <span className="text-[10px] text-indigo-700 font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/80">
-                DNA Guided
-              </span>
-            </div>
-            <span className="text-[11px] text-slate-500 font-medium">Autonomous Tool Loop</span>
+        <div className="lg:col-span-5 h-[620px] panel flex flex-col overflow-hidden">
+          <div className="h-12 px-4 border-b border-line flex items-center justify-between">
+            <span className="text-[13px] font-medium text-fg">Studio agent</span>
+            <span className="meta">Researches, drafts and checks</span>
           </div>
 
-          {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
-            {chatMessages.map((msg, i) => (
-              <div
-                key={i}
-                className={`flex flex-col ${
-                  msg.role === 'user' ? 'items-end' : 'items-start'
-                }`}
-              >
-                <div
-                  className={`max-w-[88%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-slate-900 text-white font-medium rounded-tr-none shadow-xs'
-                      : 'bg-slate-50 text-slate-800 border border-slate-200/80 rounded-tl-none shadow-xs'
-                  }`}
-                >
-                  {msg.text}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {chatMessages.length === 0 && !selectedProjectId && (
+              <EmptyState
+                icon={<FolderKanban {...ICON} />}
+                title="No project selected"
+                description="Create a project to start drafting its assets"
+              />
+            )}
+            {chatMessages.map((msg, i) =>
+              msg.role === 'user' ? (
+                <div key={i} className="flex flex-col items-end gap-1">
+                  <div className="max-w-[88%] rounded-[12px] bg-raised px-3 py-2 text-fg whitespace-pre-wrap">
+                    {msg.text}
+                  </div>
+                  <span className="meta">{msg.time}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 px-1">{msg.time}</span>
-              </div>
-            ))}
+              ) : (
+                <div key={i} className="flex flex-col gap-1">
+                  {msg.isError ? (
+                    <ErrorNote>{msg.text}</ErrorNote>
+                  ) : (
+                    <div className="text-fg-2 whitespace-pre-wrap">{msg.text}</div>
+                  )}
+                  <span className="meta">{msg.time}</span>
+                </div>
+              )
+            )}
             {isGenerating && (
-              <div className="flex items-center gap-2 p-3 text-xs text-indigo-700 bg-indigo-50/80 border border-indigo-200 rounded-2xl animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 animate-spin text-indigo-600" />
-                Agents collaborating: Product Researcher, Studio Agent & Compliance Checker...
+              <div className="flex items-center gap-2 text-[13px] text-fg-3">
+                <Spinner />
+                Researching products, drafting and checking disclosures
               </div>
             )}
           </div>
 
-          {/* Chat Input */}
-          <form onSubmit={handleSendMessage} className="p-3 border-t border-slate-100 bg-white flex items-center gap-2">
+          <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              placeholder="e.g. Making a review on Motorola Edge 50, budget ₹22k angle..."
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
+              placeholder="Ask the studio agent"
+              aria-label="Message the studio agent"
+              disabled={!selectedProjectId}
+              className="input flex-1"
             />
             <button
               type="submit"
               disabled={isGenerating || !chatInput.trim()}
-              className="p-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold disabled:opacity-40 transition active:scale-95 shadow-sm shadow-indigo-600/20"
+              aria-label="Send"
+              className="btn btn-accent w-9 px-0 shrink-0"
             >
-              <Send className="w-4 h-4" />
+              <ArrowUp {...ICON} />
             </button>
           </form>
         </div>
 
-        {/* Right Column: Asset Suite Inspector (7 Cols) */}
-        <div className="lg:col-span-7 h-[620px] rounded-3xl bg-white border border-slate-200/90 flex flex-col overflow-hidden shadow-xs">
-          {/* Asset Category Tabs Bar */}
-          <div className="border-b border-slate-100 bg-slate-50/60 p-2.5 overflow-x-auto flex items-center gap-1.5">
+        <div className="lg:col-span-7 h-[620px] panel flex flex-col overflow-hidden">
+          <div className="border-b border-line p-2 overflow-x-auto flex items-center gap-1" role="tablist">
             {[
-              { type: 'titles' as const, label: '5 Titles' },
+              { type: 'titles' as const, label: 'Titles' },
               { type: 'description' as const, label: 'Description' },
               { type: 'tags' as const, label: 'Tags' },
-              { type: 'pinned_comment' as const, label: 'Pinned Comment' },
+              { type: 'pinned_comment' as const, label: 'Pinned comment' },
               { type: 'shorts_caption' as const, label: 'Shorts' },
               { type: 'instagram_caption' as const, label: 'Instagram' },
-              { type: 'script_outline' as const, label: 'Script Outline' },
+              { type: 'script_outline' as const, label: 'Script outline' },
               { type: 'thumbnail_ideas' as const, label: 'Thumbnail' },
-              { type: 'community_post' as const, label: 'Community Poll' },
+              { type: 'community_post' as const, label: 'Community post' },
               { type: 'compliance_report' as const, label: 'Compliance' },
             ].map((tab) => {
               const Icon = ASSET_ICONS[tab.type] || FileText;
@@ -394,59 +418,48 @@ ${a.content}
               return (
                 <button
                   key={tab.type}
+                  role="tab"
+                  aria-selected={isActive}
                   onClick={() => handleAssetTabChange(tab.type)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                    isActive
-                      ? 'bg-white text-slate-900 border border-slate-200 shadow-xs font-semibold'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+                  className={`flex items-center gap-2 h-8 px-3 rounded-[8px] text-[13px] whitespace-nowrap transition-colors ${
+                    isActive ? 'bg-raised text-fg' : 'text-fg-2 hover:text-fg hover:bg-raised'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
+                  <Icon {...ICON} className={isActive ? 'text-fg-2' : 'text-fg-3'} />
                   {tab.label}
                 </button>
               );
             })}
           </div>
 
-          {/* Asset Content Header & Action Buttons */}
-          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                {currentAsset?.title || activeAssetType}
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Generated strictly in Kabir's signature Creator DNA Voice
-              </p>
+          <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-4">
+            <div className="min-w-0">
+              <h3 className="text-[15px] font-medium text-fg truncate">{currentAsset?.title || activeAssetType}</h3>
+              <p className="text-[12px] leading-4 text-fg-3 mt-1">Drafted from your past videos and captions</p>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsEditing(!isEditing)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition shadow-xs"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                {isEditing ? 'Cancel' : 'Edit Asset'}
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => setIsEditing(!isEditing)} className="btn btn-ghost btn-sm">
+                <Edit3 {...ICON} />
+                {isEditing ? 'Cancel' : 'Edit'}
               </button>
               {isEditing && (
-                <button
-                  onClick={handleSaveAssetEdit}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 transition shadow-xs"
-                >
-                  <Save className="w-3.5 h-3.5" />
+                <button onClick={handleSaveAssetEdit} disabled={isSaving} className="btn btn-primary btn-sm">
+                  {isSaving ? <Spinner /> : <Save {...ICON} />}
                   Save
                 </button>
               )}
               <button
                 onClick={() => handleCopyAsset(editableContent, activeAssetType)}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-slate-700 hover:bg-slate-50 transition border border-slate-200 shadow-xs"
+                className="btn btn-secondary btn-sm"
               >
                 {copiedType === activeAssetType ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Copied!
+                    <Check {...ICON} className="text-positive" />
+                    Copied
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5" />
+                    <Copy {...ICON} />
                     Copy
                   </>
                 )}
@@ -454,65 +467,75 @@ ${a.content}
             </div>
           </div>
 
-          {/* Asset Content Viewer / Editor */}
-          <div className="flex-1 p-4 overflow-y-auto bg-slate-50/40">
+          <div className="flex-1 p-4 overflow-y-auto">
             {isEditing ? (
               <textarea
                 value={editableContent}
                 onChange={(e) => setEditableContent(e.target.value)}
-                className="w-full h-full bg-white border border-slate-200 rounded-2xl p-4 text-xs font-mono text-slate-900 focus:outline-none focus:border-indigo-500 resize-none leading-relaxed shadow-xs"
+                aria-label="Asset content"
+                className="input h-full font-mono text-[13px] resize-none"
               />
-            ) : (
-              <pre className="text-xs font-mono text-slate-800 whitespace-pre-wrap leading-relaxed select-text font-normal">
-                {editableContent || 'No content synthesized yet for this asset.'}
+            ) : editableContent ? (
+              <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
+                {editableContent}
               </pre>
+            ) : (
+              <EmptyState
+                icon={<FileText {...ICON} />}
+                title="Nothing drafted yet"
+                description="Ask the studio agent to draft this asset"
+              />
             )}
           </div>
         </div>
       </div>
 
-      {/* New Project Modal */}
       {showNewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-900">Create New Video Project</h3>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/30 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-project-title"
+        >
+          <div className="panel w-full max-w-md p-6 shadow-[0_8px_24px_rgb(0_0_0/0.12)]">
+            <h3 id="new-project-title" className="text-[16px] font-medium text-fg mb-4">
+              New video project
+            </h3>
             <form onSubmit={handleCreateNewProject} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Project Title</label>
+                <label className="field-label" htmlFor="new-project-name">
+                  Title
+                </label>
                 <input
+                  id="new-project-name"
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Vivo T3 Pro 5G Review: Battery King?"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                  placeholder="Vivo T3 Pro 5G review"
+                  className="input"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Creator Idea / Prompt Brief
+                <label className="field-label" htmlFor="new-project-brief">
+                  Brief
                 </label>
                 <textarea
+                  id="new-project-brief"
                   rows={3}
                   value={newBrief}
                   onChange={(e) => setNewBrief(e.target.value)}
-                  placeholder="e.g. 8-minute in-depth review comparing battery life and cameras for students."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-900 focus:outline-none focus:border-indigo-500 transition"
+                  placeholder="8-minute review comparing battery life and cameras for students"
+                  className="input"
                 />
               </div>
+              {modalError && <ErrorNote>{modalError}</ErrorNote>}
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowNewModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:text-slate-900 transition"
-                >
+                <button type="button" onClick={() => setShowNewModal(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition shadow-sm shadow-indigo-600/20 active:scale-95"
-                >
-                  Create Project
+                <button type="submit" className="btn btn-primary">
+                  Create project
                 </button>
               </div>
             </form>

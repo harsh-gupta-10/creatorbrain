@@ -1,14 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import {
-  CheckCircle2,
-  XCircle,
-  Award,
-  ChevronRight,
-  AlertCircle,
-  HelpCircle,
-} from 'lucide-react';
+import { Check, X, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
+import { EmptyState, ErrorNote, ICON, PageHeader, SectionTitle, Spinner } from '../components/ui';
 import type { Quiz, QuizQuestion } from '../../shared/types';
+
+const parseQuestions = (quiz?: Quiz): QuizQuestion[] => {
+  if (!quiz) return [];
+  try {
+    return JSON.parse(quiz.questions_json) as QuizQuestion[];
+  } catch {
+    return [];
+  }
+};
 
 export const AssessTab: React.FC = () => {
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
@@ -20,7 +23,8 @@ export const AssessTab: React.FC = () => {
     gapImproved: boolean;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadQuizzes();
@@ -36,6 +40,7 @@ export const AssessTab: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load quizzes:', err);
+      setError(err instanceof Error ? err.message : 'Could not load quizzes');
     } finally {
       setLoading(false);
     }
@@ -45,6 +50,7 @@ export const AssessTab: React.FC = () => {
     setSelectedQuizId(quiz.id);
     setSelectedAnswers({});
     setSubmissionResult(null);
+    setError(null);
   };
 
   const handleSelectOption = (questionId: string, optionIdx: number) => {
@@ -56,14 +62,14 @@ export const AssessTab: React.FC = () => {
 
   const handleSubmitQuiz = async () => {
     if (!selectedQuiz) return;
-    const questions: QuizQuestion[] = JSON.parse(selectedQuiz.questions_json);
+    const questions = parseQuestions(selectedQuiz);
 
-    // Verify all answered
     if (Object.keys(selectedAnswers).length < questions.length) {
-      alert('Please answer all 5 questions before submitting your assessment.');
+      setError(`Answer all ${questions.length} questions before submitting`);
       return;
     }
 
+    setError(null);
     setIsSubmitting(true);
     try {
       const res = await api.assess.submitQuiz(selectedQuiz.id, selectedAnswers);
@@ -71,208 +77,218 @@ export const AssessTab: React.FC = () => {
       await loadQuizzes();
     } catch (err) {
       console.error('Failed to submit quiz:', err);
+      setError(err instanceof Error ? err.message : 'Could not submit the quiz');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const selectedQuiz = quizzes.find((q) => q.id === selectedQuizId) || quizzes[0];
-  const parsedQuestions: QuizQuestion[] = selectedQuiz
-    ? JSON.parse(selectedQuiz.questions_json)
-    : [];
+  const parsedQuestions = parseQuestions(selectedQuiz);
+  const completedCount = quizzes.filter((q) => q.status === 'completed').length;
+  const answeredCount = Object.keys(selectedAnswers).length;
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Header Card */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Award className="w-5 h-5 text-indigo-600" />
-            Knowledge Gap Assessments (Assessor Agent)
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            5-question diagnostic quizzes generated from your weakest graph gaps. High scores automatically resolve gaps and update graph weights.
-          </p>
+    <div>
+      <PageHeader
+        title="Assess"
+        description="Short quizzes built from the gaps in your Brain. A passing score closes the gap and updates the graph."
+        actions={
+          quizzes.length > 0 ? (
+            <span className="meta">
+              {completedCount} of {quizzes.length} completed
+            </span>
+          ) : undefined
+        }
+      />
+
+      {loading && quizzes.length === 0 ? (
+        <div className="card h-40 flex items-center justify-center text-fg-3">
+          <Spinner />
         </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-600 font-semibold px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200">
-            {quizzes.filter((q) => q.status === 'completed').length} of {quizzes.length} Completed
-          </span>
-        </div>
-      </div>
-
-      {/* Main Grid: Quiz Switcher List & Quiz Taking Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Quiz Selector (4 Cols) */}
-        <div className="lg:col-span-4 space-y-3">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5 px-1">
-            <HelpCircle className="w-3.5 h-3.5 text-indigo-600" />
-            Available Assessments
-          </span>
-
-          <div className="space-y-2.5">
-            {quizzes.map((quiz) => {
-              const isSelected = selectedQuiz?.id === quiz.id;
-              const isDone = quiz.status === 'completed';
-              return (
-                <button
-                  key={quiz.id}
-                  onClick={() => handleSelectQuiz(quiz)}
-                  className={`w-full p-4 rounded-xl border text-left transition-all flex items-start justify-between gap-3 ${
-                    isSelected
-                      ? 'bg-indigo-50/80 border-indigo-400 text-slate-900 ring-1 ring-indigo-200 shadow-xs'
-                      : isDone
-                      ? 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="space-y-1 min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 leading-snug truncate">{quiz.title}</h4>
-                    <div className="flex items-center gap-2 text-[10px]">
-                      {isDone ? (
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/80">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Score: {quiz.score}/5
-                        </span>
-                      ) : (
-                        <span className="text-indigo-700 font-semibold flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/80">
-                          <AlertCircle className="w-3 h-3 text-indigo-600" /> Ready to take
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
-                </button>
-              );
-            })}
+      ) : quizzes.length === 0 ? (
+        <div className="space-y-4">
+          {error && <ErrorNote>{error}</ErrorNote>}
+          <div className="card">
+            <EmptyState
+              icon={<ClipboardCheck {...ICON} />}
+              title="No quizzes yet"
+              description="Quizzes are written from the gaps in your Brain once the channel study finishes."
+            />
           </div>
         </div>
-
-        {/* Right Column: Active Quiz Content (8 Cols) */}
-        <div className="lg:col-span-8 p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-6">
-          {selectedQuiz && (
-            <>
-              {/* Quiz Header & Result Banner */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                    Gap Assessment
-                  </span>
-                  <h3 className="text-base font-bold text-slate-900 mt-1">{selectedQuiz.title}</h3>
-                </div>
-
-                {submissionResult ? (
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <div>
-                      <span className="text-xs font-bold text-emerald-900">
-                        Score: {submissionResult.score} / {submissionResult.total}
-                      </span>
-                      {submissionResult.gapImproved && (
-                        <span className="text-[10px] text-emerald-700 block font-medium">
-                          🎉 Brain Graph gap resolved!
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ) : selectedQuiz.status === 'completed' ? (
-                  <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
-                    Score: {selectedQuiz.score}/5 (Passed)
-                  </span>
-                ) : null}
-              </div>
-
-              {/* Questions List */}
-              <div className="space-y-5">
-                {parsedQuestions.map((q, qIdx) => {
-                  const userAnswer = selectedAnswers[q.id];
-                  const hasSubmitted = submissionResult !== null || selectedQuiz.status === 'completed';
-                  const isCorrect = userAnswer === q.correctIndex;
-
-                  return (
-                    <div
-                      key={q.id || qIdx}
-                      className="p-4.5 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-3"
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Quiz list */}
+          <section className="lg:col-span-4">
+            <SectionTitle title="Quizzes" meta={String(quizzes.length)} />
+            <ol className="card divide-y divide-line overflow-hidden">
+              {quizzes.map((quiz, idx) => {
+                const isSelected = selectedQuiz?.id === quiz.id;
+                const isDone = quiz.status === 'completed';
+                const total = parseQuestions(quiz).length;
+                return (
+                  <li key={quiz.id}>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectQuiz(quiz)}
+                      aria-current={isSelected ? 'true' : undefined}
+                      className={`w-full flex items-center gap-3 px-4 h-12 text-left transition-colors ${
+                        isSelected ? 'bg-raised' : 'hover:bg-raised'
+                      }`}
                     >
-                      <h4 className="text-xs font-bold text-slate-900 leading-relaxed">
-                        <span className="text-indigo-600 font-mono mr-1.5">Q{qIdx + 1}.</span>
-                        {q.question}
-                      </h4>
+                      <span className="w-5 shrink-0 flex justify-end">
+                        {isDone ? (
+                          <Check {...ICON} className="text-positive" aria-label="Completed" />
+                        ) : (
+                          <span className="meta">{idx + 1}</span>
+                        )}
+                      </span>
+                      <span className="flex-1 min-w-0 truncate text-fg">{quiz.title}</span>
+                      <span className="meta shrink-0">
+                        {isDone ? `${quiz.score ?? 0}/${total}` : `${total} q`}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
 
-                      <div className="space-y-2">
-                        {q.options.map((opt, optIdx) => {
-                          const isOptionSelected = userAnswer === optIdx;
-                          const isOptionCorrect = optIdx === q.correctIndex;
+          {/* Active quiz */}
+          <section className="lg:col-span-8 card p-6">
+            {selectedQuiz && (
+              <>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between pb-4 border-b border-line">
+                  <div className="min-w-0">
+                    <div className="text-[13px] text-fg-3">
+                      <span className="meta">{parsedQuestions.length}</span> questions
+                    </div>
+                    <h2 className="mt-1 text-[18px] leading-[26px] font-medium text-fg">{selectedQuiz.title}</h2>
+                  </div>
 
-                          let btnClasses =
-                            'w-full p-2.5 rounded-lg border text-left text-xs font-medium transition-all flex items-center justify-between ';
-
-                          if (hasSubmitted) {
-                            if (isOptionCorrect) {
-                              btnClasses +=
-                                'bg-emerald-50 border-emerald-400 text-emerald-900 font-semibold';
-                            } else if (isOptionSelected && !isCorrect) {
-                              btnClasses += 'bg-rose-50 border-rose-300 text-rose-900';
-                            } else {
-                              btnClasses += 'bg-white border-slate-200 text-slate-400';
-                            }
-                          } else {
-                            if (isOptionSelected) {
-                              btnClasses +=
-                                'bg-indigo-50 border-indigo-400 text-indigo-950 font-semibold ring-1 ring-indigo-200 shadow-2xs';
-                            } else {
-                              btnClasses +=
-                                'bg-white hover:bg-slate-50 border-slate-200 text-slate-700 shadow-2xs';
-                            }
-                          }
-
-                          return (
-                            <button
-                              key={optIdx}
-                              disabled={hasSubmitted}
-                              onClick={() => handleSelectOption(q.id, optIdx)}
-                              className={btnClasses}
-                            >
-                              <span>{opt}</span>
-                              {hasSubmitted && isOptionCorrect && (
-                                <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0 ml-2" />
-                              )}
-                              {hasSubmitted && isOptionSelected && !isCorrect && (
-                                <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0 ml-2" />
-                              )}
-                            </button>
-                          );
-                        })}
+                  {submissionResult ? (
+                    <div className="text-right shrink-0">
+                      <div className="text-[13px] text-fg-3">Score</div>
+                      <div className="text-[24px] leading-8 font-medium num text-fg">
+                        {submissionResult.score}
+                        <span className="text-fg-3">/{submissionResult.total}</span>
                       </div>
-
-                      {/* Explanation box after submission */}
-                      {hasSubmitted && (
-                        <div className="p-3 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-600 leading-relaxed">
-                          <span className="font-semibold text-indigo-700">Explanation:</span>{' '}
-                          {q.explanation}
-                        </div>
+                      {submissionResult.gapImproved && (
+                        <div className="text-[12px] text-positive">Gap closed in your Brain</div>
                       )}
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Submit Button */}
-              {selectedQuiz.status !== 'completed' && !submissionResult && (
-                <div className="pt-2 flex justify-end">
-                  <button
-                    onClick={handleSubmitQuiz}
-                    disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs transition shadow-xs active:scale-95 disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Scoring Assessment...' : 'Submit & Update Graph'}
-                  </button>
+                  ) : selectedQuiz.status === 'completed' ? (
+                    <div className="text-right shrink-0">
+                      <div className="text-[13px] text-fg-3">Score</div>
+                      <div className="text-[24px] leading-8 font-medium num text-fg">
+                        {selectedQuiz.score ?? 0}
+                        <span className="text-fg-3">/{parsedQuestions.length}</span>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
-              )}
-            </>
-          )}
+
+                <ol className="mt-6 space-y-8">
+                  {parsedQuestions.map((q, qIdx) => {
+                    const userAnswer = selectedAnswers[q.id];
+                    const hasSubmitted = submissionResult !== null || selectedQuiz.status === 'completed';
+                    const isCorrect = userAnswer === q.correctIndex;
+
+                    return (
+                      <li key={q.id || qIdx}>
+                        <fieldset>
+                          <legend className="flex gap-3 text-fg">
+                            <span className="meta w-5 shrink-0 pt-0.5">{qIdx + 1}</span>
+                            <span>{q.question}</span>
+                          </legend>
+
+                          <div className="mt-3 ml-8 space-y-2">
+                            {q.options.map((opt, optIdx) => {
+                              const isOptionSelected = userAnswer === optIdx;
+                              const isOptionCorrect = optIdx === q.correctIndex;
+
+                              let state = 'border-line-strong bg-surface text-fg hover:bg-raised';
+                              if (hasSubmitted) {
+                                if (isOptionCorrect) state = 'border-positive bg-positive-soft text-fg';
+                                else if (isOptionSelected && !isCorrect)
+                                  state = 'border-negative bg-negative-soft text-fg';
+                                else state = 'border-line bg-surface text-fg-3';
+                              } else if (isOptionSelected) {
+                                state = 'border-accent bg-accent-soft text-fg';
+                              }
+
+                              return (
+                                <button
+                                  key={optIdx}
+                                  type="button"
+                                  disabled={hasSubmitted}
+                                  aria-pressed={isOptionSelected}
+                                  onClick={() => handleSelectOption(q.id, optIdx)}
+                                  className={`w-full min-h-10 px-3 py-2 rounded-[8px] border text-left text-[14px] flex items-center justify-between gap-3 transition-colors disabled:cursor-default ${state}`}
+                                >
+                                  <span className="flex items-center gap-3">
+                                    <span
+                                      className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${
+                                        isOptionSelected && !hasSubmitted
+                                          ? 'border-accent'
+                                          : 'border-line-strong'
+                                      }`}
+                                      aria-hidden="true"
+                                    >
+                                      {isOptionSelected && !hasSubmitted && (
+                                        <span className="w-2 h-2 rounded-full bg-accent" />
+                                      )}
+                                    </span>
+                                    {opt}
+                                  </span>
+                                  {hasSubmitted && isOptionCorrect && (
+                                    <Check {...ICON} className="text-positive shrink-0" aria-label="Correct answer" />
+                                  )}
+                                  {hasSubmitted && isOptionSelected && !isCorrect && (
+                                    <X {...ICON} className="text-negative shrink-0" aria-label="Your answer" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {hasSubmitted && q.explanation && (
+                            <p className="mt-3 ml-8 text-[13px] text-fg-2">{q.explanation}</p>
+                          )}
+                        </fieldset>
+                      </li>
+                    );
+                  })}
+                </ol>
+
+                {error && (
+                  <div className="mt-6">
+                    <ErrorNote>{error}</ErrorNote>
+                  </div>
+                )}
+
+                {selectedQuiz.status !== 'completed' && !submissionResult && (
+                  <div className="mt-6 pt-4 border-t border-line flex items-center justify-between gap-4">
+                    <span className="meta">
+                      {answeredCount} of {parsedQuestions.length} answered
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleSubmitQuiz}
+                      disabled={isSubmitting}
+                      className="btn btn-primary"
+                    >
+                      {isSubmitting && <Spinner />}
+                      {isSubmitting ? 'Scoring' : 'Submit answers'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -1,34 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import {
-  CheckCircle2,
-  Sparkles,
-  Send,
-  GraduationCap,
-  Clock,
-  BookOpen,
-} from 'lucide-react';
+import { Check, Send, BookOpen } from 'lucide-react';
 import { api } from '../lib/api';
+import { EmptyState, ErrorNote, ICON, PageHeader, SectionTitle, Spinner } from '../components/ui';
 import type { Lesson } from '../../shared/types';
+
+const nowTime = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 export const LearnTab: React.FC = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [selectedLessonId, setSelectedLessonId] = useState<string>('');
   const [progressPercent, setProgressPercent] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [completing, setCompleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Tutor Chat State
+  // Tutor chat state
   const [tutorInput, setTutorInput] = useState('');
-  const [tutorMessages, setTutorMessages] = useState<
-    { role: 'user' | 'tutor'; text: string; time: string }[]
-  >([
+  const [tutorMessages, setTutorMessages] = useState<{ role: 'user' | 'tutor'; text: string; time: string }[]>([
     {
       role: 'tutor',
-      text: 'Hello! I am your CreatorBrain AI Tutor & Growth Coach. I have analyzed your Brain Knowledge Graph and know your retention drop between minutes 4 and 6. What would you like to work on today?',
-      time: 'Just now',
+      text: 'I can answer questions about these lessons, using what the Brain has learned from your published content. Ask about hooks, retention, packaging or affiliate disclosure.',
+      time: 'Now',
     },
   ]);
   const [isTutorThinking, setIsTutorThinking] = useState(false);
+  const [tutorError, setTutorError] = useState<string | null>(null);
 
   useEffect(() => {
     loadLessons();
@@ -36,6 +33,7 @@ export const LearnTab: React.FC = () => {
 
   const loadLessons = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await api.learn.getLessons();
       setLessons(res.lessons || []);
@@ -46,12 +44,15 @@ export const LearnTab: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to load lessons:', err);
+      setError(err instanceof Error ? err.message : 'Could not load lessons');
     } finally {
       setLoading(false);
     }
   };
 
   const handleCompleteLesson = async (id: string) => {
+    setCompleting(true);
+    setError(null);
     try {
       const res = await api.learn.completeLesson(id);
       setLessons(res.lessons || []);
@@ -59,11 +60,14 @@ export const LearnTab: React.FC = () => {
       setCompletedCount(comp);
       setProgressPercent(Math.round((comp / (res.lessons?.length || 1)) * 100));
 
-      // Auto select next uncompleted lesson
+      // Move to the next lesson that is not done yet
       const next = (res.lessons || []).find((l) => l.completed === 0);
       if (next) setSelectedLessonId(next.id);
     } catch (err) {
       console.error('Failed to complete lesson:', err);
+      setError(err instanceof Error ? err.message : 'Could not mark the lesson complete');
+    } finally {
+      setCompleting(false);
     }
   };
 
@@ -72,36 +76,15 @@ export const LearnTab: React.FC = () => {
     if (!textToSend || isTutorThinking) return;
 
     if (!customText) setTutorInput('');
-    setTutorMessages((prev) => [
-      ...prev,
-      {
-        role: 'user',
-        text: textToSend,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      },
-    ]);
+    setTutorError(null);
+    setTutorMessages((prev) => [...prev, { role: 'user', text: textToSend, time: nowTime() }]);
 
     setIsTutorThinking(true);
     try {
       const res = await api.learn.tutorChat(textToSend);
-      setTutorMessages((prev) => [
-        ...prev,
-        {
-          role: 'tutor',
-          text: res.reply,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      setTutorMessages((prev) => [...prev, { role: 'tutor', text: res.reply, time: nowTime() }]);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unknown tutor error';
-      setTutorMessages((prev) => [
-        ...prev,
-        {
-          role: 'tutor',
-          text: `Error connecting to Tutor: ${msg}`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      setTutorError(err instanceof Error ? err.message : 'The tutor did not respond');
     } finally {
       setIsTutorThinking(false);
     }
@@ -114,47 +97,44 @@ export const LearnTab: React.FC = () => {
     return parts.map((part, i) => {
       if (part.startsWith('`') && part.endsWith('`')) {
         return (
-          <code key={i} className="px-1.5 py-0.5 rounded-md bg-slate-100 font-mono text-[11px] text-indigo-700 font-medium border border-slate-200/60">
+          <code key={i} className="px-1 py-0.5 rounded-[4px] bg-raised font-mono text-[12px] text-fg">
             {part.slice(1, -1)}
           </code>
         );
       }
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <strong key={i} className="font-semibold text-slate-900">
+          <strong key={i} className="font-medium text-fg">
             {part.slice(2, -2)}
           </strong>
         );
       }
       if (part.startsWith('*') && part.endsWith('*')) {
         return (
-          <em key={i} className="italic text-slate-800">
+          <span key={i} className="text-fg">
             {part.slice(1, -1)}
-          </em>
+          </span>
         );
       }
       return part;
     });
   };
 
-  // Helper to cleanly render markdown without raw literal \n and with clean typography
+  // Render lesson markdown without literal \n, in the shared prose rhythm
   const renderFormattedMarkdown = (rawContent: string) => {
     if (!rawContent) return null;
     const normalized = rawContent.replace(/\\n/g, '\n');
     const lines = normalized.split('\n');
 
     return (
-      <div className="space-y-3 text-xs leading-relaxed text-slate-700">
+      <div className="space-y-3 text-[14px] leading-[22px] text-fg-2">
         {lines.map((line, idx) => {
           const trimmed = line.trim();
-          if (!trimmed) {
-            return <div key={idx} className="h-1.5" />;
-          }
+          if (!trimmed) return null;
 
           if (trimmed.startsWith('### ')) {
             return (
-              <h3 key={idx} className="text-sm font-bold text-slate-900 pt-3 pb-1 tracking-tight flex items-center gap-2 border-b border-slate-100">
-                <span className="w-1.5 h-3.5 bg-indigo-600 rounded-full inline-block shrink-0" />
+              <h3 key={idx} className="pt-4 text-[15px] font-medium text-fg">
                 {trimmed.replace(/^###\s+/, '')}
               </h3>
             );
@@ -162,7 +142,7 @@ export const LearnTab: React.FC = () => {
 
           if (trimmed.startsWith('#### ')) {
             return (
-              <h4 key={idx} className="text-xs font-bold text-slate-800 pt-2 pb-0.5 tracking-tight">
+              <h4 key={idx} className="pt-2 font-medium text-fg">
                 {trimmed.replace(/^####\s+/, '')}
               </h4>
             );
@@ -172,11 +152,9 @@ export const LearnTab: React.FC = () => {
             const numMatch = trimmed.match(/^(\d+)\.\s*(.*)$/);
             if (numMatch) {
               return (
-                <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 pl-1 py-0.5">
-                  <span className="w-5 h-5 rounded-lg bg-indigo-50 border border-indigo-200/80 text-indigo-700 font-mono font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
-                    {numMatch[1]}
-                  </span>
-                  <div className="flex-1 leading-relaxed">{parseInlineText(numMatch[2])}</div>
+                <div key={idx} className="flex items-start gap-3">
+                  <span className="meta w-4 shrink-0 pt-0.5 text-right">{numMatch[1]}</span>
+                  <div className="flex-1">{parseInlineText(numMatch[2])}</div>
                 </div>
               );
             }
@@ -184,242 +162,218 @@ export const LearnTab: React.FC = () => {
 
           if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
             return (
-              <div key={idx} className="flex items-start gap-2 text-xs text-slate-700 pl-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                <span className="leading-relaxed">{parseInlineText(trimmed.replace(/^[-*]\s+/, ''))}</span>
+              <div key={idx} className="flex items-start gap-3">
+                <span className="w-4 shrink-0 flex justify-end pt-2">
+                  <span className="dot bg-fg-3" />
+                </span>
+                <span className="flex-1">{parseInlineText(trimmed.replace(/^[-*]\s+/, ''))}</span>
               </div>
             );
           }
 
           if (trimmed.startsWith('Line 1:') || trimmed.startsWith('Line 2:') || trimmed.startsWith('Line 3:')) {
             return (
-              <div key={idx} className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 font-medium">
-                <span className="font-bold text-indigo-700 mr-1.5">{trimmed.slice(0, 7)}</span>
-                {parseInlineText(trimmed.slice(7))}
+              <div key={idx} className="well px-3 py-2">
+                <span className="meta mr-2">{trimmed.slice(0, 6)}</span>
+                <span className="text-fg">{parseInlineText(trimmed.slice(7))}</span>
               </div>
             );
           }
 
-          return (
-            <p key={idx} className="text-xs text-slate-700 leading-relaxed">
-              {parseInlineText(trimmed)}
-            </p>
-          );
+          return <p key={idx}>{parseInlineText(trimmed)}</p>;
         })}
       </div>
     );
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Header Card */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <GraduationCap className="w-5 h-5 text-indigo-600" />
-            Curriculum Planner & AI Tutor Coach
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Personalized lessons sequenced by the Curriculum Planner based on your weakest retention and revenue gaps.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <span className="text-xs font-semibold text-slate-800 block">
-              Curriculum Progress: {progressPercent}%
-            </span>
-            <span className="text-[10px] text-slate-500 font-mono">
-              {completedCount} of {lessons.length} lessons mastered
-            </span>
-          </div>
-          <div className="w-24 bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200/60">
-            <div
-              className="bg-indigo-600 h-full rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid: Left Lessons & Right Tutor Coach */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Lesson Track & Reader (7 Cols) */}
-        <div className="lg:col-span-7 space-y-5">
-          {/* Lessons Selector Grid */}
-          <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-indigo-600" />
-                Ordered Learning Sequence
+    <div>
+      <PageHeader
+        title="Learn"
+        description="Short lessons ordered by your biggest gaps, with a tutor that knows your channel."
+        actions={
+          lessons.length > 0 ? (
+            <div className="flex items-center gap-3">
+              <span className="meta">
+                {completedCount} of {lessons.length} done
               </span>
-              <span className="text-[11px] text-slate-400 font-mono">
-                {lessons.length} Modules
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {lessons.map((lesson, idx) => {
-                const isSelected = selectedLesson?.id === lesson.id;
-                const isCompleted = lesson.completed === 1;
-                return (
-                  <button
-                    key={lesson.id}
-                    onClick={() => setSelectedLessonId(lesson.id)}
-                    className={`p-3.5 rounded-xl border text-left transition-all flex items-start gap-3 ${
-                      isSelected
-                        ? 'bg-indigo-50/80 border-indigo-400/90 text-slate-900 shadow-xs ring-1 ring-indigo-200'
-                        : isCompleted
-                        ? 'bg-slate-50/70 border-slate-200/80 text-slate-700 hover:border-slate-300'
-                        : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="mt-0.5 flex-shrink-0">
-                      {isCompleted ? (
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      ) : (
-                        <div className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] font-mono font-bold text-slate-500 bg-slate-50">
-                          {idx + 1}
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-bold text-slate-900 truncate leading-snug">{lesson.title}</h4>
-                      <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1 font-mono">
-                        <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold">{lesson.category}</span>
-                        <span>·</span>
-                        <span>{lesson.duration_min} min</span>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Active Lesson Reader */}
-          {selectedLesson && (
-            <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/70">
-                      {selectedLesson.category}
-                    </span>
-                    <span className="text-[11px] text-slate-500 flex items-center gap-1 font-mono">
-                      <Clock className="w-3 h-3 text-slate-400" /> {selectedLesson.duration_min} min read
-                    </span>
-                  </div>
-                  <h3 className="text-base font-bold text-slate-900">{selectedLesson.title}</h3>
-                </div>
-
-                {selectedLesson.completed === 1 ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3.5 py-1.5 rounded-xl">
-                    <CheckCircle2 className="w-4 h-4" /> Completed
-                  </span>
-                ) : (
-                  <button
-                    onClick={() => handleCompleteLesson(selectedLesson.id)}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition shadow-xs active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Mark Complete & Unlock Next
-                  </button>
-                )}
-              </div>
-
-              {/* Lesson Body Formatted */}
-              <div className="pt-1">
-                {renderFormattedMarkdown(selectedLesson.content_markdown)}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: AI Tutor Chat Coach (5 Cols) */}
-        <div className="lg:col-span-5 h-[620px] rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="p-4 border-b border-slate-100 bg-slate-50/70 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-              <span className="text-xs font-bold text-slate-900">AI Tutor & Growth Coach</span>
-            </div>
-            <span className="text-[10px] text-indigo-700 font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200/60">
-              Graph Grounded
-            </span>
-          </div>
-
-          {/* Quick Prompt Chips */}
-          <div className="p-2.5 border-b border-slate-100 bg-slate-50/30 flex items-center gap-1.5 overflow-x-auto">
-            {[
-              'Fix minute-4 retention dip',
-              'Amazon compliance rules',
-              'Teardown hooks for student audience',
-            ].map((chip) => (
-              <button
-                key={chip}
-                onClick={() => handleTutorSend(chip)}
-                className="text-[11px] font-medium text-slate-700 hover:text-slate-900 px-2.5 py-1 rounded-full bg-white hover:bg-slate-50 border border-slate-200/80 whitespace-nowrap transition shadow-2xs"
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-slate-50/20">
-            {tutorMessages.map((msg, i) => (
               <div
-                key={i}
-                className={`flex flex-col ${
-                  msg.role === 'user' ? 'items-end' : 'items-start'
-                }`}
+                className="w-24 h-1 rounded-full bg-sunken overflow-hidden"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={progressPercent}
+                aria-label="Course progress"
               >
-                <div
-                  className={`max-w-[88%] rounded-2xl p-3.5 text-xs leading-relaxed ${
-                    msg.role === 'user'
-                      ? 'bg-slate-900 text-white font-medium rounded-tr-none shadow-xs'
-                      : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-none shadow-xs'
-                  }`}
-                >
-                  {msg.text}
+                <div className="h-full bg-fg rounded-full" style={{ width: `${progressPercent}%` }} />
+              </div>
+            </div>
+          ) : undefined
+        }
+      />
+
+      {error && (
+        <div className="mb-6">
+          <ErrorNote>{error}</ErrorNote>
+        </div>
+      )}
+
+      {loading && lessons.length === 0 ? (
+        <div className="card h-40 flex items-center justify-center text-fg-3">
+          <Spinner />
+        </div>
+      ) : lessons.length === 0 ? (
+        <div className="card">
+          <EmptyState
+            icon={<BookOpen {...ICON} />}
+            title="No lessons yet"
+            description="Lessons are planned from the gaps in your Brain once the channel study finishes."
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Lessons and reader */}
+          <div className="lg:col-span-7 space-y-6">
+            <section>
+              <SectionTitle title="Lessons" meta={String(lessons.length)} />
+              <ol className="card divide-y divide-line overflow-hidden">
+                {lessons.map((lesson, idx) => {
+                  const isSelected = selectedLesson?.id === lesson.id;
+                  const isCompleted = lesson.completed === 1;
+                  return (
+                    <li key={lesson.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLessonId(lesson.id)}
+                        aria-current={isSelected ? 'true' : undefined}
+                        className={`w-full flex items-center gap-3 px-4 h-12 text-left transition-colors ${
+                          isSelected ? 'bg-raised' : 'hover:bg-raised'
+                        }`}
+                      >
+                        <span className="w-5 shrink-0 flex justify-end">
+                          {isCompleted ? (
+                            <Check {...ICON} className="text-positive" aria-label="Completed" />
+                          ) : (
+                            <span className="meta">{idx + 1}</span>
+                          )}
+                        </span>
+                        <span className={`flex-1 min-w-0 truncate ${isCompleted ? 'text-fg-2' : 'text-fg'}`}>
+                          {lesson.title}
+                        </span>
+                        <span className="hidden sm:inline text-[12px] text-fg-3 shrink-0">{lesson.category}</span>
+                        <span className="meta w-12 text-right shrink-0">{lesson.duration_min} min</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
+
+            {selectedLesson && (
+              <article className="card p-6">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between pb-4 border-b border-line">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-[13px] text-fg-3">
+                      <span>{selectedLesson.category}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="meta">{selectedLesson.duration_min} min read</span>
+                    </div>
+                    <h2 className="mt-1 text-[18px] leading-[26px] font-medium text-fg">{selectedLesson.title}</h2>
+                  </div>
+
+                  {selectedLesson.completed === 1 ? (
+                    <span className="inline-flex items-center gap-2 h-8 text-[13px] text-positive shrink-0">
+                      <Check {...ICON} /> Completed
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleCompleteLesson(selectedLesson.id)}
+                      disabled={completing}
+                      className="btn btn-primary btn-sm shrink-0"
+                    >
+                      {completing ? <Spinner /> : <Check {...ICON} />}
+                      Mark complete
+                    </button>
+                  )}
                 </div>
-                <span className="text-[10px] text-slate-400 mt-1 px-1">{msg.time}</span>
-              </div>
-            ))}
-            {isTutorThinking && (
-              <div className="flex items-center gap-2 p-3 text-xs text-indigo-700 bg-indigo-50/80 border border-indigo-200 rounded-xl animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                Tutor reviewing your Creator DNA & knowledge graph...
-              </div>
+
+                <div className="pt-4">{renderFormattedMarkdown(selectedLesson.content_markdown)}</div>
+              </article>
             )}
           </div>
 
-          {/* Input */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleTutorSend();
-            }}
-            className="p-3 border-t border-slate-100 bg-white flex items-center gap-2"
-          >
-            <input
-              type="text"
-              value={tutorInput}
-              onChange={(e) => setTutorInput(e.target.value)}
-              placeholder="Ask your coach anything about retention, gear, or deals..."
-              className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition"
-            />
-            <button
-              type="submit"
-              disabled={isTutorThinking || !tutorInput.trim()}
-              className="p-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 disabled:opacity-40 transition active:scale-95 shadow-xs"
+          {/* Tutor */}
+          <section className="lg:col-span-5 card h-[620px] flex flex-col overflow-hidden">
+            <div className="px-4 h-12 border-b border-line flex items-center justify-between">
+              <span className="font-medium text-fg">Tutor</span>
+              <span className="meta">Uses your Brain</span>
+            </div>
+
+            <div className="px-4 py-3 border-b border-line flex items-center gap-2 overflow-x-auto">
+              {['How do I keep viewers past the first minute', 'Amazon disclosure rules', 'Review my hooks'].map(
+                (chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => handleTutorSend(chip)}
+                    disabled={isTutorThinking}
+                    className="tag whitespace-nowrap hover:text-fg transition-colors"
+                  >
+                    {chip}
+                  </button>
+                )
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {tutorMessages.map((msg, i) => (
+                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                  <div
+                    className={`max-w-[88%] rounded-[12px] px-3 py-2 text-[13px] leading-5 whitespace-pre-wrap ${
+                      msg.role === 'user' ? 'bg-fg text-white' : 'bg-raised text-fg'
+                    }`}
+                  >
+                    {msg.text}
+                  </div>
+                  <span className="meta mt-1 px-1">{msg.time}</span>
+                </div>
+              ))}
+              {isTutorThinking && (
+                <div className="flex items-center gap-2 text-[13px] text-fg-3">
+                  <Spinner /> Thinking
+                </div>
+              )}
+              {tutorError && <ErrorNote>{tutorError}</ErrorNote>}
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleTutorSend();
+              }}
+              className="p-3 border-t border-line flex items-center gap-2"
             >
-              <Send className="w-4 h-4" />
-            </button>
-          </form>
+              <input
+                type="text"
+                value={tutorInput}
+                onChange={(e) => setTutorInput(e.target.value)}
+                placeholder="Ask the tutor"
+                aria-label="Message the tutor"
+                className="input flex-1"
+              />
+              <button
+                type="submit"
+                disabled={isTutorThinking || !tutorInput.trim()}
+                className="btn btn-primary w-9 px-0"
+                aria-label="Send"
+              >
+                <Send {...ICON} />
+              </button>
+            </form>
+          </section>
         </div>
-      </div>
+      )}
     </div>
   );
 };

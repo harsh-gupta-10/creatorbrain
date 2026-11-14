@@ -1,302 +1,485 @@
-import React, { useState } from 'react';
-import { api } from '../lib/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { Check, Circle, ArrowLeft, ArrowRight, RotateCw, SquarePlay, Camera } from 'lucide-react';
+import { api, type OnboardingProfile, type StudyJob } from '../lib/api';
+import { Logo, Spinner, ErrorNote, ICON } from '../components/ui';
+import type { Creator } from '../../shared/types';
 
-interface OnboardingProps {
+interface Props {
+  creator: Creator;
   onComplete: () => void;
 }
 
-export const OnboardingPage: React.FC<OnboardingProps> = ({ onComplete }) => {
-  const [platform, setPlatform] = useState<'youtube' | 'instagram'>('youtube');
-  const [urlOrHandle, setUrlOrHandle] = useState('https://youtube.com/@techkabir');
-  const [igCaptions, setIgCaptions] = useState('');
-  const [consent, setConsent] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+type Step = 'channel' | 'earn' | 'goals' | 'study';
+const STEPS: { id: Step; label: string; hint: string }[] = [
+  { id: 'channel', label: 'Your channel', hint: 'Where you publish' },
+  { id: 'earn', label: 'How you earn', hint: 'Affiliate and other income' },
+  { id: 'goals', label: 'Goals', hint: 'What to focus on' },
+  { id: 'study', label: 'Channel study', hint: 'About a minute' },
+];
 
-  // Workflow progress state
-  const [jobStatus, setJobStatus] = useState<'idle' | 'running' | 'completed' | 'failed'>('idle');
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState('Initializing agent team...');
+const INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
+const GOALS = [
+  'Grow subscribers',
+  'Earn more from affiliate links',
+  'Publish more consistently',
+  'Write better titles and thumbnails',
+  'Land brand deals',
+  'Learn the craft',
+];
+const MARKETPLACES = ['amazon.com', 'amazon.in', 'amazon.co.uk', 'amazon.de', 'amazon.ca'];
 
-  const startAnalysis = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!urlOrHandle.trim()) {
-      setError('Please provide a valid channel URL or handle');
-      return;
-    }
+const Choice: React.FC<{
+  checked: boolean;
+  onChange: () => void;
+  type?: 'checkbox' | 'radio';
+  name?: string;
+  children: React.ReactNode;
+  description?: string;
+}> = ({ checked, onChange, type = 'checkbox', name, children, description }) => (
+  <label
+    className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer transition-colors ${
+      checked ? 'border-accent bg-accent-soft' : 'border-line-strong bg-surface hover:bg-raised'
+    }`}
+  >
+    <input type={type} name={name} checked={checked} onChange={onChange} className="mt-[2px] accent-[#2f5bea] w-4 h-4" />
+    <span className="min-w-0">
+      <span className="block text-[14px] text-fg">{children}</span>
+      {description && <span className="block mt-[2px] text-[13px] text-fg-2">{description}</span>}
+    </span>
+  </label>
+);
 
-    try {
-      setLoading(true);
-      setError(null);
-      setJobStatus('running');
-      setProgress(15);
-      setCurrentStep('Channel Scout: Fetching 30 recent videos from YouTube Data API...');
+export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
+  const [step, setStep] = useState<Step>(creator.onboarding_status === 'study' ? 'study' : 'channel');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-      const res = await api.onboarding.start({
-        platform,
-        urlOrHandle: urlOrHandle.trim(),
-        consent,
-      });
+  const [profile, setProfile] = useState<OnboardingProfile>({
+    niche: creator.niche || '',
+    language: creator.content_language || 'English',
+    cadence: (creator.upload_cadence as OnboardingProfile['cadence']) || 'weekly',
+    youtube: creator.youtube_input || '',
+    instagram: creator.instagram_handle || '',
+    instagramCaptions: [],
+    amazon: { enabled: false, partnerTag: '', marketplace: 'amazon.com' },
+    otherIncome: [],
+    goals: [],
+  });
+  const [captionsText, setCaptionsText] = useState('');
 
-      // Poll or step through pipeline visually
-      simulateWorkflowProgress(res.jobId);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Analysis failed to start';
-      setError(msg);
-      setJobStatus('failed');
-      setLoading(false);
-    }
-  };
+  const set = <K extends keyof OnboardingProfile>(key: K, value: OnboardingProfile[K]) =>
+    setProfile((p) => ({ ...p, [key]: value }));
+  const toggle = (key: 'otherIncome' | 'goals', value: string) =>
+    setProfile((p) => ({
+      ...p,
+      [key]: p[key].includes(value) ? p[key].filter((v) => v !== value) : [...p[key], value],
+    }));
 
-  const simulateWorkflowProgress = (jobId: string) => {
-    const steps = [
-      { p: 30, text: 'Packaging Analyst: Studying CTR patterns, title formulas, and tags...' },
-      { p: 55, text: 'Visual Analyst: Scanning 10 video thumbnails via vision pipeline...' },
-      { p: 75, text: 'Voice & Edit Analysts: Gemini video input on first 3 minutes of benchmark teardown...' },
-      { p: 90, text: 'Synthesizer: Compiling Creator DNA and writing knowledge graph nodes to D1...' },
-      { p: 100, text: 'Diagnostician: Generating 5-question retention diagnostic...' },
-    ];
+  useEffect(() => {
+    document.title = 'Set up your workspace · CreatorBrain';
+  }, []);
 
-    let current = 0;
-    const interval = setInterval(async () => {
-      if (current < steps.length) {
-        setProgress(steps[current].p);
-        setCurrentStep(steps[current].text);
-        current++;
-      } else {
-        clearInterval(interval);
-        try {
-          const statusRes = await api.onboarding.getJob(jobId);
-          if (statusRes.job.status === 'completed') {
-            setJobStatus('completed');
-            setTimeout(() => onComplete(), 1000);
-          } else {
-            // Finalize
-            setJobStatus('completed');
-            setTimeout(() => onComplete(), 1000);
-          }
-        } catch {
-          // If status check fails, proceed anyway
-          onComplete();
-        }
+  const stepIndex = STEPS.findIndex((s) => s.id === step);
+
+  const next = async () => {
+    setError('');
+    if (step === 'channel') {
+      if (profile.niche.trim().length < 2) return setError('Tell us what your channel is about');
+      const captions = captionsText
+        .split(/\n\s*\n|\n---\n/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (!profile.youtube.trim() && captions.length === 0) {
+        return setError('Add your YouTube channel, or paste a few Instagram captions so we have something to study');
       }
-    }, 1200);
-  };
-
-  const handleSkipDemo = async () => {
-    try {
-      setLoading(true);
-      await api.auth.demo();
-      onComplete();
-    } catch {
-      onComplete();
-    } finally {
-      setLoading(false);
+      setProfile((p) => ({ ...p, instagramCaptions: captions.slice(0, 12) }));
+      return setStep('earn');
+    }
+    if (step === 'earn') {
+      if (profile.amazon.enabled && !/^[\w-]{3,40}$/.test(profile.amazon.partnerTag)) {
+        return setError('Enter your Amazon Associates tracking ID, like yourname-20');
+      }
+      return setStep('goals');
+    }
+    if (step === 'goals') {
+      setSaving(true);
+      try {
+        await api.onboarding.saveProfile(profile);
+        setStep('study');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Could not save your answers');
+      } finally {
+        setSaving(false);
+      }
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#fafaf9] text-slate-900 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden canvas-grid">
-      <div className="max-w-xl w-full relative z-10 space-y-6">
-        {/* Logo & Headline */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold mb-1">
-            <span>✨</span> Open Innovation Hackathon 2026
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-            CreatorBrain Onboarding
-          </h1>
-          <p className="text-slate-500 text-xs sm:text-sm max-w-md mx-auto leading-relaxed">
-            Extract your unique Creator DNA. 6 specialized AI agents study your past videos to clone your voice, pacing, packaging, and knowledge graph.
-          </p>
-        </div>
+    <div className="min-h-screen bg-page">
+      <header className="h-16 px-6 md:px-8 flex items-center justify-between border-b border-line bg-surface">
+        <Logo />
+        <span className="meta">
+          Step {stepIndex + 1} of {STEPS.length}
+        </span>
+      </header>
 
-        {/* Demo Creator Shortcut Banner */}
-        <div className="bg-white border border-slate-200/90 rounded-2xl p-4.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-          <div>
-            <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-              <span>⚡</span> Fast Track: Instant Demo Mode
-            </div>
-            <div className="text-xs text-slate-500 mt-0.5">
-              Skip setup and explore Kabir Verma's pre-analyzed tech channel (7.5K subs).
-            </div>
-          </div>
-          <button
-            onClick={handleSkipDemo}
-            disabled={loading}
-            className="w-full sm:w-auto px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition shrink-0 shadow-xs active:scale-95"
-          >
-            Try the Demo →
-          </button>
-        </div>
+      <div className="max-w-[1040px] mx-auto px-4 md:px-8 py-10 md:py-16 grid gap-10 md:grid-cols-[220px_1fr]">
+        {/* Step rail */}
+        <ol className="hidden md:flex flex-col gap-1" aria-label="Setup steps">
+          {STEPS.map((s, i) => {
+            const done = i < stepIndex;
+            const active = i === stepIndex;
+            return (
+              <li key={s.id} className="flex items-start gap-3 py-2">
+                <span
+                  className={`mt-[2px] w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-mono ${
+                    done ? 'bg-fg text-white' : active ? 'bg-accent text-white' : 'bg-raised text-fg-3'
+                  }`}
+                >
+                  {done ? <Check size={12} strokeWidth={2} /> : i + 1}
+                </span>
+                <span>
+                  <span className={`block text-[14px] ${active ? 'text-fg font-medium' : done ? 'text-fg' : 'text-fg-3'}`}>
+                    {s.label}
+                  </span>
+                  <span className="block text-[12px] text-fg-3">{s.hint}</span>
+                </span>
+              </li>
+            );
+          })}
+        </ol>
 
-        {/* Main Onboarding Card */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-          {error && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center gap-2">
-              <span>⚠️</span> {error}
+        <section className="min-w-0 max-w-[600px]">
+          {step === 'channel' && (
+            <div className="rise-in">
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">Where do you publish</h1>
+              <p className="mt-2 text-fg-2">
+                We read your public uploads to learn how you title, hook and talk. Nothing is posted on your behalf
+              </p>
+
+              <div className="mt-8 flex flex-col gap-6">
+                <div>
+                  <label htmlFor="yt" className="field-label">
+                    YouTube channel
+                  </label>
+                  <div className="relative">
+                    <SquarePlay {...ICON} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
+                    <input
+                      id="yt"
+                      className="input pl-9"
+                      placeholder="@yourchannel or channel URL"
+                      value={profile.youtube}
+                      onChange={(e) => set('youtube', e.target.value)}
+                    />
+                  </div>
+                  <p className="field-hint">We study your latest 15 uploads from the public feed</p>
+                </div>
+
+                <div>
+                  <label htmlFor="ig" className="field-label">
+                    Instagram handle <span className="text-fg-3 font-normal">optional</span>
+                  </label>
+                  <div className="relative">
+                    <Camera {...ICON} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
+                    <input
+                      id="ig"
+                      className="input pl-9"
+                      placeholder="@yourhandle"
+                      value={profile.instagram}
+                      onChange={(e) => set('instagram', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="captions" className="field-label">
+                    Recent Instagram captions <span className="text-fg-3 font-normal">optional</span>
+                  </label>
+                  <textarea
+                    id="captions"
+                    className="input min-h-[112px]"
+                    placeholder="Paste 3 to 10 captions, with a blank line between each"
+                    value={captionsText}
+                    onChange={(e) => setCaptionsText(e.target.value)}
+                  />
+                  <p className="field-hint">Instagram has no public feed, so pasted captions are how we learn your Reels voice</p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="niche" className="field-label">
+                      What is your channel about
+                    </label>
+                    <input
+                      id="niche"
+                      className="input"
+                      placeholder="Budget phone reviews, home cooking, personal finance"
+                      value={profile.niche}
+                      onChange={(e) => set('niche', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="lang" className="field-label">
+                      Language you create in
+                    </label>
+                    <input
+                      id="lang"
+                      className="input"
+                      value={profile.language}
+                      onChange={(e) => set('language', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="cadence" className="field-label">
+                      How often you upload
+                    </label>
+                    <select
+                      id="cadence"
+                      className="input"
+                      value={profile.cadence}
+                      onChange={(e) => set('cadence', e.target.value as OnboardingProfile['cadence'])}
+                    >
+                      <option value="weekly">Every week</option>
+                      <option value="biweekly">Every two weeks</option>
+                      <option value="monthly">About once a month</option>
+                      <option value="irregular">No set rhythm</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
-          {jobStatus === 'running' || jobStatus === 'completed' ? (
-            /* Live Progress Visualizer */
-            <div className="space-y-6 py-4">
-              <div className="text-center space-y-2">
-                <div className="inline-block animate-spin w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full mb-1" />
-                <h3 className="text-base font-bold text-slate-900">Extracting Creator DNA...</h3>
-                <p className="text-xs text-indigo-700 font-mono font-medium animate-pulse">{currentStep}</p>
-              </div>
+          {step === 'earn' && (
+            <div className="rise-in">
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">How do you earn</h1>
+              <p className="mt-2 text-fg-2">
+                This decides which tools show up. Affiliate links, disclosures and product cards only appear if you use them
+              </p>
 
-              {/* Progress bar */}
-              <div className="w-full bg-slate-100 rounded-full h-2.5 border border-slate-200 overflow-hidden">
-                <div
-                  className="bg-indigo-600 h-full rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${Math.max(progress, 5)}%` }}
-                />
-              </div>
-              <div className="flex justify-between text-[11px] text-slate-500 font-mono">
-                <span>Cloudflare Workflow: 6 Agents</span>
-                <span>{progress}% complete</span>
-              </div>
-
-              {/* Pipeline Agent Checklist */}
-              <div className="space-y-2.5 pt-3 border-t border-slate-100 text-xs">
-                <div className="flex items-center gap-2 text-slate-700">
-                  <span className={progress >= 20 ? 'text-emerald-600 font-bold' : 'text-slate-300'}>
-                    {progress >= 20 ? '✓' : '○'}
-                  </span>
-                  <span>Channel Scout: Fetching 30 recent videos, selecting 10 benchmarks</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-700">
-                  <span className={progress >= 40 ? 'text-emerald-600 font-bold' : 'text-slate-300'}>
-                    {progress >= 40 ? '✓' : '○'}
-                  </span>
-                  <span>Packaging Analyst: Inspecting titles, hooks, CTAs, tags</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-700">
-                  <span className={progress >= 60 ? 'text-emerald-600 font-bold' : 'text-slate-300'}>
-                    {progress >= 60 ? '✓' : '○'}
-                  </span>
-                  <span>Visual Analyst: Vision scan of 10 thumbnails (faces, contrast, palettes)</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-700">
-                  <span className={progress >= 80 ? 'text-emerald-600 font-bold' : 'text-slate-300'}>
-                    {progress >= 80 ? '✓' : '○'}
-                  </span>
-                  <span>Voice & Edit Analyst: Gemini multimodal video style & pace review</span>
-                </div>
-                <div className="flex items-center gap-2 text-slate-700">
-                  <span className={progress >= 100 ? 'text-emerald-600 font-bold' : 'text-slate-300'}>
-                    {progress >= 100 ? '✓' : '○'}
-                  </span>
-                  <span>Synthesizer: Writing Style, Strength & Gap nodes to D1 graph</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Input Form */
-            <form onSubmit={startAnalysis} className="space-y-5">
-              {/* Platform Selector */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
-                  Select Channel Platform
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlatform('youtube');
-                      setUrlOrHandle('https://youtube.com/@techkabir');
-                    }}
-                    className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
-                      platform === 'youtube'
-                        ? 'bg-indigo-50/80 border-indigo-400 text-indigo-950 ring-1 ring-indigo-200 shadow-2xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
+              <fieldset className="mt-8">
+                <legend className="field-label">Are you in the Amazon Associates program</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Choice
+                    type="radio"
+                    name="amazon"
+                    checked={profile.amazon.enabled}
+                    onChange={() => set('amazon', { ...profile.amazon, enabled: true })}
+                    description="Tag links, track earnings, add disclosures"
                   >
-                    <span>▶️</span> YouTube Channel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlatform('instagram');
-                      setUrlOrHandle('@techkabir');
-                    }}
-                    className={`p-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-2 transition ${
-                      platform === 'instagram'
-                        ? 'bg-indigo-50/80 border-indigo-400 text-indigo-950 ring-1 ring-indigo-200 shadow-2xs'
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
+                    Yes, I use Amazon links
+                  </Choice>
+                  <Choice
+                    type="radio"
+                    name="amazon"
+                    checked={!profile.amazon.enabled}
+                    onChange={() => set('amazon', { ...profile.amazon, enabled: false })}
+                    description="You can turn it on later in Settings"
                   >
-                    <span>📸</span> Instagram (Lite)
-                  </button>
+                    No, not right now
+                  </Choice>
                 </div>
-              </div>
+              </fieldset>
 
-              {/* URL or Handle Input */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  {platform === 'youtube' ? 'YouTube Channel URL or @Handle' : 'Instagram Handle'}
-                </label>
-                <input
-                  type="text"
-                  value={urlOrHandle}
-                  onChange={(e) => setUrlOrHandle(e.target.value)}
-                  placeholder={platform === 'youtube' ? 'e.g. https://youtube.com/@techkabir' : 'e.g. @techkabir'}
-                  required
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono transition"
-                />
-              </div>
-
-              {platform === 'instagram' && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Sample Reel Captions <span className="text-slate-400 font-normal">(Lite Path - No Scraping)</span>
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={igCaptions}
-                    onChange={(e) => setIgCaptions(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-mono transition"
-                  />
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Production Instagram Login for Business OAuth is documented in README.
-                  </p>
+              {profile.amazon.enabled && (
+                <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_180px] rise-in">
+                  <div>
+                    <label htmlFor="tag" className="field-label">
+                      Tracking ID
+                    </label>
+                    <input
+                      id="tag"
+                      className="input font-mono"
+                      placeholder="yourname-20"
+                      value={profile.amazon.partnerTag}
+                      onChange={(e) => set('amazon', { ...profile.amazon, partnerTag: e.target.value.trim() })}
+                    />
+                    <p className="field-hint">Found in Associates Central under Manage tracking IDs</p>
+                  </div>
+                  <div>
+                    <label htmlFor="market" className="field-label">
+                      Marketplace
+                    </label>
+                    <select
+                      id="market"
+                      className="input"
+                      value={profile.amazon.marketplace}
+                      onChange={(e) => set('amazon', { ...profile.amazon, marketplace: e.target.value })}
+                    >
+                      {MARKETPLACES.map((m) => (
+                        <option key={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
-              {/* Consent Checkbox */}
-              <div className="flex items-start gap-2.5 pt-1">
-                <input
-                  type="checkbox"
-                  id="consent"
-                  checked={consent}
-                  onChange={(e) => setConsent(e.target.checked)}
-                  className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-0"
-                />
-                <label htmlFor="consent" className="text-xs text-slate-600 leading-snug cursor-pointer">
-                  I authorize CreatorBrain to index public metadata and thumbnails to generate personalized Creator DNA and knowledge graph nodes. Data remains private and isolated.
-                </label>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={loading || !consent}
-                className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold text-xs transition shadow-xs flex justify-center items-center gap-2 disabled:opacity-50 active:scale-95"
-              >
-                {loading ? 'Starting Agent Pipeline...' : 'Run Creator DNA Pipeline →'}
-              </button>
-            </form>
+              <fieldset className="mt-8">
+                <legend className="field-label">Other income</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {INCOME.map((label) => (
+                    <Choice key={label} checked={profile.otherIncome.includes(label)} onChange={() => toggle('otherIncome', label)}>
+                      {label}
+                    </Choice>
+                  ))}
+                </div>
+              </fieldset>
+            </div>
           )}
-        </div>
 
-        {/* Footer info */}
-        <div className="text-center text-[11px] text-slate-400 space-y-1">
-          <p>Autonomous Agent Team: 13 specialized agents running on Cloudflare Workers Free Tier</p>
-          <p>D1 Graph Database • KV Cache & Rate Limits • PA-API Affiliate Engine</p>
-        </div>
+          {step === 'goals' && (
+            <div className="rise-in">
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">What should we focus on</h1>
+              <p className="mt-2 text-fg-2">Pick up to three. Lessons and suggestions lean toward these</p>
+              <div className="mt-8 grid gap-2 sm:grid-cols-2">
+                {GOALS.map((g) => (
+                  <Choice
+                    key={g}
+                    checked={profile.goals.includes(g)}
+                    onChange={() => {
+                      if (!profile.goals.includes(g) && profile.goals.length >= 3) return;
+                      toggle('goals', g);
+                    }}
+                  >
+                    {g}
+                  </Choice>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === 'study' && <StudyRunner onDone={onComplete} onEdit={() => setStep('channel')} />}
+
+          {step !== 'study' && (
+            <>
+              {error && (
+                <div className="mt-6">
+                  <ErrorNote>{error}</ErrorNote>
+                </div>
+              )}
+              <div className="mt-10 flex items-center justify-between gap-3 border-t border-line pt-6">
+                {stepIndex > 0 ? (
+                  <button className="btn btn-ghost" onClick={() => setStep(STEPS[stepIndex - 1].id)}>
+                    <ArrowLeft {...ICON} />
+                    Back
+                  </button>
+                ) : (
+                  <span />
+                )}
+                <button className="btn btn-primary" onClick={next} disabled={saving}>
+                  {saving && <Spinner size={14} />}
+                  {step === 'goals' ? 'Study my channel' : 'Continue'}
+                  {!saving && <ArrowRight {...ICON} />}
+                </button>
+              </div>
+            </>
+          )}
+        </section>
       </div>
+    </div>
+  );
+};
+
+const STUDY_LABELS: Record<string, string> = {
+  fetch: 'Reading your latest uploads',
+  analyze: 'Learning your voice, packaging and audience',
+  plan: 'Building your Brain, lessons and baseline quiz',
+};
+const ORDER = ['fetch', 'analyze', 'plan'];
+
+const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onDone, onEdit }) => {
+  const [job, setJob] = useState<StudyJob | null>(null);
+  const [error, setError] = useState('');
+  const started = useRef(false);
+
+  const run = async () => {
+    setError('');
+    try {
+      const { jobId } = await api.onboarding.startStudy();
+      let current: StudyJob | null = null;
+      // Each call runs one short step on the server
+      for (let i = 0; i < ORDER.length + 1; i++) {
+        const res = await api.onboarding.runStep(jobId);
+        current = res.job;
+        setJob(current);
+        if (current.status !== 'running') break;
+      }
+      if (current?.status === 'failed') setError(current.error_message || 'The study stopped');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'The study stopped');
+    }
+  };
+
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    run();
+  }, []);
+
+  const results: Record<string, string> = (() => {
+    try {
+      return JSON.parse(job?.result_json || '{}');
+    } catch {
+      return {};
+    }
+  })();
+  const currentIndex = job ? (job.status === 'completed' ? ORDER.length : ORDER.indexOf(job.current_step)) : 0;
+  const done = job?.status === 'completed';
+
+  return (
+    <div className="rise-in">
+      <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
+        {done ? 'Your Brain is ready' : 'Studying your channel'}
+      </h1>
+      <p className="mt-2 text-fg-2">
+        {done
+          ? 'Here is what we did. Your dashboard shows what we learned and where to start'
+          : 'This usually takes under a minute. Keep this tab open'}
+      </p>
+
+      <ol className="mt-8 card divide-y divide-line">
+        {ORDER.map((id, i) => {
+          const state = i < currentIndex ? 'done' : i === currentIndex && !error ? 'active' : error && i === currentIndex ? 'failed' : 'todo';
+          return (
+            <li key={id} className="flex items-start gap-3 px-4 py-4">
+              <span className="mt-[2px] w-4 h-4 flex items-center justify-center">
+                {state === 'done' && <Check {...ICON} className="text-positive" />}
+                {state === 'active' && <Spinner size={16} className="text-accent" />}
+                {state === 'failed' && <Circle {...ICON} className="text-negative" />}
+                {state === 'todo' && <Circle {...ICON} className="text-fg-3" />}
+              </span>
+              <span className="min-w-0">
+                <span className={`block ${state === 'todo' ? 'text-fg-3' : 'text-fg'}`}>{STUDY_LABELS[id]}</span>
+                {results[id] && <span className="block mt-[2px] text-[13px] text-fg-2">{results[id]}</span>}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+
+      {error && (
+        <div className="mt-6 flex flex-col gap-4">
+          <ErrorNote>{error}</ErrorNote>
+          <div className="flex gap-2">
+            <button className="btn btn-primary" onClick={run}>
+              <RotateCw {...ICON} />
+              Try again
+            </button>
+            <button className="btn btn-secondary" onClick={onEdit}>
+              Edit channel details
+            </button>
+          </div>
+        </div>
+      )}
+
+      {done && (
+        <div className="mt-10 border-t border-line pt-6 flex justify-end">
+          <button className="btn btn-primary" onClick={onDone}>
+            Open dashboard
+            <ArrowRight {...ICON} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };

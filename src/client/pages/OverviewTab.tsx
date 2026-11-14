@@ -1,382 +1,454 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, RotateCw, ExternalLink, SquarePlay, Camera, FolderKanban } from 'lucide-react';
+import { api, type ContentItem } from '../lib/api';
+import type { Creator, Project, ShortLink, Lesson, GraphData, Learning } from '../../shared/types';
 import {
-  Sparkles,
-  ArrowRight,
-  TrendingUp,
-  BookOpen,
-  FolderKanban,
-  MousePointerClick,
-  RefreshCw,
-  ExternalLink,
-  MessageSquare,
-  Bot,
-  Zap,
-} from 'lucide-react';
-import { api } from '../lib/api';
-import type { Creator, Project, ShortLink, Lesson, Learning } from '../../shared/types';
+  PageHeader,
+  Stat,
+  SectionTitle,
+  EmptyState,
+  ErrorNote,
+  Meter,
+  Spinner,
+  ICON,
+  formatCount,
+  formatDate,
+} from '../components/ui';
 
 interface OverviewTabProps {
   creator: Creator | null;
   onNavigateTab: (tabId: string) => void;
+  isSample?: boolean;
 }
 
-export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab }) => {
+interface ContentStats {
+  count: number;
+  medianViews: number;
+  avgTitleLength: number;
+  uploadsPerMonth: number;
+  topWords: string[];
+}
+
+function timeAgo(iso?: string | null): string {
+  if (!iso) return 'not yet';
+  const diff = Date.now() - new Date(iso).getTime();
+  const h = Math.round(diff / 3600000);
+  if (h < 1) return 'just now';
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return `${d}d ago`;
+}
+
+export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab, isSample }) => {
+  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [stats, setStats] = useState<ContentStats | null>(null);
+  const [lastStudiedAt, setLastStudiedAt] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [links, setLinks] = useState<ShortLink[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [graph, setGraph] = useState<GraphData | null>(null);
   const [learnings, setLearnings] = useState<Learning[]>([]);
-  const [nextBestAction] = useState<string>(
-    'Record a 45-second teardown Short for Motorola Edge 50 Fusion to recapture lost student viewers from the minute-4 dip.'
-  );
-  const [_loading, setLoading] = useState(true);
+  const [restudying, setRestudying] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async () => {
+    const [content, proj, lnk, lsn, brain] = await Promise.allSettled([
+      api.onboarding.getContent(),
+      api.studio.getProjects(),
+      api.links.getLinks(),
+      api.learn.getLessons(),
+      api.brain.getGraph(),
+    ]);
+    if (content.status === 'fulfilled') {
+      setItems(content.value.items);
+      setStats(content.value.stats);
+      setLastStudiedAt(content.value.lastStudiedAt);
+    }
+    if (proj.status === 'fulfilled') setProjects(proj.value.projects || []);
+    if (lnk.status === 'fulfilled') setLinks(lnk.value.links || []);
+    if (lsn.status === 'fulfilled') setLessons(lsn.value.lessons || []);
+    if (brain.status === 'fulfilled') {
+      setGraph(brain.value.graph);
+      setLearnings(brain.value.learnings || []);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    loadOverviewData();
+    load();
   }, []);
 
-  const loadOverviewData = async () => {
-    setLoading(true);
+  const restudy = async () => {
+    setError('');
+    setRestudying(true);
     try {
-      const [projRes, linkRes, learnRes, brainRes] = await Promise.all([
-        api.studio.getProjects(),
-        api.links.getLinks(),
-        api.learn.getLessons(),
-        api.brain.getGraph(),
-      ]);
-      setProjects(projRes.projects || []);
-      setLinks(linkRes.links || []);
-      setLessons(learnRes.lessons || []);
-      setLearnings(brainRes.learnings || []);
+      const { jobId } = await api.onboarding.startStudy();
+      for (let i = 0; i < 4; i++) {
+        const { job } = await api.onboarding.runStep(jobId);
+        if (job.status === 'failed') throw new Error(job.error_message || 'The study stopped');
+        if (job.status !== 'running') break;
+      }
+      await load();
     } catch (err: unknown) {
-      console.error('Failed to load overview data:', err);
+      setError(err instanceof Error ? err.message : 'The study stopped');
     } finally {
-      setLoading(false);
+      setRestudying(false);
     }
   };
 
-  const totalClicks = links.reduce((acc, l) => acc + (l.total_clicks || 0), 0);
-  const completedLessons = lessons.filter((l) => l.completed === 1).length;
-  const learningPercent = lessons.length > 0 ? Math.round((completedLessons / lessons.length) * 100) : 0;
-  const activeProjects = projects.filter((p) => p.status !== 'Published');
+  const totalClicks = links.reduce((a, l) => a + (l.total_clicks || 0), 0);
+  const completed = lessons.filter((l) => l.completed).length;
+  const insights = (graph?.nodes || [])
+    .filter((n) => n.type === 'Strength' || n.type === 'Gap')
+    .sort((a, b) => (a.type === b.type ? 0 : a.type === 'Strength' ? -1 : 1))
+    .slice(0, 6);
+  const topLinks = [...links].sort((a, b) => (b.total_clicks || 0) - (a.total_clicks || 0)).slice(0, 5);
+  const recentProjects = projects.slice(0, 5);
+
+  if (loading) {
+    return (
+      <div className="py-24 flex justify-center text-fg-3">
+        <Spinner size={20} />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300 w-full">
-      {/* Top Banner: Creator Greeting & Next Best Action */}
-      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-slate-50/70 to-indigo-50/30 p-6 md:p-8 backdrop-blur-2xl shadow-xs">
-        <div className="absolute top-0 right-0 -mt-16 -mr-16 w-96 h-96 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-1/3 -mb-20 w-80 h-80 bg-slate-500/5 rounded-full blur-3xl pointer-events-none" />
+    <div>
+      <PageHeader
+        title="Dashboard"
+        description={
+          <>
+            {creator?.channel_title || creator?.name}
+            <span className="text-fg-3"> · studied {timeAgo(lastStudiedAt || creator?.last_studied_at)}</span>
+          </>
+        }
+        actions={
+          <>
+            {!isSample && (
+              <button className="btn btn-secondary" onClick={restudy} disabled={restudying}>
+                {restudying ? <Spinner size={14} /> : <RotateCw {...ICON} />}
+                {restudying ? 'Studying' : 'Study again'}
+              </button>
+            )}
+            <button className="btn btn-primary" onClick={() => onNavigateTab('studio')}>
+              New video
+            </button>
+          </>
+        }
+      />
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200/80 text-xs font-semibold text-indigo-700">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Autonomous Agent Orchestration Active
-            </div>
-            <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 tracking-tight">
-              Welcome back, {creator?.name || 'Creator'} 👋
-            </h1>
-            <p className="text-sm md:text-base text-slate-600 max-w-2xl leading-relaxed">
-              <span className="font-bold text-indigo-700">Today's Next Best Action:</span>{' '}
-              <span className="text-slate-800">{nextBestAction}</span>
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onNavigateTab('copilot')}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-all shadow-sm shadow-indigo-600/20 active:scale-95"
-            >
-              <MessageSquare className="w-4 h-4" />
-              Chat with Copilot
-            </button>
-            <button
-              onClick={() => onNavigateTab('studio')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm transition active:scale-95 shadow-xs"
-            >
-              <FolderKanban className="w-4 h-4 text-indigo-600" />
-              Content Studio
-            </button>
-            <button
-              onClick={() => onNavigateTab('agents')}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 font-semibold text-sm transition active:scale-95 shadow-xs"
-              title="Agent Timeline"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
+      {error && (
+        <div className="mb-6">
+          <ErrorNote>{error}</ErrorNote>
         </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <Stat
+          label="Median views"
+          value={stats?.count ? formatCount(stats.medianViews) : '–'}
+          note={stats?.count ? `Across your last ${stats.count} uploads` : 'No uploads studied yet'}
+        />
+        <Stat
+          label="Uploads per month"
+          value={stats?.count ? stats.uploadsPerMonth.toFixed(1) : '–'}
+          note={creator?.upload_cadence ? `You aimed for ${cadenceLabel(creator.upload_cadence)}` : 'Based on publish dates'}
+        />
+        <Stat label="Short link clicks" value={formatCount(totalClicks)} note={`${links.length} active links`} />
+        <Stat
+          label="Lessons done"
+          value={
+            <>
+              {completed}
+              <span className="text-fg-3"> / {lessons.length}</span>
+            </>
+          }
+          note="Planned from your gaps"
+        />
       </div>
 
-      {/* Brain Copilot Idea Station Feature Card */}
-      <div className="bg-white rounded-3xl p-6 relative overflow-hidden border border-slate-200/90 shadow-xs">
-        <div className="absolute top-0 right-1/4 -mt-12 w-64 h-64 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-          <div className="space-y-1.5 max-w-xl">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600">
-                <Sparkles className="w-4 h-4" />
-              </div>
-              <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                Brain Copilot Idea Studio
-              </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/80">
-                Grounded in Creator DNA
-              </span>
-            </div>
-            <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-              Describe any video idea in natural language. Copilot analyzes your speaking tone, YouTube pacing, knowledge gaps, and live Amazon gear catalog to shape your next hit video.
-            </p>
-          </div>
-
-          {/* Quick Idea Starter Chips */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => onNavigateTab('copilot')}
-              className="bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl text-xs text-slate-700 hover:text-slate-900 flex items-center gap-1.5 text-left border border-slate-200 transition"
-            >
-              <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span>Moto Edge vs Vivo V40</span>
-            </button>
-            <button
-              onClick={() => onNavigateTab('copilot')}
-              className="bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl text-xs text-slate-700 hover:text-slate-900 flex items-center gap-1.5 text-left border border-slate-200 transition"
-            >
-              <Bot className="w-3.5 h-3.5 text-purple-500 shrink-0" />
-              <span>Fix Minute-4 Dropoff</span>
-            </button>
-            <button
-              onClick={() => onNavigateTab('copilot')}
-              className="bg-orange-50 hover:bg-orange-100/70 px-3 py-1.5 rounded-xl text-xs text-orange-700 font-semibold flex items-center gap-1.5 text-left border border-orange-200 transition"
-            >
-              <span>Explore all prompts</span>
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric 1: Active Projects */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Active Projects
-            </span>
-            <div className="p-2 rounded-xl bg-orange-500/10 text-orange-600 border border-orange-500/20">
-              <FolderKanban className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
-              {activeProjects.length}
-            </span>
-            <span className="text-xs text-slate-500 font-medium">in pipeline</span>
-          </div>
-          <p className="text-xs text-slate-500 mt-2">
-            {projects.length} total projects across studio
-          </p>
-        </div>
-
-        {/* Metric 2: Tracked Link Clicks */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Tracked Link Clicks
-            </span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-              <MousePointerClick className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-emerald-600 font-mono tracking-tight">
-              {totalClicks.toLocaleString()}
-            </span>
-            <span className="text-xs text-emerald-600/90 font-medium">total clicks</span>
-          </div>
-          <p className="text-xs text-slate-500 mt-2">
-            Across {links.length} active short & affiliate links
-          </p>
-        </div>
-
-        {/* Metric 3: Learning Progress */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Learning Mastery
-            </span>
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-600 border border-purple-500/20">
-              <BookOpen className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-purple-600 font-mono tracking-tight">
-              {learningPercent}%
-            </span>
-            <span className="text-xs text-slate-500 font-medium">
-              {completedLessons}/{lessons.length} done
-            </span>
-          </div>
-          <div className="w-full bg-slate-100 h-1.5 rounded-full mt-3 overflow-hidden">
-            <div
-              className="bg-gradient-to-r from-purple-500 to-indigo-500 h-full rounded-full transition-all duration-500"
-              style={{ width: `${learningPercent}%` }}
+      {/* Main chart + insights */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="card p-5 lg:col-span-2">
+          <SectionTitle
+            title="Views per upload"
+            meta={stats?.count ? `median ${formatCount(stats.medianViews)}` : undefined}
+          />
+          {items.filter((i) => i.platform === 'youtube').length > 1 ? (
+            <ViewsChart items={items.filter((i) => i.platform === 'youtube')} median={stats?.medianViews || 0} />
+          ) : (
+            <EmptyState
+              icon={<SquarePlay {...ICON} />}
+              title="No YouTube uploads yet"
+              description="Add your channel in Settings and study again to see how each upload performs"
             />
-          </div>
+          )}
         </div>
 
-        {/* Metric 4: Subscribers & Channel */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Subscribers
-            </span>
-            <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-600 border border-cyan-500/20">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-3xl font-extrabold text-slate-900 font-mono tracking-tight">
-              {(creator?.subscribers || 7520).toLocaleString()}
-            </span>
-            <span className="text-xs text-cyan-600 font-medium">YouTube</span>
-          </div>
-          <p className="text-xs text-slate-500 mt-2 truncate">
-            {creator?.niche || 'Tech & Hardware Reviews'}
-          </p>
-        </div>
-      </div>
-
-      {/* Two Column Layout: Recent Projects & Latest Brain Learnings */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Active Video Projects */}
-        <div className="bg-white p-6 rounded-3xl space-y-4 border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <FolderKanban className="w-4 h-4 text-orange-500" />
-              Active Video Projects
-            </h2>
-            <button
-              onClick={() => onNavigateTab('studio')}
-              className="text-xs text-orange-600 hover:text-orange-700 font-semibold inline-flex items-center gap-1 transition"
-            >
-              Open Studio <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {projects.slice(0, 3).map((p) => (
-              <div
-                key={p.id}
-                onClick={() => onNavigateTab('studio')}
-                className="p-4 rounded-2xl bg-slate-50/70 hover:bg-slate-100/70 border border-slate-200/80 hover:border-orange-500/40 cursor-pointer transition-all group"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900 group-hover:text-orange-600 transition">
-                    {p.title}
-                  </h3>
-                  <span
-                    className={`text-[10px] font-bold uppercase px-2.5 py-0.5 rounded-full border ${
-                      p.status === 'Published'
-                        ? 'bg-emerald-500/10 text-emerald-700 border-emerald-500/25'
-                        : p.status === 'Scripted'
-                        ? 'bg-purple-500/10 text-purple-700 border-purple-500/25'
-                        : 'bg-amber-500/10 text-amber-700 border-amber-500/25'
-                    }`}
-                  >
-                    {p.status}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 mt-2 line-clamp-2 leading-relaxed">
-                  {p.brief}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right Column: Latest Autonomous Brain Learnings */}
-        <div className="bg-white p-6 rounded-3xl space-y-4 border border-slate-200/90 shadow-xs">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-600" />
-              Latest Brain Learnings
-            </h2>
-            <button
-              onClick={() => onNavigateTab('brain')}
-              className="text-xs text-purple-600 hover:text-purple-700 font-semibold inline-flex items-center gap-1 transition"
-            >
-              View Brain Graph <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {learnings.slice(0, 3).map((l) => (
-              <div
-                key={l.id}
-                className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 space-y-1.5"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">{l.title}</span>
-                  <span className="text-[10px] font-mono text-purple-700 px-2 py-0.5 rounded-full bg-purple-500/10 border border-purple-500/20 font-semibold">
-                    {l.source_agent}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">{l.insight}</p>
-              </div>
-            ))}
-          </div>
+        <div className="card p-5">
+          <SectionTitle
+            title="What we learned"
+            action={
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigateTab('brain')}>
+                Brain
+                <ArrowRight {...ICON} />
+              </button>
+            }
+          />
+          {insights.length ? (
+            <ul className="flex flex-col">
+              {insights.map((n) => (
+                <li key={n.id} className="py-3 border-t border-line first:border-t-0 first:pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className={`dot ${n.type === 'Strength' ? 'bg-positive' : 'bg-negative'}`} />
+                    <span className="text-[12px] text-fg-3">{n.type === 'Strength' ? 'Strength' : 'To work on'}</span>
+                    <Meter value={n.confidence ?? 0.7} className="ml-auto" />
+                  </div>
+                  <div className="mt-1 text-[14px] text-fg leading-5">{n.label}</div>
+                  {n.description && <div className="mt-[2px] text-[13px] text-fg-2 leading-5 line-clamp-2">{n.description}</div>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-fg-2 text-[13px]">Run a study to see strengths and gaps here</p>
+          )}
         </div>
       </div>
 
-      {/* Top Short Links Row */}
-      <div className="bg-white p-6 rounded-3xl space-y-4 border border-slate-200/90 shadow-xs">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <MousePointerClick className="w-4 h-4 text-emerald-600" />
-            Top Performing Tracked Links
-          </h2>
-          <button
-            onClick={() => onNavigateTab('links')}
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-semibold inline-flex items-center gap-1 transition"
-          >
-            Manage All Links <ArrowRight className="w-3 h-3" />
-          </button>
+      {/* Recent uploads */}
+      <div className="mt-6 card">
+        <div className="px-5 pt-5">
+          <SectionTitle title="Recent content" meta={items.length ? `${items.length} studied` : undefined} />
+        </div>
+        {items.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[12px] text-fg-3 border-b border-line">
+                  <th className="font-normal px-5 py-2">Title</th>
+                  <th className="font-normal px-5 py-2 w-24">Published</th>
+                  <th className="font-normal px-5 py-2 w-24 text-right">Views</th>
+                  <th className="font-normal px-5 py-2 w-32 text-right">Vs median</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.slice(0, 8).map((item) => {
+                  const ratio = stats?.medianViews ? item.views / stats.medianViews : 0;
+                  const pct = Math.round((ratio - 1) * 100);
+                  return (
+                    <tr key={item.id} className="border-b border-line last:border-b-0 hover:bg-raised/60 transition-colors">
+                      <td className="px-5 py-3">
+                        <a
+                          href={item.url || undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-3 min-w-0 group"
+                        >
+                          {item.thumbnail_url ? (
+                            <img
+                              src={item.thumbnail_url}
+                              alt=""
+                              loading="lazy"
+                              className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0"
+                            />
+                          ) : (
+                            <span className="w-[72px] h-[40px] rounded-[6px] bg-raised shrink-0 flex items-center justify-center text-fg-3">
+                              {item.platform === 'instagram' ? <Camera {...ICON} /> : <SquarePlay {...ICON} />}
+                            </span>
+                          )}
+                          <span className="truncate text-fg group-hover:text-accent-ink transition-colors">{item.title}</span>
+                        </a>
+                      </td>
+                      <td className="px-5 py-3 meta">{formatDate(item.published_at)}</td>
+                      <td className="px-5 py-3 text-right num">{item.platform === 'youtube' ? formatCount(item.views) : '–'}</td>
+                      <td
+                        className={`px-5 py-3 text-right num text-[13px] ${
+                          item.platform !== 'youtube' || !stats?.medianViews
+                            ? 'text-fg-3'
+                            : pct >= 0
+                              ? 'text-positive'
+                              : 'text-fg-2'
+                        }`}
+                      >
+                        {item.platform === 'youtube' && stats?.medianViews ? `${pct >= 0 ? '+' : ''}${pct}%` : '–'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <EmptyState
+            icon={<SquarePlay {...ICON} />}
+            title="Nothing studied yet"
+            description="Once we read your uploads they show up here, compared to your median"
+          />
+        )}
+      </div>
+
+      {/* Lists */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="card p-5">
+          <SectionTitle
+            title="In production"
+            action={
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigateTab('studio')}>
+                Studio
+                <ArrowRight {...ICON} />
+              </button>
+            }
+          />
+          {recentProjects.length ? (
+            <ul>
+              {recentProjects.map((p) => (
+                <li key={p.id} className="flex items-center gap-3 py-2 border-t border-line first:border-t-0">
+                  <FolderKanban {...ICON} className="text-fg-3 shrink-0" />
+                  <span className="truncate flex-1">{p.title}</span>
+                  <span className="tag">{p.status}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-fg-2">No videos in production. Start one from the Studio</p>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {links.slice(0, 3).map((link) => (
-            <div
-              key={link.id}
-              className="p-4 rounded-2xl bg-slate-50/70 border border-slate-200/80 hover:border-emerald-500/40 transition flex flex-col justify-between"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-mono font-bold text-slate-900 truncate">
-                    /{link.slug}
-                  </span>
-                  <span className="text-xs font-mono font-bold text-emerald-600">
-                    {link.total_clicks} clicks
-                  </span>
-                </div>
-                <p className="text-xs text-slate-800 font-medium truncate">{link.title || link.slug}</p>
-                <p className="text-[11px] text-slate-500 truncate mt-0.5">{link.destination_domain}</p>
-              </div>
-              <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-[11px] text-slate-500">
-                <span>UTM: {link.utm_source || 'direct'}</span>
-                <a
-                  href={`/s/${link.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-emerald-600 inline-flex items-center gap-1 transition font-medium"
-                >
-                  Test Link <ExternalLink className="w-2.5 h-2.5" />
-                </a>
-              </div>
-            </div>
-          ))}
+        <div className="card p-5">
+          <SectionTitle
+            title="Top links"
+            action={
+              <button className="btn btn-ghost btn-sm" onClick={() => onNavigateTab('links')}>
+                Short links
+                <ArrowRight {...ICON} />
+              </button>
+            }
+          />
+          {topLinks.length ? (
+            <ul>
+              {topLinks.map((l) => {
+                const max = topLinks[0]?.total_clicks || 1;
+                return (
+                  <li key={l.id} className="py-2 border-t border-line first:border-t-0">
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[13px] truncate">/s/{l.slug}</span>
+                      <span className="text-[13px] text-fg-2 truncate flex-1">{l.title || l.destination_domain}</span>
+                      <span className="meta">{formatCount(l.total_clicks)}</span>
+                      <a href={`/s/${l.slug}`} target="_blank" rel="noreferrer" className="text-fg-3 hover:text-fg" aria-label="Open link">
+                        <ExternalLink size={14} strokeWidth={1.5} />
+                      </a>
+                    </div>
+                    <div className="mt-2 h-[3px] rounded-full bg-raised overflow-hidden">
+                      <div className="h-full bg-fg-3/60 rounded-full" style={{ width: `${((l.total_clicks || 0) / max) * 100}%` }} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-[13px] text-fg-2">No short links yet</p>
+          )}
         </div>
+      </div>
+
+      {learnings[0] && (
+        <p className="mt-6 text-[13px] text-fg-3">
+          Latest note from {learnings[0].source_agent}: <span className="text-fg-2">{learnings[0].insight}</span>
+        </p>
+      )}
+    </div>
+  );
+};
+
+function cadenceLabel(c: string): string {
+  return { weekly: 'weekly', biweekly: 'every two weeks', monthly: 'monthly', irregular: 'no set rhythm' }[c] || c;
+}
+
+/** Views per upload, oldest to newest. The latest upload carries the accent, the rest stay neutral */
+const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items, median }) => {
+  const [hover, setHover] = useState<number | null>(null);
+  const data = useMemo(
+    () => [...items].sort((a, b) => (a.published_at || '').localeCompare(b.published_at || '')).slice(-15),
+    [items]
+  );
+  const W = 720;
+  const H = 280;
+  const pad = { l: 48, r: 12, t: 12, b: 28 };
+  const max = Math.max(...data.map((d) => d.views), median, 1);
+  const niceMax = niceCeil(max);
+  const bw = (W - pad.l - pad.r) / data.length;
+  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - v / niceMax);
+  const ticks = [0, 0.25, 0.5, 0.75, 1].map((t) => t * niceMax);
+  const h = hover !== null ? data[hover] : null;
+
+  return (
+    <div className="relative">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Views per upload">
+        {ticks.map((t) => (
+          <g key={t}>
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="rgb(23 23 23 / 0.06)" />
+            <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="fill-fg-3" style={{ font: '11px var(--font-mono)' }}>
+              {formatCount(t)}
+            </text>
+          </g>
+        ))}
+        {data.map((d, i) => {
+          const x = pad.l + i * bw + bw * 0.2;
+          const w = bw * 0.6;
+          const isLast = i === data.length - 1;
+          const top = y(d.views);
+          return (
+            <g key={d.id} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+              <rect x={pad.l + i * bw} y={pad.t} width={bw} height={H - pad.t - pad.b} fill="transparent" />
+              <rect
+                x={x}
+                y={top}
+                width={w}
+                height={Math.max(1, H - pad.b - top)}
+                rx={3}
+                fill={isLast ? '#2f5bea' : hover === i ? '#525252' : '#d4d4d8'}
+                style={{ transition: 'fill 150ms' }}
+              />
+              {(i % Math.ceil(data.length / 6) === 0 || isLast) && (
+                <text x={x + w / 2} y={H - 8} textAnchor="middle" className="fill-fg-3" style={{ font: '11px var(--font-mono)' }}>
+                  {formatDate(d.published_at)}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {median > 0 && (
+          <g>
+            <line x1={pad.l} x2={W - pad.r} y1={y(median)} y2={y(median)} stroke="#737373" strokeDasharray="3 4" />
+          </g>
+        )}
+      </svg>
+      {h && (
+        <div className="pointer-events-none absolute top-2 left-14 right-4 sm:right-auto sm:max-w-[360px] card px-3 py-2 shadow-[0_8px_24px_rgb(0_0_0/0.08)]">
+          <div className="text-[13px] text-fg leading-5 line-clamp-2">{h.title}</div>
+          <div className="meta mt-1">
+            {formatDate(h.published_at)} · {h.views.toLocaleString('en-US')} views
+          </div>
+        </div>
+      )}
+      <div className="mt-2 flex items-center gap-4 text-[12px] text-fg-3">
+        <span className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-[2px] bg-accent" /> Latest upload
+        </span>
+        <span className="flex items-center gap-2">
+          <span className="w-3 border-t border-dashed border-fg-3" /> Median
+        </span>
       </div>
     </div>
   );
 };
+
+function niceCeil(v: number): number {
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  const n = v / p;
+  const step = n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10;
+  return step * p;
+}

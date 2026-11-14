@@ -1,25 +1,125 @@
-import React, { useEffect, useState } from 'react';
-import {
-  Link2,
-  Plus,
-  Copy,
-  Check,
-  ExternalLink,
-  BarChart3,
-  ShieldCheck,
-  Globe,
-  Smartphone,
-  Compass,
-} from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link2, Plus, Copy, Check, ExternalLink, BarChart3, ShieldCheck, X } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ShortLink, LinkClick } from '../../shared/types';
+import { ICON, PageHeader, Stat, SectionTitle, EmptyState, ErrorNote, Spinner, formatCount } from '../components/ui';
+
+const errMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
+
+/** Share of clicks per value, sorted, top N */
+function breakdown(clicks: LinkClick[], key: 'country' | 'device' | 'referrer', top = 4) {
+  const counts = new Map<string, number>();
+  for (const c of clicks) {
+    let v = (c[key] || 'Unknown').trim() || 'Unknown';
+    if (key === 'referrer' && /^https?:\/\//i.test(v)) {
+      try {
+        v = new URL(v).hostname.replace(/^www\./, '');
+      } catch {
+        // keep raw value
+      }
+    }
+    counts.set(v, (counts.get(v) || 0) + 1);
+  }
+  const total = clicks.length || 1;
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, top)
+    .map(([label, count]) => ({ label, count, share: count / total }));
+}
+
+/** Clicks per day for the last `days` days, oldest first */
+function dailySeries(clicks: LinkClick[], days = 14) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const buckets = Array.from({ length: days }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - (days - 1 - i));
+    return { date: d, count: 0 };
+  });
+  for (const c of clicks) {
+    const d = new Date(c.created_at);
+    if (Number.isNaN(d.getTime())) continue;
+    d.setHours(0, 0, 0, 0);
+    const idx = Math.round((d.getTime() - buckets[0].date.getTime()) / 86_400_000);
+    if (idx >= 0 && idx < days) buckets[idx].count += 1;
+  }
+  return buckets;
+}
+
+const ClicksChart: React.FC<{ clicks: LinkClick[] }> = ({ clicks }) => {
+  const series = dailySeries(clicks);
+  const max = Math.max(4, ...series.map((s) => s.count));
+  const ticks = [max, Math.round(max / 2), 0];
+  const chartH = 140;
+
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col justify-between text-right meta !leading-none w-6" style={{ height: chartH }}>
+        {ticks.map((t, i) => (
+          <span key={i}>{t}</span>
+        ))}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="relative" style={{ height: chartH }}>
+          {[0, 0.5, 1].map((p) => (
+            <div key={p} className="absolute inset-x-0 border-t border-line" style={{ top: `${p * 100}%` }} />
+          ))}
+          <div className="absolute inset-0 flex items-end gap-1">
+            {series.map((s, i) => {
+              const isToday = i === series.length - 1;
+              return (
+                <div key={i} className="flex-1 h-full flex items-end" title={`${s.count} clicks`}>
+                  <div
+                    className={`w-full rounded-t-[2px] ${isToday ? 'bg-accent' : 'bg-line-strong'}`}
+                    style={{ height: s.count ? `${Math.max(2, (s.count / max) * 100)}%` : 0 }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex justify-between mt-2 meta">
+          <span>{series[0].date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          <span>Today</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RankedList: React.FC<{ title: string; rows: { label: string; count: number; share: number }[] }> = ({
+  title,
+  rows,
+}) => (
+  <div>
+    <div className="text-[13px] text-fg-2 mb-2">{title}</div>
+    {rows.length === 0 ? (
+      <div className="meta">No clicks yet</div>
+    ) : (
+      <div className="space-y-2">
+        {rows.map((r) => (
+          <div key={r.label}>
+            <div className="flex items-baseline justify-between gap-2 text-[13px]">
+              <span className="truncate text-fg">{r.label}</span>
+              <span className="meta">{Math.round(r.share * 100)}%</span>
+            </div>
+            <div className="mt-1 h-1 rounded-full bg-raised">
+              <div className="h-1 rounded-full bg-fg-3" style={{ width: `${r.share * 100}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
 
 export const ShortLinksTab: React.FC = () => {
   const [links, setLinks] = useState<ShortLink[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
-  // Create Modal State
+  // Create modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [destUrl, setDestUrl] = useState('');
   const [customSlug, setCustomSlug] = useState('');
@@ -28,11 +128,14 @@ export const ShortLinksTab: React.FC = () => {
   const [utmMedium, setUtmMedium] = useState('description');
   const [utmCampaign, setUtmCampaign] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  // Analytics Modal State
+  // Analytics modal state
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [selectedLink, setSelectedLink] = useState<ShortLink | null>(null);
-  const [_linkClicks, setLinkClicks] = useState<LinkClick[]>([]);
+  const [linkClicks, setLinkClicks] = useState<LinkClick[]>([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState<string | null>(null);
 
   useEffect(() => {
     loadLinks();
@@ -40,11 +143,12 @@ export const ShortLinksTab: React.FC = () => {
 
   const loadLinks = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await api.links.getLinks();
       setLinks(res.links || []);
     } catch (err: unknown) {
-      console.error('Failed to load short links:', err);
+      setLoadError(errMessage(err, 'Could not load short links'));
     } finally {
       setLoading(false);
     }
@@ -53,6 +157,7 @@ export const ShortLinksTab: React.FC = () => {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateError(null);
+    setCreating(true);
     try {
       await api.links.createLink({
         destination_url: destUrl.trim(),
@@ -69,8 +174,9 @@ export const ShortLinksTab: React.FC = () => {
       setLinkTitle('');
       await loadLinks();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to create short link';
-      setCreateError(msg);
+      setCreateError(errMessage(err, 'Could not create the short link'));
+    } finally {
+      setCreating(false);
     }
   };
 
@@ -84,231 +190,266 @@ export const ShortLinksTab: React.FC = () => {
   const handleViewStats = async (link: ShortLink) => {
     setSelectedLink(link);
     setShowStatsModal(true);
+    setLinkClicks([]);
+    setStatsError(null);
+    setStatsLoading(true);
     try {
       const res = await api.links.getLinkDetails(link.id);
       setLinkClicks(res.clicks || []);
     } catch (err) {
-      console.error('Failed to fetch link stats:', err);
+      setStatsError(errMessage(err, 'Could not load analytics for this link'));
+    } finally {
+      setStatsLoading(false);
     }
   };
 
   const totalClicksAll = links.reduce((acc, l) => acc + (l.total_clicks || 0), 0);
+  const avgClicks = links.length ? Math.round(totalClicksAll / links.length) : 0;
+  const topLink = useMemo(
+    () => [...links].sort((a, b) => (b.total_clicks || 0) - (a.total_clicks || 0))[0],
+    [links]
+  );
+
+  const countries = useMemo(() => breakdown(linkClicks, 'country'), [linkClicks]);
+  const devices = useMemo(() => breakdown(linkClicks, 'device'), [linkClicks]);
+  const referrers = useMemo(() => breakdown(linkClicks, 'referrer'), [linkClicks]);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Header Bar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Link2 className="w-5 h-5 text-indigo-600" />
-            Tracked Short Links & Redirect Engine
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Sub-millisecond KV edge resolution with transparent destination integrity & SSRF protection.
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title="Short links"
+        description="Tracked redirects for descriptions and captions. Each click records country, device and referrer."
+        actions={
+          <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
+            <Plus {...ICON} />
+            New short link
+          </button>
+        }
+      />
 
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition shadow-xs active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          Create Short Link
-        </button>
+      {loadError && (
+        <div className="mb-6">
+          <ErrorNote>{loadError}</ErrorNote>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
+        <Stat label="Links" value={formatCount(links.length)} />
+        <Stat label="Clicks recorded" value={formatCount(totalClicksAll)} note="All time, across every link" />
+        <Stat
+          label="Clicks per link"
+          value={formatCount(avgClicks)}
+          note={topLink ? `Most clicked: /s/${topLink.slug}` : undefined}
+        />
+      </div>
+      <div className="flex items-center gap-2 text-[13px] text-fg-3 mb-8">
+        <ShieldCheck {...ICON} className="text-fg-3 shrink-0" />
+        Destinations are checked before each redirect. Private networks and unsafe hosts are blocked.
       </div>
 
-      {/* Overview Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-4.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Total Short Links</span>
-          <div className="text-2xl font-bold font-mono text-slate-900 mt-1">{links.length}</div>
-        </div>
-        <div className="p-4.5 rounded-xl bg-white border border-slate-200/80 shadow-xs">
-          <span className="text-xs font-medium text-slate-500">Total Clicks Recorded</span>
-          <div className="text-2xl font-bold font-mono text-indigo-600 mt-1">{totalClicksAll}</div>
-        </div>
-        <div className="p-4.5 rounded-xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-between">
-          <div>
-            <span className="text-xs font-medium text-slate-500">SSRF & Domain Safety</span>
-            <div className="text-xs font-bold text-emerald-700 mt-1.5 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-emerald-600" /> Active & Enforced
-            </div>
+      <SectionTitle title="All links" meta={links.length ? links.length : undefined} />
+      <div className="card overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 py-12 text-fg-3">
+            <Spinner />
+            Loading links
           </div>
-        </div>
-      </div>
-
-      {/* Links Table */}
-      <div className="rounded-2xl bg-white border border-slate-200/80 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider border-b border-slate-200/80">
-              <tr>
-                <th className="p-4">Short Slug</th>
-                <th className="p-4">Title & Destination</th>
-                <th className="p-4">UTM Tags</th>
-                <th className="p-4">Clicks</th>
-                <th className="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {links.map((link) => (
-                <tr key={link.id} className="hover:bg-slate-50/60 transition">
-                  <td className="p-4">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-indigo-600">/s/{link.slug}</span>
-                      <button
-                        onClick={() => handleCopy(link.slug)}
-                        className="p-1 rounded text-slate-400 hover:text-slate-600"
-                        title="Copy short link"
-                      >
-                        {copiedSlug === link.slug ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="p-4 max-w-xs">
-                    <p className="font-semibold text-slate-900 truncate">{link.title || link.slug}</p>
-                    <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                      <span className="text-emerald-700 font-mono font-medium">[{link.destination_domain}]</span>{' '}
-                      {link.destination_url}
-                    </p>
-                  </td>
-                  <td className="p-4">
-                    <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200/60">
-                      {link.utm_source || 'direct'} / {link.utm_medium || 'none'}
-                    </span>
-                  </td>
-                  <td className="p-4">
-                    <span className="font-mono font-bold text-slate-900 text-sm">
-                      {link.total_clicks}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleViewStats(link)}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-semibold shadow-2xs"
-                      >
-                        <BarChart3 className="w-3.5 h-3.5 text-indigo-600" />
-                        Analytics
-                      </button>
-                      <a
-                        href={`/s/${link.slug}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-500 hover:text-indigo-600 border border-slate-200 shadow-2xs"
-                        title="Test redirect"
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    </div>
-                  </td>
+        ) : links.length === 0 ? (
+          <EmptyState
+            icon={<Link2 {...ICON} />}
+            title="No short links yet"
+            description="Create one for a video description or bio, then watch where the clicks come from."
+            action={
+              <button onClick={() => setShowCreateModal(true)} className="btn btn-secondary btn-sm">
+                <Plus {...ICON} />
+                New short link
+              </button>
+            }
+          />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-[13px]">
+              <thead className="text-fg-3 border-b border-line">
+                <tr>
+                  <th className="px-4 h-10 font-normal">Short link</th>
+                  <th className="px-4 h-10 font-normal">Title and destination</th>
+                  <th className="px-4 h-10 font-normal">UTM</th>
+                  <th className="px-4 h-10 font-normal text-right">Clicks</th>
+                  <th className="px-4 h-10 font-normal text-right">
+                    <span className="sr-only">Actions</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {links.map((link) => (
+                  <tr key={link.id} className="hover:bg-page transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-1">
+                        <span className="font-mono text-fg">/s/{link.slug}</span>
+                        <button
+                          onClick={() => handleCopy(link.slug)}
+                          className="btn btn-ghost btn-sm !h-7 !px-2"
+                          title="Copy short link"
+                          aria-label="Copy short link"
+                        >
+                          {copiedSlug === link.slug ? (
+                            <Check {...ICON} className="text-positive" />
+                          ) : (
+                            <Copy {...ICON} />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 max-w-xs">
+                      <p className="text-fg truncate">{link.title || link.slug}</p>
+                      <p className="text-[12px] leading-4 text-fg-3 truncate mt-1">
+                        <span className="text-fg-2">{link.destination_domain}</span> · {link.destination_url}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="tag font-mono">
+                        {link.utm_source || 'direct'} / {link.utm_medium || 'none'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono num text-fg">{formatCount(link.total_clicks)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => handleViewStats(link)} className="btn btn-secondary btn-sm">
+                          <BarChart3 {...ICON} className="text-fg-2" />
+                          Analytics
+                        </button>
+                        <a
+                          href={`/s/${link.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-ghost btn-sm !px-2"
+                          title="Test redirect"
+                          aria-label="Test redirect"
+                        >
+                          <ExternalLink {...ICON} />
+                        </a>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Create Short Link Modal */}
+      {/* Create short link */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl p-6 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Create Tracked Short Link</h3>
-            {createError && (
-              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800">
-                {createError}
-              </div>
-            )}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="panel w-full max-w-lg p-6" role="dialog" aria-modal="true" aria-labelledby="create-link-title">
+            <div className="flex items-center justify-between mb-4">
+              <h3 id="create-link-title" className="text-[15px] font-medium text-fg">
+                New short link
+              </h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="btn btn-ghost btn-sm !px-2"
+                aria-label="Close"
+              >
+                <X {...ICON} />
+              </button>
+            </div>
+
             <form onSubmit={handleCreate} className="space-y-4">
+              {createError && <ErrorNote>{createError}</ErrorNote>}
+
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Destination URL (Amazon or other public URL) *
+                <label className="field-label" htmlFor="sl-dest">
+                  Destination URL
                 </label>
                 <input
+                  id="sl-dest"
                   type="url"
                   required
                   value={destUrl}
                   onChange={(e) => setDestUrl(e.target.value)}
-                  placeholder="https://www.amazon.in/dp/B0D3G78JKL..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  placeholder="https://www.amazon.in/dp/B0D3G78JKL"
+                  className="input"
                 />
+                <p className="field-hint">Any public URL, including Amazon product pages</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Custom Slug (Optional)
+                  <label className="field-label" htmlFor="sl-slug">
+                    Slug <span className="text-fg-3 font-normal">optional</span>
                   </label>
                   <input
+                    id="sl-slug"
                     type="text"
                     value={customSlug}
                     onChange={(e) => setCustomSlug(e.target.value)}
-                    placeholder="e.g. moto-deal-2026"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500 font-mono"
+                    placeholder="edge-50-review"
+                    className="input font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Internal Label / Title
+                  <label className="field-label" htmlFor="sl-title">
+                    Label
                   </label>
                   <input
+                    id="sl-title"
                     type="text"
                     value={linkTitle}
                     onChange={(e) => setLinkTitle(e.target.value)}
-                    placeholder="e.g. Moto Edge Description Link"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                    placeholder="Edge 50 review description"
+                    className="input"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">UTM Source</label>
+                  <label className="field-label" htmlFor="sl-src">
+                    UTM source
+                  </label>
                   <input
+                    id="sl-src"
                     type="text"
                     value={utmSource}
                     onChange={(e) => setUtmSource(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none font-mono"
+                    className="input font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">UTM Medium</label>
+                  <label className="field-label" htmlFor="sl-med">
+                    UTM medium
+                  </label>
                   <input
+                    id="sl-med"
                     type="text"
                     value={utmMedium}
                     onChange={(e) => setUtmMedium(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none font-mono"
+                    className="input font-mono"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">UTM Campaign</label>
+                  <label className="field-label" htmlFor="sl-camp">
+                    UTM campaign
+                  </label>
                   <input
+                    id="sl-camp"
                     type="text"
                     value={utmCampaign}
                     onChange={(e) => setUtmCampaign(e.target.value)}
-                    placeholder="e.g. edge-50-review"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-900 focus:outline-none font-mono"
+                    placeholder="edge-50"
+                    className="input font-mono"
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900"
-                >
+                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800 transition shadow-xs"
-                >
-                  Create Link
+                <button type="submit" disabled={creating} className="btn btn-primary">
+                  {creating && <Spinner />}
+                  Create link
                 </button>
               </div>
             </form>
@@ -316,55 +457,56 @@ export const ShortLinksTab: React.FC = () => {
         </div>
       )}
 
-      {/* Analytics Modal */}
+      {/* Link analytics */}
       {showStatsModal && selectedLink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-xl bg-white border border-slate-200 rounded-2xl p-6 shadow-xl space-y-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-indigo-600" />
-                  Analytics for /s/{selectedLink.slug}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="panel w-full max-w-2xl p-6" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div className="min-w-0">
+                <h3 id="stats-title" className="text-[15px] font-medium text-fg">
+                  <span className="font-mono">/s/{selectedLink.slug}</span>
                 </h3>
-                <p className="text-xs text-slate-500 truncate mt-0.5">{selectedLink.destination_url}</p>
+                <p className="text-[13px] text-fg-3 truncate mt-1">{selectedLink.destination_url}</p>
               </div>
-              <span className="text-lg font-bold font-mono text-indigo-600">
-                {selectedLink.total_clicks} Clicks
-              </span>
+              <button
+                onClick={() => setShowStatsModal(false)}
+                className="btn btn-ghost btn-sm !px-2 shrink-0"
+                aria-label="Close analytics"
+              >
+                <X {...ICON} />
+              </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold mb-1">
-                  <Globe className="w-3.5 h-3.5 text-indigo-600" /> Country
-                </div>
-                <div className="text-xs font-bold text-slate-900">India (82%)</div>
-                <div className="text-[10px] text-slate-500">US, UK, Germany</div>
+            {statsError && (
+              <div className="mb-4">
+                <ErrorNote>{statsError}</ErrorNote>
               </div>
+            )}
 
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold mb-1">
-                  <Smartphone className="w-3.5 h-3.5 text-purple-600" /> Device
-                </div>
-                <div className="text-xs font-bold text-slate-900">Mobile (68%)</div>
-                <div className="text-[10px] text-slate-500">Desktop (32%)</div>
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-semibold mb-1">
-                  <Compass className="w-3.5 h-3.5 text-emerald-600" /> Top Referrer
-                </div>
-                <div className="text-xs font-bold text-slate-900">YouTube (75%)</div>
-                <div className="text-[10px] text-slate-500">Instagram, Twitter</div>
+            <div className="flex items-baseline justify-between mb-4">
+              <div className="text-[13px] text-fg-2">Clicks per day, last 14 days</div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-[24px] leading-8 font-medium num text-fg">
+                  {formatCount(selectedLink.total_clicks)}
+                </span>
+                <span className="meta">all time</span>
               </div>
             </div>
 
-            <button
-              onClick={() => setShowStatsModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition"
-            >
-              Close Analytics
-            </button>
+            {statsLoading ? (
+              <div className="flex items-center justify-center gap-2 h-40 text-fg-3">
+                <Spinner />
+                Loading clicks
+              </div>
+            ) : (
+              <ClicksChart clicks={linkClicks} />
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6 pt-6 border-t border-line">
+              <RankedList title="Country" rows={countries} />
+              <RankedList title="Device" rows={devices} />
+              <RankedList title="Referrer" rows={referrers} />
+            </div>
           </div>
         </div>
       )}

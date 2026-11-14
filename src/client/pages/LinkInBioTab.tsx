@@ -5,29 +5,217 @@ import {
   Trash2,
   ArrowUp,
   ArrowDown,
+  ArrowUpRight,
   ExternalLink,
   QrCode,
   Save,
   Check,
-  Sparkles,
   ShoppingBag,
   Share2,
   Type,
   Minus,
+  Copy,
+  X,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Creator, BioPage, BioBlock, BioBlockType } from '../../shared/types';
+import { ICON, PageHeader, SectionTitle, EmptyState, ErrorNote, Spinner, formatCount } from '../components/ui';
 
 interface LinkInBioTabProps {
   creator?: Creator | null;
 }
 
+// Public page palette (kept in sync with PublicBioPage and the server-rendered page)
+const PAGE = {
+  bg: '#111214',
+  fg: '#ededed',
+  fg2: '#a1a1a6',
+  line: 'rgba(255,255,255,0.08)',
+  raised: 'rgba(255,255,255,0.04)',
+};
+
+const ACCENTS = [
+  { id: 'dna-accent' as const, label: 'Cobalt', accent: '#5b7cfa', bg: '#111214' },
+  { id: 'minimal-dark' as const, label: 'Paper', accent: '#ededed', bg: '#111214' },
+  { id: 'cyber-neon' as const, label: 'Rose', accent: '#f43f5e', bg: '#111214' },
+  { id: 'warm-editorial' as const, label: 'Amber', accent: '#f59e0b', bg: '#111214' },
+];
+
+/** Dark or light ink for text set on the accent color */
+function inkOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return '#111214';
+  const n = parseInt(m[1], 16);
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.18 ? '#111214' : '#ffffff';
+}
+
+const blockIcon = (type: BioBlockType) => {
+  switch (type) {
+    case 'product_card':
+      return <ShoppingBag {...ICON} />;
+    case 'social_links':
+      return <Share2 {...ICON} />;
+    case 'text':
+      return <Type {...ICON} />;
+    case 'divider':
+      return <Minus {...ICON} />;
+    default:
+      return <Globe {...ICON} />;
+  }
+};
+
+const blockTypeLabel: Record<BioBlockType, string> = {
+  link: 'Link',
+  product_card: 'Product',
+  social_links: 'Social links',
+  text: 'Text',
+  divider: 'Divider',
+};
+
+/** What fans see, drawn inside the phone frame */
+const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null; blocks: BioBlock[] }> = ({
+  creator,
+  bioPage,
+  blocks,
+}) => {
+  const accent = bioPage?.accent_color || ACCENTS[0].accent;
+  const name = bioPage?.custom_title || creator?.name || 'Your name';
+  const bio = bioPage?.custom_bio || creator?.bio || '';
+  const handle = creator?.handle || bioPage?.handle;
+  const active = blocks.filter((b) => b.is_active);
+  const hasProducts = active.some((b) => b.type === 'product_card');
+
+  return (
+    <div
+      className="h-full overflow-y-auto px-5 pt-12 pb-6 flex flex-col items-center"
+      style={{ background: PAGE.bg, color: PAGE.fg }}
+    >
+      {creator?.avatar_url ? (
+        <img src={creator.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+      ) : (
+        <div
+          className="w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-medium"
+          style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
+        >
+          {name.slice(0, 1).toUpperCase()}
+        </div>
+      )}
+      <div className="mt-3 text-[16px] leading-6 font-medium text-center">{name}</div>
+      {handle && (
+        <div className="font-mono text-[12px] leading-4" style={{ color: PAGE.fg2 }}>
+          @{handle}
+        </div>
+      )}
+      {bio && (
+        <p className="mt-2 text-[12px] leading-[18px] text-center max-w-[240px]" style={{ color: PAGE.fg2 }}>
+          {bio}
+        </p>
+      )}
+
+      <div className="w-full mt-6 flex flex-col gap-2">
+        {active.length === 0 && (
+          <div className="text-center text-[12px] py-6" style={{ color: PAGE.fg2 }}>
+            Add a block to see it here
+          </div>
+        )}
+        {active.map((b, i) => {
+          const key = b.id || i;
+          if (b.type === 'divider') {
+            return <div key={key} className="my-2 h-px w-full" style={{ background: PAGE.line }} />;
+          }
+          if (b.type === 'text') {
+            return (
+              <p key={key} className="text-[12px] leading-[18px] text-center px-2 py-1" style={{ color: PAGE.fg2 }}>
+                {b.title}
+              </p>
+            );
+          }
+          if (b.type === 'social_links') {
+            return (
+              <div key={key} className="flex justify-center gap-2 py-1">
+                <span
+                  className="h-7 px-3 rounded-[8px] text-[12px] flex items-center"
+                  style={{ border: `1px solid ${PAGE.line}`, color: PAGE.fg2 }}
+                >
+                  {b.title || 'Social links'}
+                </span>
+              </div>
+            );
+          }
+          if (b.type === 'product_card') {
+            const p = b.product;
+            return (
+              <div
+                key={key}
+                className="w-full rounded-[12px] p-3 flex items-center gap-3"
+                style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
+              >
+                {p?.image_url ? (
+                  <img src={p.image_url} alt="" className="w-12 h-12 rounded-[8px] object-contain bg-white p-1 shrink-0" />
+                ) : (
+                  <div className="w-12 h-12 rounded-[8px] shrink-0" style={{ background: PAGE.line }} />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] leading-4 truncate">{b.title || p?.title || 'Product'}</div>
+                  {p?.price_str && (
+                    <div className="font-mono text-[12px] leading-4 mt-1" style={{ color: PAGE.fg2 }}>
+                      {p.price_str}
+                    </div>
+                  )}
+                </div>
+                <span
+                  className="h-7 px-3 rounded-[8px] text-[12px] font-medium flex items-center shrink-0"
+                  style={{ background: accent, color: inkOn(accent) }}
+                >
+                  Buy
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div
+              key={key}
+              className="w-full h-11 px-4 rounded-[12px] text-[13px] flex items-center justify-between gap-2"
+              style={{
+                background: PAGE.raised,
+                border: `1px solid ${i === 0 ? accent : PAGE.line}`,
+              }}
+            >
+              <span className="truncate">{b.title || 'Link'}</span>
+              <ArrowUpRight size={14} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-auto pt-8 text-center">
+        {hasProducts && (
+          <p className="text-[10px] leading-[14px] mb-2 max-w-[240px]" style={{ color: PAGE.fg2 }}>
+            As an Amazon Associate I earn from qualifying purchases
+          </p>
+        )}
+        <span className="text-[11px]" style={{ color: PAGE.fg2 }}>
+          Made with CreatorBrain
+        </span>
+      </div>
+    </div>
+  );
+};
+
 export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
   const [bioPage, setBioPage] = useState<BioPage | null>(null);
   const [blocks, setBlocks] = useState<BioBlock[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showQrModal, setShowQrModal] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Add block modal state
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,12 +229,13 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
 
   const loadBioData = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await api.bio.getMe();
       setBioPage(res.bioPage);
       setBlocks(res.blocks || []);
     } catch (err: unknown) {
-      console.error('Failed to load bio data:', err);
+      setError(err instanceof Error ? err.message : 'Could not load your bio page');
     } finally {
       setLoading(false);
     }
@@ -94,331 +283,288 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
 
   const handleSaveChanges = async () => {
     if (!bioPage) return;
+    setSaving(true);
+    setError(null);
     try {
-      await Promise.all([
-        api.bio.updatePage(bioPage),
-        api.bio.updateBlocks(blocks),
-      ]);
+      await Promise.all([api.bio.updatePage(bioPage), api.bio.updateBlocks(blocks)]);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 2500);
     } catch (err) {
-      console.error('Failed to save bio changes:', err);
+      setError(err instanceof Error ? err.message : 'Could not save your changes');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const publicUrl = creator ? `/@${creator.handle}` : '/@demo';
+  const handle = creator?.handle || bioPage?.handle;
+  const publicUrl = handle ? `/@${handle}` : '/';
+  const fullUrl = typeof window !== 'undefined' ? `${window.location.origin}${publicUrl}` : publicUrl;
 
-  // SVG QR Code generator (inline simple matrix for clean visual)
-  const renderInlineQr = () => (
-    <svg viewBox="0 0 100 100" className="w-48 h-48 mx-auto rounded-xl bg-white p-3 shadow-md border border-slate-200">
-      <path
-        d="M 10 10 h 25 v 25 h -25 z M 15 15 v 15 h 15 v -15 z M 20 20 h 5 v 5 h -5 z M 65 10 h 25 v 25 h -25 z M 70 15 v 15 h 15 v -15 z M 75 20 h 5 v 5 h -5 z M 10 65 h 25 v 25 h -25 z M 15 70 v 15 h 15 v -15 z M 20 75 h 5 v 5 h -5 z M 45 10 h 10 v 15 h -10 z M 45 35 h 10 v 10 h -10 z M 10 45 h 15 v 10 h -15 z M 35 45 h 30 v 10 h -30 z M 75 45 h 15 v 10 h -15 z M 45 65 h 10 v 25 h -10 z M 65 65 h 25 v 10 h -25 z M 75 80 h 15 v 10 h -15 z"
-        fill="#0f172a"
-      />
-    </svg>
-  );
+  const handleCopyUrl = () => {
+    navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Header Card */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-            <Globe className="w-5 h-5 text-indigo-600" />
-            Link-in-Bio Page Builder
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Public edge-rendered page at <span className="text-indigo-600 font-mono font-medium">{publicUrl}</span>
-          </p>
+    <div>
+      <PageHeader
+        title="Link in bio"
+        description={
+          <>
+            The page fans open from your profiles, served at <span className="font-mono text-fg">{publicUrl}</span>
+          </>
+        }
+        actions={
+          <>
+            <button onClick={() => setShowQrModal(true)} className="btn btn-ghost">
+              <QrCode {...ICON} />
+              QR code
+            </button>
+            <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
+              Open page
+              <ExternalLink {...ICON} className="text-fg-3" />
+            </a>
+            <button onClick={handleSaveChanges} disabled={!bioPage || saving} className="btn btn-primary">
+              {saving ? <Spinner /> : savedSuccess ? <Check {...ICON} /> : <Save {...ICON} />}
+              {savedSuccess ? 'Saved' : 'Save changes'}
+            </button>
+          </>
+        }
+      />
+
+      {error && (
+        <div className="mb-6">
+          <ErrorNote>{error}</ErrorNote>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        {/* Editor */}
+        <div className="lg:col-span-7 space-y-8">
+          <section>
+            <SectionTitle title="Profile" />
+            <div className="card p-5 space-y-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="field-label" htmlFor="bio-title">
+                    Display name
+                  </label>
+                  <input
+                    id="bio-title"
+                    type="text"
+                    value={bioPage?.custom_title || ''}
+                    onChange={(e) => setBioPage((prev) => (prev ? { ...prev, custom_title: e.target.value } : null))}
+                    placeholder={creator?.name || 'Your name'}
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="field-label" htmlFor="bio-tagline">
+                    Tagline
+                  </label>
+                  <input
+                    id="bio-tagline"
+                    type="text"
+                    value={bioPage?.custom_bio || ''}
+                    onChange={(e) => setBioPage((prev) => (prev ? { ...prev, custom_bio: e.target.value } : null))}
+                    placeholder={creator?.bio || 'One line about what you make'}
+                    className="input"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="field-label">Accent</div>
+                <div className="flex flex-wrap gap-2">
+                  {ACCENTS.map((th) => {
+                    const selected = bioPage?.theme === th.id;
+                    return (
+                      <button
+                        key={th.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                          setBioPage((prev) =>
+                            prev ? { ...prev, theme: th.id, accent_color: th.accent, bg_color: th.bg } : null
+                          )
+                        }
+                        className={`h-9 pl-2 pr-3 rounded-[8px] border flex items-center gap-2 text-[13px] transition-colors ${
+                          selected
+                            ? 'border-fg bg-surface text-fg'
+                            : 'border-line-strong bg-surface text-fg-2 hover:bg-raised'
+                        }`}
+                      >
+                        <span
+                          className="w-5 h-5 rounded-[4px] flex items-center justify-center"
+                          style={{ background: PAGE.bg }}
+                        >
+                          <span className="w-2 h-2 rounded-full" style={{ background: th.accent }} />
+                        </span>
+                        {th.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="field-hint">Used for your first link and the buy button. The page itself stays dark</p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle
+              title="Blocks"
+              meta={blocks.length || undefined}
+              action={
+                <button onClick={() => setShowAddModal(true)} className="btn btn-secondary btn-sm">
+                  <Plus {...ICON} />
+                  Add block
+                </button>
+              }
+            />
+            <div className="card overflow-hidden">
+              {loading ? (
+                <div className="flex items-center justify-center gap-2 py-12 text-fg-3">
+                  <Spinner />
+                  Loading blocks
+                </div>
+              ) : blocks.length === 0 ? (
+                <EmptyState
+                  icon={<Globe {...ICON} />}
+                  title="No blocks yet"
+                  description="Add links, products and short notes. They appear on your page in this order."
+                />
+              ) : (
+                <ul className="divide-y divide-line">
+                  {blocks.map((block, idx) => (
+                    <li key={block.id || idx} className="flex items-center gap-3 px-4 py-3">
+                      <span className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0">
+                        {blockIcon(block.type)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2 min-w-0">
+                          <span className="text-fg truncate">
+                            {block.title || block.product?.title || blockTypeLabel[block.type]}
+                          </span>
+                          <span className="meta shrink-0">{formatCount(block.clicks_count)} clicks</span>
+                        </div>
+                        <p className="text-[12px] leading-4 text-fg-3 truncate mt-1">
+                          {blockTypeLabel[block.type]}
+                          {block.url ? ` · ${block.url}` : ''}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => handleMoveBlock(idx, 'up')}
+                          disabled={idx === 0}
+                          className="btn btn-ghost btn-sm !px-2"
+                          aria-label="Move block up"
+                        >
+                          <ArrowUp {...ICON} />
+                        </button>
+                        <button
+                          onClick={() => handleMoveBlock(idx, 'down')}
+                          disabled={idx === blocks.length - 1}
+                          className="btn btn-ghost btn-sm !px-2"
+                          aria-label="Move block down"
+                        >
+                          <ArrowDown {...ICON} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBlock(idx)}
+                          className="btn btn-ghost btn-sm !px-2 hover:!text-negative"
+                          aria-label="Delete block"
+                        >
+                          <Trash2 {...ICON} />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <p className="field-hint">Changes show in the preview right away and go live when you save</p>
+          </section>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowQrModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition"
-          >
-            <QrCode className="w-3.5 h-3.5 text-slate-600" />
-            View QR Code
-          </button>
-          <a
-            href={publicUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-200 shadow-2xs transition"
-          >
-            Open Live Page
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-          <button
-            onClick={handleSaveChanges}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition shadow-xs active:scale-95"
-          >
-            {savedSuccess ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-emerald-400" />
-                Saved & Cached!
-              </>
-            ) : (
-              <>
-                <Save className="w-3.5 h-3.5" />
-                Save Changes
-              </>
-            )}
-          </button>
+        {/* Preview */}
+        <div className="lg:col-span-5 lg:sticky lg:top-6 flex flex-col items-center">
+          <div className="w-[320px] h-[640px] rounded-[44px] p-2 bg-[#1c1d20] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_12px_32px_rgb(0_0_0/0.10)]">
+            <div className="relative w-full h-full rounded-[36px] overflow-hidden">
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10" />
+              <PhonePreview creator={creator} bioPage={bioPage} blocks={blocks} />
+            </div>
+          </div>
+          <div className="mt-3 meta">Preview · {publicUrl}</div>
         </div>
       </div>
 
-      {/* Main Builder Grid: Left Editor & Right Live Phone Preview */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Theme & Block Editor (7 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Theme & Styling Card */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-indigo-600" />
-              Theme & DNA Color Palette
-            </h3>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { id: 'dna-accent' as const, label: 'DNA Indigo', accent: '#4f46e5', bg: '#f8fafc' },
-                { id: 'minimal-dark' as const, label: 'Minimal Slate', accent: '#0f172a', bg: '#ffffff' },
-                { id: 'cyber-neon' as const, label: 'Electric Rose', accent: '#e11d48', bg: '#fafaf9' },
-                { id: 'warm-editorial' as const, label: 'Warm Amber', accent: '#d97706', bg: '#fffbeb' },
-              ].map((th) => (
-                <button
-                  key={th.id}
-                  onClick={() =>
-                    setBioPage((prev) =>
-                      prev ? { ...prev, theme: th.id, accent_color: th.accent, bg_color: th.bg } : null
-                    )
-                  }
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    bioPage?.theme === th.id
-                      ? 'border-indigo-500 bg-indigo-50/70 shadow-xs ring-1 ring-indigo-200'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <div className="w-3.5 h-3.5 rounded-full" style={{ background: th.accent }} />
-                    <div className="w-3.5 h-3.5 rounded-full border border-slate-300" style={{ background: th.bg }} />
-                  </div>
-                  <span className="text-xs font-bold text-slate-900 block">{th.label}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Title</label>
-                <input
-                  type="text"
-                  value={bioPage?.custom_title || ''}
-                  onChange={(e) =>
-                    setBioPage((prev) => (prev ? { ...prev, custom_title: e.target.value } : null))
-                  }
-                  placeholder={creator?.name || 'Your Name'}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Custom Bio</label>
-                <input
-                  type="text"
-                  value={bioPage?.custom_bio || ''}
-                  onChange={(e) =>
-                    setBioPage((prev) => (prev ? { ...prev, custom_bio: e.target.value } : null))
-                  }
-                  placeholder="Short tagline..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Block Items Editor Card */}
-          <div className="p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Page Blocks ({blocks.length})
+      {/* Add block */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="panel w-full max-w-md p-6" role="dialog" aria-modal="true" aria-labelledby="add-block-title">
+            <div className="flex items-center justify-between mb-4">
+              <h3 id="add-block-title" className="text-[15px] font-medium text-fg">
+                Add block
               </h3>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Add Block
+              <button onClick={() => setShowAddModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+                <X {...ICON} />
               </button>
             </div>
-
-            <div className="space-y-2.5">
-              {blocks.map((block, idx) => (
-                <div
-                  key={block.id || idx}
-                  className="p-3.5 rounded-xl bg-slate-50/70 border border-slate-200/80 flex items-center justify-between gap-3 group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="p-2 rounded-lg bg-white border border-slate-200 shadow-2xs text-slate-600">
-                      {block.type === 'product_card' ? (
-                        <ShoppingBag className="w-4 h-4 text-indigo-600" />
-                      ) : block.type === 'social_links' ? (
-                        <Share2 className="w-4 h-4 text-purple-600" />
-                      ) : block.type === 'text' ? (
-                        <Type className="w-4 h-4 text-amber-600" />
-                      ) : block.type === 'divider' ? (
-                        <Minus className="w-4 h-4 text-slate-400" />
-                      ) : (
-                        <Globe className="w-4 h-4 text-indigo-600" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs font-bold text-slate-900 truncate">
-                          {block.title || block.product?.title || block.type.toUpperCase()}
-                        </h4>
-                        <span className="text-[10px] text-slate-500 font-mono">
-                          {block.clicks_count} clicks
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5">{block.url || 'Internal'}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => handleMoveBlock(idx, 'up')}
-                      disabled={idx === 0}
-                      className="p-1.5 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                      aria-label="Move block up"
-                    >
-                      <ArrowUp className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleMoveBlock(idx, 'down')}
-                      disabled={idx === blocks.length - 1}
-                      className="p-1.5 rounded text-slate-400 hover:text-slate-700 disabled:opacity-30"
-                      aria-label="Move block down"
-                    >
-                      <ArrowDown className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteBlock(idx)}
-                      className="p-1.5 rounded text-rose-500 hover:text-rose-700 ml-1"
-                      aria-label="Delete block"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Live Mobile Preview Frame (5 Cols) */}
-        <div className="lg:col-span-5 flex flex-col items-center">
-          <div className="w-[340px] rounded-[44px] border-8 border-slate-800 bg-white p-3 shadow-2xl relative overflow-hidden">
-            {/* Phone Speaker Notch */}
-            <div className="w-24 h-4 bg-slate-800 rounded-full mx-auto mb-3" />
-
-            {/* Inner Phone Screen Content */}
-            <div
-              className="rounded-[32px] p-5 min-h-[500px] flex flex-col items-center gap-3 transition-colors duration-300 border border-slate-100"
-              style={{
-                background: bioPage?.bg_color || '#fafaf9',
-                color: '#0f172a',
-              }}
-            >
-              <img
-                src={creator?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'}
-                alt="Creator Avatar"
-                className="w-16 h-16 rounded-full border-2 object-cover shadow-sm"
-                style={{ borderColor: bioPage?.accent_color || '#4f46e5' }}
-              />
-              <h3 className="text-sm font-bold text-center text-slate-900">
-                {bioPage?.custom_title || creator?.name || 'Creator'}
-              </h3>
-              <p className="text-[11px] text-center text-slate-500 max-w-[220px]">
-                {bioPage?.custom_bio || creator?.bio || ''}
-              </p>
-
-              {/* Previewed Blocks */}
-              <div className="w-full space-y-2 mt-2 overflow-y-auto max-h-[340px] pr-1">
-                {blocks
-                  .filter((b) => b.is_active)
-                  .map((b, i) => (
-                    <div
-                      key={b.id || i}
-                      className="w-full p-2.5 rounded-xl border border-slate-200 bg-white shadow-2xs text-xs font-semibold flex items-center justify-between text-slate-800 hover:border-slate-300 transition"
-                    >
-                      <span className="truncate">{b.title || b.product?.title || 'Link'}</span>
-                      <span style={{ color: bioPage?.accent_color || '#4f46e5' }}>→</span>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </div>
-          <span className="text-[11px] text-slate-400 mt-3 font-medium">Live Edge Preview</span>
-        </div>
-      </div>
-
-      {/* Add Block Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Add Bio Block</h3>
             <form onSubmit={handleAddBlock} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Block Type</label>
+                <label className="field-label" htmlFor="nb-type">
+                  Type
+                </label>
                 <select
+                  id="nb-type"
                   value={newBlockType}
                   onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  className="input"
                 >
-                  <option value="link">Custom Web Link</option>
-                  <option value="product_card">Product Card</option>
-                  <option value="social_links">Social Links</option>
-                  <option value="text">Announcement / Text</option>
+                  <option value="link">Link</option>
+                  <option value="product_card">Product card</option>
+                  <option value="social_links">Social links</option>
+                  <option value="text">Text</option>
                   <option value="divider">Divider</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Title / Label</label>
+                <label className="field-label" htmlFor="nb-title">
+                  Title
+                </label>
                 <input
+                  id="nb-title"
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. My Favorite Studio Gear 2026"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  placeholder="Studio gear I use"
+                  className="input"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Target URL</label>
+                <label className="field-label" htmlFor="nb-url">
+                  URL
+                </label>
                 <input
+                  id="nb-url"
                   type="url"
                   value={newUrl}
                   onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:outline-none focus:border-indigo-500"
+                  placeholder="https://"
+                  className="input"
                 />
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:text-slate-900"
-                >
+                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-slate-900 text-white font-semibold text-xs hover:bg-slate-800 transition shadow-xs"
-                >
-                  Add Block
+                <button type="submit" className="btn btn-primary">
+                  Add block
                 </button>
               </div>
             </form>
@@ -426,19 +572,35 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
         </div>
       )}
 
-      {/* QR Code Modal */}
+      {/* QR code */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 shadow-xl text-center space-y-4">
-            <h3 className="text-base font-bold text-slate-900">Share Your Link-in-Bio</h3>
-            {renderInlineQr()}
-            <p className="text-xs font-mono text-indigo-600 font-semibold">{publicUrl}</p>
-            <button
-              onClick={() => setShowQrModal(false)}
-              className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition"
-            >
-              Close
-            </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+          <div className="panel w-full max-w-sm p-6" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+            <div className="flex items-center justify-between mb-4">
+              <h3 id="qr-title" className="text-[15px] font-medium text-fg">
+                QR code
+              </h3>
+              <button onClick={() => setShowQrModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+                <X {...ICON} />
+              </button>
+            </div>
+            <div className="well p-4 flex justify-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=192x192&margin=8&data=${encodeURIComponent(fullUrl)}`}
+                alt={`QR code for ${fullUrl}`}
+                width={192}
+                height={192}
+                className="rounded-[4px] bg-white"
+              />
+            </div>
+            <p className="mt-3 text-[13px] text-fg-2">Print it on packaging or show it at the end of a video</p>
+            <div className="mt-4 flex items-center gap-2">
+              <div className="input flex items-center font-mono text-[13px] text-fg-2 truncate">{fullUrl}</div>
+              <button onClick={handleCopyUrl} className="btn btn-secondary shrink-0">
+                {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </div>
           </div>
         </div>
       )}

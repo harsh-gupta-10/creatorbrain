@@ -46,6 +46,15 @@ export interface Creator {
   bio?: string;
   niche: string;
   dna_summary?: string;
+  onboarding_status?: 'profile' | 'study' | 'ready';
+  youtube_input?: string | null;
+  youtube_channel_id?: string | null;
+  instagram_handle?: string | null;
+  content_language?: string | null;
+  upload_cadence?: string | null;
+  goals_json?: string | null;
+  monetization_json?: string | null;
+  last_studied_at?: string | null;
   created_at: string;
   updated_at: string;
 }

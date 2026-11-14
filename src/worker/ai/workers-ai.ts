@@ -6,7 +6,7 @@ export class WorkersAIProvider implements AIProvider {
   private aiBinding?: WorkersAIBinding;
   private defaultModel: string;
 
-  constructor(aiBinding?: WorkersAIBinding, defaultModel = '@cf/meta/llama-3.1-8b-instruct') {
+  constructor(aiBinding?: WorkersAIBinding, defaultModel = '@cf/meta/llama-3.3-70b-instruct-fp8-fast') {
     this.aiBinding = aiBinding;
     this.defaultModel = defaultModel;
   }
@@ -23,8 +23,9 @@ export class WorkersAIProvider implements AIProvider {
       temperature: options?.temperature ?? 0.7,
     });
 
-    const outputText = typeof response?.response === 'string' ? response.response : '';
-    return outputText;
+    const out = response?.response;
+    if (typeof out === 'string') return out;
+    return out ? JSON.stringify(out) : '';
   }
 
   async generateStructured<T>(
@@ -38,8 +39,11 @@ export class WorkersAIProvider implements AIProvider {
     };
 
     const raw = await this.generateText([...messages, jsonPrompt], options);
-    const clean = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
-    const parsed = JSON.parse(clean);
+    // Models sometimes wrap JSON in prose or code fences: take the outermost object
+    const start = raw.indexOf('{');
+    const end = raw.lastIndexOf('}');
+    if (start < 0 || end <= start) throw new Error('Workers AI returned no JSON object');
+    const parsed = JSON.parse(raw.slice(start, end + 1));
     return schema.parse(parsed);
   }
 }

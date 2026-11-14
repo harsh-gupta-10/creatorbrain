@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { z } from 'zod';
 import { DBClient } from '../db/queries';
 import type { Creator } from '../../shared/types';
 
@@ -8,217 +10,224 @@ export const authRoutes = new Hono<{
     DB: D1Database;
     KV: KVNamespace;
   };
-  Variables: {
-    creator: Creator | null;
-  };
 }>();
 
-const DEMO_CREATOR_ID = 'creator_demo_tech_kabir';
+export const SAMPLE_CREATOR_ID = 'creator_demo_tech_kabir';
+const SESSION_COOKIE = 'cb_session';
+const SESSION_DAYS = 30;
+// Workers caps PBKDF2 at 100k iterations; 100k also stays inside the free tier CPU budget
+const PBKDF2_ITERATIONS = 100_000;
+const LEGACY_SALT = 'creatorbrain_auth_salt_2026';
 
-// Web Crypto PBKDF2 hash helper
-async function hashPassword(password: string): Promise<string> {
-  const enc = new TextEncoder();
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(password),
-    { name: 'PBKDF2' },
-    false,
-    ['deriveBits', 'deriveKey']
-  );
-  const key = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: enc.encode('creatorbrain_auth_salt_2026'),
-      iterations: 50000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    true,
-    ['encrypt']
-  );
-  const exported = await crypto.subtle.exportKey('raw', key);
-  return btoa(String.fromCharCode(...new Uint8Array(exported)));
+function toBase64(bytes: Uint8Array): string {
+  return btoa(String.fromCharCode(...bytes));
 }
 
-// Middleware helper to get creator from session cookie
-export async function getSessionCreator(
-  db: D1Database,
-  sessionId?: string
-): Promise<Creator | null> {
-  const dbClient = new DBClient(db);
+function randomToken(bytes = 32): string {
+  const buf = crypto.getRandomValues(new Uint8Array(bytes));
+  return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
 
-  if (!sessionId) {
-    // If no session, return demo creator by default for instant friction-free exploration
-    return await dbClient.getCreator(DEMO_CREATOR_ID);
+async function derive(password: string, salt: string, iterations: number): Promise<string> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), { name: 'PBKDF2' }, false, [
+    'deriveBits',
+  ]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode(salt), iterations, hash: 'SHA-256' },
+    keyMaterial,
+    256
+  );
+  return toBase64(new Uint8Array(bits));
+}
+
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+async function verifyPassword(
+  password: string,
+  row: { password_hash?: string | null; password_salt?: string | null }
+): Promise<boolean> {
+  if (!row.password_hash) return false;
+  if (row.password_salt) {
+    // Stored as "<iterations>:<salt>" so the cost can change without breaking old accounts
+    const [iter, salt] = row.password_salt.includes(':')
+      ? row.password_salt.split(':', 2)
+      : [String(PBKDF2_ITERATIONS), row.password_salt];
+    return safeEqual(await derive(password, salt, Number(iter)), row.password_hash);
   }
+  // Accounts created before per-user salts used a shared salt and 50k iterations
+  return safeEqual(await derive(password, LEGACY_SALT, 50_000), row.password_hash);
+}
+
+export interface SessionInfo {
+  creator: Creator | null;
+  isSample: boolean;
+}
+
+export async function getSession(db: D1Database, sessionId?: string): Promise<SessionInfo> {
+  if (!sessionId) return { creator: null, isSample: false };
 
   const session = await db
-    .prepare('SELECT * FROM sessions WHERE id = ? AND expires_at > ?')
+    .prepare('SELECT creator_id FROM sessions WHERE id = ? AND expires_at > ?')
     .bind(sessionId, new Date().toISOString())
     .first<{ creator_id: string }>();
+  if (!session) return { creator: null, isSample: false };
 
-  if (!session) {
-    return await dbClient.getCreator(DEMO_CREATOR_ID);
-  }
-
-  return await dbClient.getCreator(session.creator_id);
+  const creator = await new DBClient(db).getCreator(session.creator_id);
+  return { creator, isSample: session.creator_id === SAMPLE_CREATOR_ID };
 }
 
-// Routes
+// Kept for the existing routes: resolves the signed-in creator or null
+export async function getSessionCreator(db: D1Database, sessionId?: string): Promise<Creator | null> {
+  return (await getSession(db, sessionId)).creator;
+}
+
+async function startSession(c: Context, creatorId: string): Promise<void> {
+  const sessionId = randomToken();
+  const now = new Date();
+  const expires = new Date(now.getTime() + SESSION_DAYS * 86400 * 1000).toISOString();
+
+  await c.env.DB.prepare('INSERT INTO sessions (id, creator_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
+    .bind(sessionId, creatorId, expires, now.toISOString())
+    .run();
+
+  const isLocal = new URL(c.req.url).protocol === 'http:';
+  setCookie(c, SESSION_COOKIE, sessionId, {
+    path: '/',
+    httpOnly: true,
+    secure: !isLocal,
+    sameSite: 'Lax',
+    maxAge: SESSION_DAYS * 86400,
+  });
+}
+
+function publicCreator(creator: Creator | null) {
+  if (!creator) return null;
+  const { password_hash: _h, password_salt: _s, ...rest } = creator as Creator & {
+    password_hash?: string;
+    password_salt?: string;
+  };
+  return rest;
+}
+
+const SignupSchema = z.object({
+  name: z.string().trim().min(2, 'Enter your name').max(80),
+  email: z.string().trim().toLowerCase().email('Enter a valid email'),
+  password: z.string().min(8, 'Use at least 8 characters').max(200),
+  handle: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_-]{3,30}$/, 'Handle can use 3 to 30 letters, numbers, - or _'),
+});
+
+const LoginSchema = z.object({
+  email: z.string().trim().toLowerCase().email('Enter a valid email'),
+  password: z.string().min(1, 'Enter your password'),
+});
+
 authRoutes.get('/me', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
+  const { creator, isSample } = await getSession(c.env.DB, getCookie(c, SESSION_COOKIE));
   return c.json({
     authenticated: !!creator,
-    isDemo: creator?.id === DEMO_CREATOR_ID,
-    creator,
+    isDemo: isSample,
+    isSample,
+    creator: publicCreator(creator),
   });
 });
 
-authRoutes.post('/demo', async (c) => {
-  const sessionId = `sess_demo_${Date.now()}`;
-  const expires = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
-
-  await c.env.DB
-    .prepare('INSERT OR REPLACE INTO sessions (id, creator_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
-    .bind(sessionId, DEMO_CREATOR_ID, expires, new Date().toISOString())
-    .run();
-
-  setCookie(c, 'cb_session', sessionId, {
-    path: '/',
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Lax',
-    maxAge: 30 * 86400,
-  });
-
-  const dbClient = new DBClient(c.env.DB);
-  const creator = await dbClient.getCreator(DEMO_CREATOR_ID);
-
-  return c.json({ success: true, isDemo: true, creator });
+authRoutes.get('/handle-available', async (c) => {
+  const handle = (c.req.query('handle') || '').toLowerCase();
+  if (!/^[a-z0-9_-]{3,30}$/.test(handle)) return c.json({ available: false });
+  const existing = await new DBClient(c.env.DB).getCreatorByHandle(handle);
+  return c.json({ available: !existing });
 });
+
+// Read-only sample workspace, reachable from the landing page
+authRoutes.post('/sample', async (c) => {
+  const creator = await new DBClient(c.env.DB).getCreator(SAMPLE_CREATOR_ID);
+  if (!creator) return c.json({ error: 'The sample workspace is not available' }, 404);
+  await startSession(c, SAMPLE_CREATOR_ID);
+  return c.json({ success: true, isSample: true, isDemo: true, creator: publicCreator(creator) });
+});
+// Older clients call /demo
+authRoutes.post('/demo', (c) => c.redirect('/api/auth/sample', 307));
 
 authRoutes.post('/signup', async (c) => {
-  const { email, password, name, handle, channelTitle, channelUrl, platform } = await c.req.json();
+  const parsed = SignupSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
+  }
+  const { name, email, password, handle } = parsed.data;
+  const db = c.env.DB;
+  const dbClient = new DBClient(db);
 
-  if (!email || !password || !name || !handle) {
-    return c.json({ error: 'Missing required signup fields' }, 400);
+  if (await dbClient.getCreatorByHandle(handle)) {
+    return c.json({ error: 'That handle is taken', field: 'handle' }, 409);
+  }
+  const emailTaken = await db.prepare('SELECT id FROM creators WHERE email = ?').bind(email).first();
+  if (emailTaken) {
+    return c.json({ error: 'An account with this email already exists', field: 'email' }, 409);
   }
 
-  const dbClient = new DBClient(c.env.DB);
-  const existing = await dbClient.getCreatorByHandle(handle);
-  if (existing) {
-    return c.json({ error: 'Handle is already taken' }, 409);
-  }
-
-  const id = `creator_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  const passwordHash = await hashPassword(password);
+  const id = `creator_${crypto.randomUUID()}`;
+  const salt = randomToken(16);
+  const passwordHash = await derive(password, salt, PBKDF2_ITERATIONS);
+  const storedSalt = `${PBKDF2_ITERATIONS}:${salt}`;
   const now = new Date().toISOString();
 
-  await c.env.DB
-    .prepare(
-      `INSERT INTO creators (
-        id, email, password_hash, name, handle, channel_title, channel_url,
-        platform, subscribers, avatar_url, bio, niche, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .bind(
-      id,
-      email,
-      passwordHash,
-      name,
-      handle.toLowerCase().replace(/[^a-z0-9_-]/g, ''),
-      channelTitle || `${name}'s Channel`,
-      channelUrl || '',
-      platform || 'youtube',
-      0,
-      `https://api.dicebear.com/7.x/bottts/svg?seed=${handle}`,
-      'Digital content creator',
-      'Tech & Lifestyle',
-      now,
-      now
-    )
-    .run();
+  await db.batch([
+    db
+      .prepare(
+        `INSERT INTO creators (
+          id, email, password_hash, password_salt, name, handle, channel_title, channel_url,
+          platform, subscribers, avatar_url, bio, niche, onboarding_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, '', 'youtube', 0, NULL, '', '', 'profile', ?, ?)`
+      )
+      .bind(id, email, passwordHash, storedSalt, name, handle, name, now, now),
+    db
+      .prepare(
+        `INSERT INTO bio_pages (
+          id, creator_id, handle, theme, custom_title, custom_bio, accent_color, bg_color, is_published, views_count, created_at, updated_at
+        ) VALUES (?, ?, ?, 'minimal-dark', ?, '', '#5b7cfa', '#111214', 1, 0, ?, ?)`
+      )
+      .bind(`bio_${id}`, id, handle, name, now, now),
+  ]);
 
-  // Create default bio page
-  await c.env.DB
-    .prepare(
-      `INSERT INTO bio_pages (
-        id, creator_id, handle, theme, custom_title, custom_bio, accent_color, bg_color, is_published, views_count, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 0, ?, ?)`
-    )
-    .bind(
-      `bio_${id}`,
-      id,
-      handle.toLowerCase(),
-      'dna-accent',
-      name,
-      'Welcome to my official creator links and gear collection.',
-      '#6366f1',
-      '#0f172a',
-      now,
-      now
-    )
-    .run();
-
-  // Set session
-  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const expires = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
-
-  await c.env.DB
-    .prepare('INSERT INTO sessions (id, creator_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
-    .bind(sessionId, id, expires, now)
-    .run();
-
-  setCookie(c, 'cb_session', sessionId, {
-    path: '/',
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Lax',
-    maxAge: 30 * 86400,
-  });
-
+  await startSession(c, id);
   const creator = await dbClient.getCreator(id);
-  return c.json({ success: true, creator });
+  return c.json({ success: true, creator: publicCreator(creator) });
 });
 
 authRoutes.post('/login', async (c) => {
-  const { email, password } = await c.req.json();
-  if (!email || !password) {
-    return c.json({ error: 'Email and password required' }, 400);
+  const parsed = LoginSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
+  }
+  const { email, password } = parsed.data;
+
+  const row = await c.env.DB.prepare('SELECT * FROM creators WHERE email = ?')
+    .bind(email)
+    .first<Creator & { password_hash?: string; password_salt?: string }>();
+
+  if (!row || row.id === SAMPLE_CREATOR_ID || !(await verifyPassword(password, row))) {
+    return c.json({ error: 'Email or password is incorrect' }, 401);
   }
 
-  const hash = await hashPassword(password);
-  const creator = await c.env.DB
-    .prepare('SELECT * FROM creators WHERE email = ? AND password_hash = ?')
-    .bind(email, hash)
-    .first<Creator>();
-
-  if (!creator) {
-    return c.json({ error: 'Invalid email or password' }, 401);
-  }
-
-  const sessionId = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const expires = new Date(Date.now() + 30 * 86400 * 1000).toISOString();
-
-  await c.env.DB
-    .prepare('INSERT INTO sessions (id, creator_id, expires_at, created_at) VALUES (?, ?, ?, ?)')
-    .bind(sessionId, creator.id, expires, new Date().toISOString())
-    .run();
-
-  setCookie(c, 'cb_session', sessionId, {
-    path: '/',
-    httpOnly: true,
-    secure: true,
-    sameSite: 'Lax',
-    maxAge: 30 * 86400,
-  });
-
-  return c.json({ success: true, creator });
+  await startSession(c, row.id);
+  return c.json({ success: true, creator: publicCreator(row) });
 });
 
-authRoutes.post('/logout', (c) => {
-  deleteCookie(c, 'cb_session');
+authRoutes.post('/logout', async (c) => {
+  const sessionId = getCookie(c, SESSION_COOKIE);
+  if (sessionId) {
+    await c.env.DB.prepare('DELETE FROM sessions WHERE id = ?').bind(sessionId).run();
+  }
+  deleteCookie(c, SESSION_COOKIE, { path: '/' });
   return c.json({ success: true });
 });

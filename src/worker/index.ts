@@ -14,6 +14,9 @@ import { agentsRoutes } from './routes/agents';
 import { settingsRoutes } from './routes/settings';
 import { copilotRoutes } from './routes/copilot';
 import { DBClient } from './db/queries';
+import { getCookie } from 'hono/cookie';
+import { getSession } from './routes/auth';
+import { refreshYouTubeContent } from './agents/definitions/onboardingPipeline';
 import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAndCurriculum';
 
 export interface Env {
@@ -42,6 +45,22 @@ app.use(
     credentials: true,
   })
 );
+
+// The sample workspace is read-only: block writes outside auth
+app.use('/api/*', async (c, next) => {
+  const method = c.req.method;
+  if (method === 'GET' || method === 'OPTIONS' || c.req.path.startsWith('/api/auth/') || c.req.path.startsWith('/api/bio/click')) {
+    return next();
+  }
+  const sessionId = getCookie(c, 'cb_session');
+  if (sessionId) {
+    const { isSample } = await getSession(c.env.DB, sessionId);
+    if (isSample) {
+      return c.json({ error: 'This is the sample workspace. Create an account to make changes', sample: true }, 403);
+    }
+  }
+  return next();
+});
 
 // Mount API route groups
 app.route('/api/auth', authRoutes);
@@ -79,13 +98,13 @@ app.get('/s/:slug', async (c) => {
     return c.html(
       `<!DOCTYPE html>
 <html>
-<head><title>Link Not Found - CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;background:#090d16;color:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:20px;text-align:center}a{color:#06b6d4;text-decoration:none}</style></head>
+<head><meta charset="UTF-8"><title>Link not found · CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;background:#111214;color:#ededed;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;-webkit-font-smoothing:antialiased}h1{font-size:20px;line-height:28px;font-weight:500}p{margin-top:8px;font-size:14px;line-height:20px;color:#a1a1a6}code{font-family:'Geist Mono',ui-monospace,monospace}a{display:inline-flex;align-items:center;height:36px;margin-top:24px;padding:0 16px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#ededed;font-size:14px;text-decoration:none;transition:background-color 150ms ease}a:hover{background:rgba(255,255,255,0.05)}</style></head>
 <body>
-  <div>
-    <h1 style="font-size:2.5rem;margin-bottom:8px">404</h1>
-    <p style="color:#94a3b8;font-size:1.1rem">This short link does not exist or has expired.</p>
-    <p><a href="/">Return to CreatorBrain</a></p>
-  </div>
+  <main>
+    <h1>This link does not go anywhere</h1>
+    <p>The short link does not exist or has expired</p>
+    <a href="/">Go to CreatorBrain</a>
+  </main>
 </body>
 </html>`,
       404
@@ -134,49 +153,74 @@ const handleBioPage = async (c: any) => {
     return c.html(
       `<!DOCTYPE html>
 <html>
-<head><title>Creator Not Found - CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui;background:#090d16;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}a{color:#06b6d4}</style></head>
+<head><meta charset="UTF-8"><title>Page not found · CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;background:#111214;color:#ededed;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;-webkit-font-smoothing:antialiased}h1{font-size:20px;line-height:28px;font-weight:500}p{margin-top:8px;font-size:14px;line-height:20px;color:#a1a1a6}code{font-family:'Geist Mono',ui-monospace,monospace}a{display:inline-flex;align-items:center;height:36px;margin-top:24px;padding:0 16px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#ededed;font-size:14px;text-decoration:none;transition:background-color 150ms ease}a:hover{background:rgba(255,255,255,0.05)}</style></head>
 <body>
-  <div>
-    <h2>Creator @${handle} Not Found</h2>
-    <p><a href="/">Explore CreatorBrain</a></p>
-  </div>
+  <main>
+    <h1>This page is not here</h1>
+    <p>The handle may have changed, or the page is not published yet</p>
+    <a href="/">Go to CreatorBrain</a>
+  </main>
 </body>
 </html>`,
       404
     );
   }
 
-  // Theme palettes
-  const themeBg = bioPage.bg_color || '#090d16';
-  const themeAccent = bioPage.accent_color || '#06b6d4';
+  // Page palette: quiet dark graphite. The creator's accent is used only for the
+  // primary link border, link hover and the buy button.
+  const themeAccent = /^#[0-9a-f]{6}$/i.test(bioPage.accent_color || '') ? bioPage.accent_color : '#ededed';
+  const accentInk = (() => {
+    const n = parseInt(themeAccent.slice(1), 16);
+    const lin = (v: number) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+    };
+    const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return L > 0.18 ? '#111214' : '#ffffff';
+  })();
+  const displayName = bioPage.custom_title || creator.name;
+  const activeBlocks = blocks.filter((b) => b.is_active);
+  const firstLinkId = activeBlocks.find((b) => b.type === 'link')?.id;
+  const hasProducts = activeBlocks.some((b) => b.type === 'product_card' && b.product);
+  const arrowSvg =
+    '<svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
 
-  const renderedBlocks = blocks
-    .filter((b) => b.is_active)
+  // Everything below comes from creators, so escape text and allow only http(s) URLs
+  const esc = (v: unknown) =>
+    String(v ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  const safeUrl = (v: unknown) => {
+    const u = String(v ?? '').trim();
+    return /^https?:\/\//i.test(u) || u.startsWith('/') ? esc(u) : '#';
+  };
+
+  const renderedBlocks = activeBlocks
     .map((b) => {
       if (b.type === 'product_card' && b.product) {
         const prod = b.product;
+        const href = safeUrl(b.url || prod.product_url);
         return `
-        <div class="bio-card" onclick="trackClick('${b.id}', '${b.url || prod.product_url}')">
-          <div class="card-inner">
-            <img src="${prod.image_url}" alt="${prod.title}" class="prod-img" />
-            <div class="prod-info">
-              <span class="badge">Amazon Deal</span>
-              <h3 class="prod-title">${prod.title}</h3>
-              <p class="prod-price">${prod.price_str} <span class="price-as-of">(${prod.price_timestamp})</span></p>
-            </div>
-            <a href="${b.url || prod.product_url}" target="_blank" rel="noopener noreferrer" class="btn-buy">
-              Buy on Amazon
-            </a>
-          </div>
-        </div>`;
+      <div class="product">
+        <img src="${safeUrl(prod.image_url)}" alt="${esc(prod.title)}" class="product-img" />
+        <div class="product-info">
+          <div class="product-title">${esc(prod.title)}</div>
+          <div class="product-price">${esc(prod.price_str)}</div>
+          <div class="product-asof">Price as of ${esc(prod.price_timestamp)}</div>
+        </div>
+        <a href="${href}" target="_blank" rel="noopener noreferrer sponsored" class="btn-buy" data-block="${esc(b.id)}">Buy</a>
+      </div>`;
       }
 
       if (b.type === 'link') {
         return `
-        <a href="${b.url || '#'}" target="_blank" rel="noopener noreferrer" class="bio-link" onclick="trackClick('${b.id}', '${b.url}')">
-          <span>${b.title || 'Link'}</span>
-          <span class="arrow">→</span>
-        </a>`;
+      <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer" class="link${b.id === firstLinkId ? ' link-primary' : ''}" data-block="${esc(b.id)}">
+        <span class="link-title">${esc(b.title || 'Link')}</span>
+        ${arrowSvg}
+      </a>`;
       }
 
       if (b.type === 'social_links') {
@@ -187,12 +231,9 @@ const handleBioPage = async (c: any) => {
           // ignore
         }
         const socialItems = Object.entries(socials)
-          .map(
-            ([platform, url]) =>
-              `<a href="${url}" target="_blank" rel="noopener" class="social-btn">${platform.toUpperCase()}</a>`
-          )
+          .map(([platform, url]) => `<a href="${safeUrl(url)}" target="_blank" rel="noopener" class="social">${esc(platform)}</a>`)
           .join('');
-        return `<div class="social-row">${socialItems}</div>`;
+        return `<div class="socials">${socialItems}</div>`;
       }
 
       if (b.type === 'text') {
@@ -203,232 +244,143 @@ const handleBioPage = async (c: any) => {
         } catch {
           // ignore
         }
-        return `<div class="text-block">${textContent}</div>`;
+        return `<p class="text">${esc(textContent)}</p>`;
       }
 
       if (b.type === 'divider') {
-        return `<hr class="bio-divider" />`;
+        return `<hr class="divider" />`;
       }
 
       return '';
     })
     .join('\n');
 
+  const avatarHtml = creator.avatar_url
+    ? `<img src="${safeUrl(creator.avatar_url)}" alt="${esc(displayName)}" class="avatar" />`
+    : `<div class="avatar avatar-initial" aria-hidden="true">${esc((displayName || '').slice(0, 1))}</div>`;
+  const bioText = esc(bioPage.custom_bio || creator.bio || '');
+  const safeName = esc(displayName);
+  const safeHandle = esc(creator.handle);
+
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${bioPage.custom_title || creator.name} | CreatorBrain Bio</title>
-  <meta name="description" content="${bioPage.custom_bio || creator.bio || ''}">
+  <meta name="theme-color" content="#111214">
+  <title>${safeName} (@${safeHandle})</title>
+  <meta name="description" content="${bioText}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: ${themeBg};
+      --bg: #111214;
+      --fg: #ededed;
+      --fg-2: #a1a1a6;
+      --line: rgba(255, 255, 255, 0.08);
+      --raised: rgba(255, 255, 255, 0.04);
       --accent: ${themeAccent};
-      --text: #f8fafc;
-      --card-bg: rgba(30, 41, 59, 0.7);
-      --card-border: rgba(255, 255, 255, 0.1);
+      --accent-ink: ${accentInk};
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
     body {
       background: var(--bg);
-      color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--fg);
+      font-family: 'Geist', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-size: 15px;
+      line-height: 22px;
       min-height: 100vh;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px 16px;
-      line-height: 1.5;
+      justify-content: center;
+      padding: 64px 16px 40px;
     }
-    .container {
-      width: 100%;
-      max-width: 580px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
+    a { color: inherit; }
+    a:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+    .page { width: 100%; max-width: 480px; display: flex; flex-direction: column; }
+    .profile { display: flex; flex-direction: column; align-items: center; text-align: center; }
+    .avatar { width: 80px; height: 80px; border-radius: 999px; object-fit: cover; }
+    .avatar-initial {
+      display: flex; align-items: center; justify-content: center;
+      background: var(--raised); border: 1px solid var(--line);
+      font-size: 28px; font-weight: 500;
     }
-    .avatar {
-      width: 96px;
-      height: 96px;
-      border-radius: 9999px;
-      border: 3px solid var(--accent);
-      object-fit: cover;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    .name { margin-top: 16px; font-size: 20px; line-height: 28px; font-weight: 500; }
+    .handle { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; line-height: 20px; color: var(--fg-2); }
+    .bio { margin-top: 12px; max-width: 384px; font-size: 14px; line-height: 22px; color: var(--fg-2); }
+    .blocks { margin-top: 32px; display: flex; flex-direction: column; gap: 12px; }
+    .link {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      height: 56px; padding: 0 20px;
+      background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
+      text-decoration: none; font-size: 15px;
+      transition: border-color 150ms var(--ease), background-color 150ms var(--ease);
     }
-    .creator-name {
-      font-size: 1.5rem;
-      font-weight: 700;
-      text-align: center;
-      margin-top: 8px;
+    .link:hover { border-color: var(--accent); }
+    .link-primary { border-color: var(--accent); }
+    .link-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .arrow { flex-shrink: 0; color: var(--fg-2); }
+    .product {
+      display: flex; align-items: center; gap: 16px; padding: 12px;
+      background: var(--raised); border: 1px solid var(--line); border-radius: 12px;
     }
-    .handle {
-      font-size: 0.95rem;
-      color: var(--accent);
-      font-weight: 500;
-    }
-    .creator-bio {
-      font-size: 0.95rem;
-      color: #94a3b8;
-      text-align: center;
-      margin-bottom: 12px;
-    }
-    .bio-link {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      width: 100%;
-      padding: 16px 20px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-      transition: all 0.2s ease;
-      backdrop-filter: blur(8px);
-    }
-    .bio-link:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
-    }
-    .bio-card {
-      width: 100%;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 16px;
-      backdrop-filter: blur(8px);
-      transition: all 0.2s;
-    }
-    .bio-card:hover {
-      border-color: var(--accent);
-    }
-    .card-inner {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-    .prod-img {
-      width: 72px;
-      height: 72px;
-      border-radius: 8px;
-      object-fit: cover;
-      background: #000;
-      flex-shrink: 0;
-    }
-    .prod-info {
-      flex: 1;
-      min-width: 0;
-    }
-    .badge {
-      display: inline-block;
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: var(--accent);
-      letter-spacing: 0.5px;
-      margin-bottom: 2px;
-    }
-    .prod-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      margin-bottom: 4px;
-    }
-    .prod-price {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #10b981;
-    }
-    .price-as-of {
-      font-size: 0.75rem;
-      color: #94a3b8;
-      font-weight: 400;
-    }
+    .product-img { width: 64px; height: 64px; border-radius: 8px; object-fit: contain; background: #fff; padding: 4px; flex-shrink: 0; }
+    .product-info { flex: 1; min-width: 0; }
+    .product-title { font-size: 14px; line-height: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .product-price { margin-top: 4px; font-family: 'Geist Mono', ui-monospace, monospace; font-size: 13px; line-height: 20px; font-variant-numeric: tabular-nums; }
+    .product-asof { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; line-height: 16px; color: var(--fg-2); }
     .btn-buy {
-      padding: 8px 14px;
-      background: var(--accent);
-      color: #000;
-      font-weight: 700;
-      font-size: 0.85rem;
-      border-radius: 8px;
-      text-decoration: none;
-      flex-shrink: 0;
-      transition: opacity 0.2s;
+      display: inline-flex; align-items: center; height: 36px; padding: 0 16px; flex-shrink: 0;
+      background: var(--accent); color: var(--accent-ink);
+      border-radius: 8px; font-size: 14px; font-weight: 500; text-decoration: none;
+      transition: opacity 150ms var(--ease);
     }
     .btn-buy:hover { opacity: 0.9; }
-    .social-row {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-      width: 100%;
-      margin: 8px 0;
+    .socials { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 4px 0; }
+    .social {
+      display: inline-flex; align-items: center; height: 32px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 8px;
+      font-size: 13px; color: var(--fg-2); text-decoration: none; text-transform: capitalize;
+      transition: background-color 150ms var(--ease), color 150ms var(--ease);
     }
-    .social-btn {
-      padding: 8px 14px;
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 8px;
-      font-size: 0.8rem;
-      color: #cbd5e1;
-      text-decoration: none;
-      font-weight: 600;
-      transition: all 0.2s;
-    }
-    .social-btn:hover {
-      background: var(--accent);
-      color: #000;
-    }
-    .text-block {
-      font-size: 0.85rem;
-      color: #94a3b8;
-      text-align: center;
-      padding: 12px;
-      background: rgba(0,0,0,0.2);
-      border-radius: 8px;
-      width: 100%;
-    }
-    .bio-divider {
-      width: 100%;
-      border: none;
-      border-top: 1px solid rgba(255,255,255,0.1);
-      margin: 8px 0;
-    }
-    .footer {
-      margin-top: 32px;
-      font-size: 0.8rem;
-      color: #64748b;
-      text-align: center;
-    }
-    .footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+    .social:hover { background: rgba(255, 255, 255, 0.05); color: var(--fg); }
+    .text { padding: 4px 8px; font-size: 14px; line-height: 22px; color: var(--fg-2); text-align: center; }
+    .divider { border: 0; height: 1px; background: var(--line); margin: 8px 0; }
+    .footer { margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--line); text-align: center; }
+    .disclosure { max-width: 320px; margin: 0 auto 16px; font-size: 12px; line-height: 18px; color: var(--fg-2); }
+    .made-with { font-size: 12px; color: var(--fg-2); text-decoration: none; transition: color 150ms var(--ease); }
+    .made-with:hover { color: var(--fg); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <img src="${creator.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80'}" alt="${creator.name}" class="avatar" />
-    <h1 class="creator-name">${bioPage.custom_title || creator.name}</h1>
-    <div class="handle">@${creator.handle}</div>
-    <p class="creator-bio">${bioPage.custom_bio || creator.bio || ''}</p>
+  <div class="page">
+    <header class="profile">
+      ${avatarHtml}
+      <h1 class="name">${safeName}</h1>
+      <div class="handle">@${safeHandle}</div>
+      ${bioText ? `<p class="bio">${bioText}</p>` : ''}
+    </header>
 
-    ${renderedBlocks}
+    <main class="blocks">
+      ${renderedBlocks}
+    </main>
 
-    <div class="footer">
-      Powered by <a href="/">CreatorBrain</a> · Agentic Creator OS
-    </div>
+    <footer class="footer">
+      ${hasProducts ? '<p class="disclosure">As an Amazon Associate I earn from qualifying purchases. Prices and availability are accurate as of the date shown and may change.</p>' : ''}
+      <a href="/" class="made-with">Made with CreatorBrain</a>
+    </footer>
   </div>
 
   <script>
-    function trackClick(blockId, targetUrl) {
-      if (blockId) {
-        fetch('/api/bio/click/' + blockId, { method: 'POST' }).catch(function(){});
-      }
-    }
+    document.addEventListener('click', function (e) {
+      var el = e.target.closest && e.target.closest('[data-block]');
+      if (!el) return;
+      var id = el.getAttribute('data-block');
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/bio/click/' + encodeURIComponent(id));
+      else fetch('/api/bio/click/' + encodeURIComponent(id), { method: 'POST', keepalive: true }).catch(function () {});
+    });
   </script>
 </body>
 </html>`;
@@ -455,24 +407,27 @@ app.get('*', async (c) => {
 export default {
   fetch: app.fetch,
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    console.log('[Cron Trigger] Autonomous Agent Run started at:', new Date().toISOString());
+    // Daily: refresh uploads for creators studied more than a day ago, then let the
+    // orchestrator and memory curator update their Brain. Batched to stay inside free tier limits.
+    const cutoff = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
+    const { results } = await env.DB.prepare(
+      `SELECT id, youtube_input FROM creators
+       WHERE onboarding_status = 'ready' AND youtube_input IS NOT NULL AND (last_studied_at IS NULL OR last_studied_at < ?)
+       ORDER BY last_studied_at LIMIT 25`
+    )
+      .bind(cutoff)
+      .all<{ id: string; youtube_input: string }>();
 
-    const dbClient = new DBClient(env.DB);
-    const demoCreator = await dbClient.getCreator('creator_demo_tech_kabir');
-
-    if (demoCreator) {
-      ctx.waitUntil(
-        Promise.all([
-          runOrchestrator(demoCreator.id, env.DB),
-          runMemoryCurator(demoCreator.id, env.DB),
-        ])
-          .then(() => {
-            console.log('[Cron Trigger] Autonomous Memory Curator and Orchestrator run completed.');
-          })
-          .catch((err) => {
-            console.error('[Cron Trigger Error]:', err);
-          })
-      );
-    }
+    const work = (results || []).map(async (row) => {
+      try {
+        const count = await refreshYouTubeContent(env.DB, row.id, row.youtube_input);
+        await env.DB.prepare('UPDATE creators SET last_studied_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
+        await Promise.all([runOrchestrator(row.id, env.DB), runMemoryCurator(row.id, env.DB)]);
+        console.log(`[Cron] Refreshed ${count} uploads for ${row.id}`);
+      } catch (err) {
+        console.error(`[Cron] Refresh failed for ${row.id}`, err);
+      }
+    });
+    ctx.waitUntil(Promise.all(work));
   },
 };

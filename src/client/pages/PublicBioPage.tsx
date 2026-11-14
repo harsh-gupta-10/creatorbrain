@@ -1,8 +1,58 @@
 import React, { useEffect, useState } from 'react';
+import { ArrowUpRight } from 'lucide-react';
 import { api } from '../lib/api';
 import type { BioPage, BioBlock, Creator } from '../../shared/types';
+import { Spinner } from '../components/ui';
 
-export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle = 'techkabir' }) => {
+// Fan-facing page. Quiet dark graphite; the creator's accent appears only on the
+// primary link border, link hover and the buy button. Mirrors the server-rendered page.
+const PAGE = {
+  bg: '#111214',
+  fg: '#ededed',
+  fg2: '#a1a1a6',
+  line: 'rgba(255,255,255,0.08)',
+  raised: 'rgba(255,255,255,0.04)',
+};
+
+/** Dark or light ink for text set on the accent color */
+function inkOn(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec((hex || '').trim());
+  if (!m) return '#111214';
+  const n = parseInt(m[1], 16);
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  const L = 0.2126 * lin((n >> 16) & 255) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return L > 0.18 ? '#111214' : '#ffffff';
+}
+
+function parseJson<T>(raw: string | undefined | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+const Shell: React.FC<{ children: React.ReactNode; accent?: string }> = ({ children, accent }) => (
+  <div
+    className="min-h-screen flex justify-center px-4 pt-16 pb-10"
+    style={
+      {
+        background: PAGE.bg,
+        color: PAGE.fg,
+        fontFamily: "'Geist', ui-sans-serif, system-ui, sans-serif",
+        '--accent': accent || PAGE.fg,
+      } as React.CSSProperties
+    }
+  >
+    {children}
+  </div>
+);
+
+export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
   const [loading, setLoading] = useState(true);
   const [creator, setCreator] = useState<Creator | null>(null);
   const [bioPage, setBioPage] = useState<BioPage | null>(null);
@@ -18,7 +68,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle = 'techkab
         setBioPage(res.bioPage);
         setBlocks(res.blocks || []);
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to load creator bio page';
+        const msg = err instanceof Error ? err.message : 'Could not load this page';
         setError(msg);
       } finally {
         setLoading(false);
@@ -29,143 +79,186 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle = 'techkab
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#fafaf9] flex items-center justify-center text-slate-500">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mb-2" />
-      </div>
+      <Shell>
+        <div className="self-center" style={{ color: PAGE.fg2 }}>
+          <Spinner size={20} />
+        </div>
+      </Shell>
     );
   }
 
   if (error || !bioPage) {
     return (
-      <div className="min-h-screen bg-[#fafaf9] flex flex-col items-center justify-center text-slate-800 p-4 text-center">
-        <h1 className="text-xl font-bold mb-2">Creator @{handle} Not Found</h1>
-        <p className="text-slate-500 text-xs mb-4">The bio page you requested could not be retrieved.</p>
-        <a href="/" className="px-4 py-2 bg-slate-900 rounded-xl text-white text-xs font-semibold">
-          Return to Dashboard
-        </a>
-      </div>
+      <Shell>
+        <div className="self-center text-center max-w-sm">
+          <h1 className="text-[20px] leading-7 font-medium">
+            {handle ? <span className="font-mono">@{handle}</span> : 'This page'} is not here
+          </h1>
+          <p className="mt-2 text-[14px] leading-5" style={{ color: PAGE.fg2 }}>
+            The handle may have changed, or the page is not published yet
+          </p>
+          <a
+            href="/"
+            className="mt-6 inline-flex items-center h-9 px-4 rounded-[8px] text-[14px] transition-colors hover:bg-white/5"
+            style={{ border: `1px solid ${PAGE.line}` }}
+          >
+            Go to CreatorBrain
+          </a>
+        </div>
+      </Shell>
     );
   }
 
-  const themeClasses: Record<string, string> = {
-    'minimal-dark': 'bg-[#ffffff] text-slate-900',
-    'dna-accent': 'bg-[#fafaf9] text-slate-900',
-    'cyber-neon': 'bg-rose-50/30 text-slate-900',
-    'warm-editorial': 'bg-amber-50/40 text-slate-900',
-  };
-
-  const activeTheme = themeClasses[bioPage.theme] || themeClasses['dna-accent'];
+  const accent = bioPage.accent_color || PAGE.fg;
+  const name = bioPage.custom_title || creator?.name || '';
+  const bio = bioPage.custom_bio || creator?.bio || '';
+  const active = blocks.filter((b) => b.is_active).sort((a, b) => a.order_index - b.order_index);
+  const firstLinkId = active.find((b) => b.type === 'link')?.id;
+  const hasProducts = active.some((b) => b.type === 'product_card');
 
   return (
-    <div className={`min-h-screen ${activeTheme} flex justify-center py-12 px-4 canvas-grid`}>
-      <div className="max-w-md w-full space-y-6">
-        {/* Creator Profile */}
-        <div className="text-center space-y-3">
+    <Shell accent={accent}>
+      <div className="w-full max-w-[480px] flex flex-col">
+        {/* Profile */}
+        <header className="flex flex-col items-center text-center">
           {creator?.avatar_url ? (
-            <img
-              src={creator.avatar_url}
-              alt={creator.name}
-              className="w-24 h-24 rounded-full mx-auto border-2 border-indigo-600/30 object-cover shadow-md"
-            />
+            <img src={creator.avatar_url} alt={name} className="w-20 h-20 rounded-full object-cover" />
           ) : (
-            <div className="w-24 h-24 rounded-full mx-auto bg-indigo-50 border-2 border-indigo-600 flex items-center justify-center text-2xl font-bold text-indigo-700">
-              {creator?.name?.slice(0, 1) || 'K'}
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center text-[28px] font-medium"
+              style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
+            >
+              {name.slice(0, 1)}
             </div>
           )}
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">{bioPage.custom_title || creator?.name}</h1>
-            <p className="text-xs text-indigo-700 font-mono font-medium mt-0.5">@{creator?.handle}</p>
-          </div>
-          {bioPage.custom_bio && (
-            <p className="text-xs text-slate-600 max-w-sm mx-auto leading-relaxed">{bioPage.custom_bio}</p>
+          <h1 className="mt-4 text-[20px] leading-7 font-medium">{name}</h1>
+          {creator?.handle && (
+            <div className="font-mono text-[13px] leading-5" style={{ color: PAGE.fg2 }}>
+              @{creator.handle}
+            </div>
           )}
-        </div>
+          {bio && (
+            <p className="mt-3 text-[14px] leading-[22px] max-w-sm" style={{ color: PAGE.fg2 }}>
+              {bio}
+            </p>
+          )}
+        </header>
 
         {/* Blocks */}
-        <div className="space-y-3 pt-2">
-          {blocks
-            .filter((b) => b.is_active)
-            .sort((a, b) => a.order_index - b.order_index)
-            .map((block) => {
-              if (block.type === 'link') {
-                return (
-                  <a
-                    key={block.id}
-                    href={block.url || '#'}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block p-3.5 bg-white hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-center font-semibold text-xs text-slate-900 transition shadow-xs hover:border-slate-300 active:scale-[0.99]"
-                  >
-                    {block.title}
-                  </a>
-                );
-              }
+        <main className="mt-8 flex flex-col gap-3">
+          {active.map((block) => {
+            if (block.type === 'link') {
+              const primary = block.id === firstLinkId;
+              return (
+                <a
+                  key={block.id}
+                  href={block.url || '#'}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`flex items-center justify-between gap-3 h-14 px-5 rounded-[12px] border text-[15px] transition-colors hover:border-[var(--accent)] ${
+                    primary ? 'border-[var(--accent)]' : 'border-white/8'
+                  }`}
+                  style={{ background: PAGE.raised }}
+                >
+                  <span className="truncate">{block.title}</span>
+                  <ArrowUpRight size={16} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} />
+                </a>
+              );
+            }
 
-              if (block.type === 'product_card') {
-                const prod = block.product;
-                return (
-                  <div
-                    key={block.id}
-                    className="p-4 bg-white border border-slate-200/90 rounded-2xl flex items-center gap-3.5 shadow-xs hover:border-slate-300 transition"
-                  >
-                    {prod?.image_url && (
-                      <img
-                        src={prod.image_url}
-                        alt={prod.title}
-                        className="w-16 h-16 object-contain rounded-xl bg-slate-50 p-1 border border-slate-200 shrink-0"
-                      />
+            if (block.type === 'product_card') {
+              const prod = block.product;
+              return (
+                <div
+                  key={block.id}
+                  className="flex items-center gap-4 p-3 rounded-[12px]"
+                  style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
+                >
+                  {prod?.image_url && (
+                    <img
+                      src={prod.image_url}
+                      alt={prod.title}
+                      className="w-16 h-16 object-contain rounded-[8px] bg-white p-1 shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[14px] leading-5 truncate">{block.title || prod?.title}</div>
+                    {prod?.price_str && (
+                      <div className="mt-1 font-mono text-[13px] leading-5 tabular-nums">{prod.price_str}</div>
                     )}
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-slate-900 truncate">{block.title || prod?.title}</h4>
-                      {prod?.price_str && (
-                        <p className="text-xs font-semibold text-slate-900 font-mono mt-0.5">{prod.price_str}</p>
-                      )}
-                      {prod?.price_timestamp && (
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          Price valid as of {new Date(prod.price_timestamp).toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                    {block.url && (
-                      <a
-                        href={block.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition shrink-0 shadow-2xs"
-                      >
-                        Buy Now
-                      </a>
+                    {prod?.price_timestamp && (
+                      <div className="font-mono text-[11px] leading-4" style={{ color: PAGE.fg2 }}>
+                        Price as of {new Date(prod.price_timestamp).toLocaleDateString()}
+                      </div>
                     )}
                   </div>
-                );
-              }
+                  {block.url && (
+                    <a
+                      href={block.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-9 px-4 rounded-[8px] text-[14px] font-medium inline-flex items-center shrink-0 transition-opacity hover:opacity-90"
+                      style={{ background: accent, color: inkOn(accent) }}
+                    >
+                      Buy
+                    </a>
+                  )}
+                </div>
+              );
+            }
 
-              if (block.type === 'text') {
-                return (
-                  <div key={block.id} className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 text-center shadow-2xs">
-                    {block.title}
-                  </div>
-                );
-              }
+            if (block.type === 'social_links') {
+              const socials = parseJson<Record<string, string>>(block.content_json) || {};
+              const entries = Object.entries(socials);
+              if (!entries.length) return null;
+              return (
+                <div key={block.id} className="flex flex-wrap justify-center gap-2 py-1">
+                  {entries.map(([platform, url]) => (
+                    <a
+                      key={platform}
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-8 px-3 rounded-[8px] text-[13px] inline-flex items-center capitalize transition-colors hover:bg-white/5"
+                      style={{ border: `1px solid ${PAGE.line}`, color: PAGE.fg2 }}
+                    >
+                      {platform}
+                    </a>
+                  ))}
+                </div>
+              );
+            }
 
-              if (block.type === 'divider') {
-                return <hr key={block.id} className="border-slate-200 my-4" />;
-              }
+            if (block.type === 'text') {
+              const text = parseJson<{ text?: string }>(block.content_json)?.text || block.title;
+              return (
+                <p key={block.id} className="px-2 py-1 text-[14px] leading-[22px] text-center" style={{ color: PAGE.fg2 }}>
+                  {text}
+                </p>
+              );
+            }
 
-              return null;
-            })}
-        </div>
+            if (block.type === 'divider') {
+              return <hr key={block.id} className="my-2 border-0 h-px" style={{ background: PAGE.line }} />;
+            }
 
-        {/* Affiliate Disclosure & Footer */}
-        <div className="pt-6 border-t border-slate-200 text-center space-y-2">
-          <p className="text-[10px] text-slate-500 italic max-w-xs mx-auto">
-            "As an Amazon Associate I earn from qualifying purchases. Product prices and availability are accurate as of the date/time indicated."
-          </p>
-          <div className="pt-2 text-[10px] text-slate-400 font-mono">
-            Powered by <span className="text-indigo-600 font-bold">CreatorBrain</span> • Cloudflare Free Tier
-          </div>
-        </div>
+            return null;
+          })}
+        </main>
+
+        {/* Disclosure and footer */}
+        <footer className="mt-12 pt-6 text-center" style={{ borderTop: `1px solid ${PAGE.line}` }}>
+          {hasProducts && (
+            <p className="text-[12px] leading-[18px] max-w-xs mx-auto mb-4" style={{ color: PAGE.fg2 }}>
+              As an Amazon Associate I earn from qualifying purchases. Prices and availability are accurate as of the
+              date shown and may change.
+            </p>
+          )}
+          <a href="/" className="text-[12px] text-[#a1a1a6] transition-colors hover:text-[#ededed]">
+            Made with CreatorBrain
+          </a>
+        </footer>
       </div>
-    </div>
+    </Shell>
   );
 };

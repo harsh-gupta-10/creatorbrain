@@ -1,54 +1,66 @@
 import React, { useEffect, useState } from 'react';
+import { ArrowUpRight, Check } from 'lucide-react';
 import { api } from '../lib/api';
+import { ErrorNote, ICON, PageHeader, Spinner, formatDate } from '../components/ui';
 
-interface SettingsData {
-  creator: {
-    id: string;
-    handle: string;
-    name: string;
-  };
-  availableProviders: {
-    claude: boolean;
-    openai: boolean;
-    gemini: boolean;
-    workersAi: boolean;
-  };
-  currentDailyUsageUsd: number;
-  amazonConfig: {
-    hasCredentials: boolean;
-    partnerTag: string;
-    marketplace: string;
-  };
-  aiConfig: {
-    preferredGeneral: string;
-    preferredFast: string;
-    preferredVideo: string;
-    dailyBudgetUsd: number;
-  };
-}
+type SettingsData = Awaited<ReturnType<typeof api.settings.getSettings>>;
+type Section = 'monetization' | 'ai' | 'amazon' | 'delete';
+
+const MARKETPLACES = ['amazon.com', 'amazon.in', 'amazon.co.uk', 'amazon.de', 'amazon.ca'];
+const OTHER_INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
+
+const errMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
+
+/** Two-column settings row: what it is on the left, the controls on the right */
+const SettingsSection: React.FC<{ title: string; description?: React.ReactNode; children: React.ReactNode }> = ({
+  title,
+  description,
+  children,
+}) => (
+  <section className="grid grid-cols-1 gap-4 py-8 border-t border-line first:border-t-0 first:pt-0 md:grid-cols-3 md:gap-8">
+    <div>
+      <h2 className="text-[15px] font-medium text-fg">{title}</h2>
+      {description && <p className="mt-1 text-[13px] text-fg-2">{description}</p>}
+    </div>
+    <div className="md:col-span-2">{children}</div>
+  </section>
+);
+
+const SavedNote: React.FC<{ show: boolean; text?: string }> = ({ show, text = 'Saved' }) =>
+  show ? (
+    <span className="inline-flex items-center gap-1 text-[13px] text-positive" role="status">
+      <Check {...ICON} /> {text}
+    </span>
+  ) : null;
 
 export const SettingsTab: React.FC = () => {
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Partial<Record<Section, string>>>({});
+  const [saved, setSaved] = useState<{ section: Section; text?: string } | null>(null);
 
-  // Form states
+  // Monetization
+  const [amazonOn, setAmazonOn] = useState(false);
+  const [monTag, setMonTag] = useState('');
+  const [monMarketplace, setMonMarketplace] = useState('amazon.com');
+  const [otherIncome, setOtherIncome] = useState<string[]>([]);
+  const [savingMon, setSavingMon] = useState(false);
+
+  // AI routing
   const [preferredGeneral, setPreferredGeneral] = useState<'claude' | 'openai' | 'workers-ai'>('claude');
   const [preferredFast, setPreferredFast] = useState<string>('claude-haiku');
   const [preferredVideo, setPreferredVideo] = useState<string>('gemini');
   const [dailyBudgetUsd, setDailyBudgetUsd] = useState<number>(2.0);
   const [savingAi, setSavingAi] = useState(false);
 
-  // Amazon BYO credentials
-  const [partnerTag, setPartnerTag] = useState('techkabir-21');
-  const [marketplace, setMarketplace] = useState('amazon.in');
+  // Amazon API credentials
+  const [partnerTag, setPartnerTag] = useState('');
+  const [marketplace, setMarketplace] = useState('amazon.com');
   const [accessKey, setAccessKey] = useState('');
   const [secretKey, setSecretKey] = useState('');
   const [savingAmazon, setSavingAmazon] = useState(false);
 
-  // Deletion confirm
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
@@ -58,20 +70,56 @@ export const SettingsTab: React.FC = () => {
   const fetchSettings = async () => {
     try {
       setLoading(true);
-      setError(null);
+      setLoadError(null);
       const res = await api.settings.getSettings();
-      setData(res as unknown as SettingsData);
+      setData(res);
       setPreferredGeneral(res.providerSettings?.preferred_general_provider || 'claude');
       setPreferredFast(res.providerSettings?.preferred_fast_provider || 'claude-haiku');
       setPreferredVideo(res.providerSettings?.preferred_video_provider || 'gemini');
       setDailyBudgetUsd(res.providerSettings?.daily_budget_usd || 2.0);
-      setPartnerTag(res.amazonConfig.partnerTag || 'techkabir-21');
-      setMarketplace(res.amazonConfig.marketplace || 'amazon.in');
+      setPartnerTag(res.amazonConfig?.partnerTag || '');
+      setMarketplace(res.amazonConfig?.marketplace || 'amazon.com');
+
+      const m = res.monetization || {};
+      setAmazonOn(!!m.amazon);
+      setMonTag(m.partnerTag || res.amazonConfig?.partnerTag || '');
+      setMonMarketplace(m.marketplace || res.amazonConfig?.marketplace || 'amazon.com');
+      setOtherIncome(Array.isArray(m.other) ? m.other : []);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to load settings';
-      setError(msg);
+      setLoadError(errMessage(err, 'Could not load settings'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const flashSaved = (section: Section, text?: string) => {
+    setSaved({ section, text });
+    setTimeout(() => setSaved((s) => (s?.section === section ? null : s)), 3000);
+  };
+
+  const setSectionError = (section: Section, msg: string | null) =>
+    setErrors((prev) => ({ ...prev, [section]: msg || undefined }));
+
+  const toggleOther = (item: string) =>
+    setOtherIncome((prev) => (prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]));
+
+  const handleSaveMonetization = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingMon(true);
+      setSectionError('monetization', null);
+      await api.settings.updateMonetization({
+        amazon: amazonOn,
+        partnerTag: amazonOn ? monTag.trim() : '',
+        marketplace: monMarketplace,
+        other: otherIncome,
+      });
+      await fetchSettings();
+      flashSaved('monetization');
+    } catch (err: unknown) {
+      setSectionError('monetization', errMessage(err, 'Could not save monetization'));
+    } finally {
+      setSavingMon(false);
     }
   };
 
@@ -79,19 +127,17 @@ export const SettingsTab: React.FC = () => {
     e.preventDefault();
     try {
       setSavingAi(true);
-      setError(null);
+      setSectionError('ai', null);
       await api.settings.updateProviders({
         preferred_general_provider: preferredGeneral,
         preferred_fast_provider: preferredFast,
         preferred_video_provider: preferredVideo,
         daily_budget_usd: dailyBudgetUsd,
       });
-      setSaveSuccess('AI routing preferences saved to Cloudflare KV.');
       await fetchSettings();
-      setTimeout(() => setSaveSuccess(null), 3000);
+      flashSaved('ai');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save AI preferences';
-      setError(msg);
+      setSectionError('ai', errMessage(err, 'Could not save AI settings'));
     } finally {
       setSavingAi(false);
     }
@@ -101,343 +147,412 @@ export const SettingsTab: React.FC = () => {
     e.preventDefault();
     try {
       setSavingAmazon(true);
-      setError(null);
-      const res = await api.settings.updateAmazon({
+      setSectionError('amazon', null);
+      await api.settings.updateAmazon({
         accessKey: accessKey.trim() || undefined,
         secretKey: secretKey.trim() || undefined,
         partnerTag: partnerTag.trim(),
         marketplace,
       });
-      setSaveSuccess(res.message || 'Amazon credentials saved securely.');
       setAccessKey('');
       setSecretKey('');
       await fetchSettings();
-      setTimeout(() => setSaveSuccess(null), 3000);
+      flashSaved('amazon');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to save Amazon credentials';
-      setError(msg);
+      setSectionError('amazon', errMessage(err, 'Could not save Amazon credentials'));
     } finally {
       setSavingAmazon(false);
     }
   };
 
   const handleDeleteData = async () => {
+    const ok = window.confirm(
+      'Delete all of your data? This removes your Brain, projects, links, quiz results and stored keys, and cannot be undone.'
+    );
+    if (!ok) return;
     try {
       setDeleting(true);
-      setError(null);
-      const res = await api.settings.deleteData();
-      alert(res.message || 'Your data has been wiped.');
+      setSectionError('delete', null);
+      await api.settings.deleteData();
       window.location.reload();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to delete data';
-      setError(msg);
+      setSectionError('delete', errMessage(err, 'Could not delete data'));
       setDeleting(false);
     }
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <div className="p-8 text-center text-slate-500">
-        <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-        Loading platform settings...
+      <div>
+        <PageHeader title="Settings" />
+        <div className="card h-40 flex items-center justify-center text-fg-3">
+          <Spinner />
+        </div>
       </div>
     );
   }
 
+  const creator = data?.creator;
+  const providers = data?.availableProviders;
+  const providerRows: { name: string; on: boolean; onLabel: string; offLabel: string }[] = [
+    { name: 'Claude', on: !!providers?.claude, onLabel: 'Connected', offLabel: 'Not set up' },
+    { name: 'OpenAI', on: !!providers?.openai, onLabel: 'Connected', offLabel: 'Not set up' },
+    { name: 'Gemini', on: !!providers?.gemini, onLabel: 'Connected', offLabel: 'Not set up' },
+    { name: 'Workers AI', on: !!providers?.workersAi, onLabel: 'Available', offLabel: 'Fallback' },
+  ];
+
   return (
-    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <span>⚙️</span> System Settings & Privacy
-        </h1>
-        <p className="text-xs md:text-sm text-slate-500 mt-1">
-          Configure multi-provider AI routing, encrypted Amazon credentials, tracking IDs, and manage your data.
-        </p>
-      </div>
+    <div>
+      <PageHeader title="Settings" description="Your channel, how you earn, which AI models run, and your data." />
 
-      {saveSuccess && (
-        <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2">
-          <span>✓</span> {saveSuccess}
+      {loadError && (
+        <div className="mb-6">
+          <ErrorNote>{loadError}</ErrorNote>
         </div>
       )}
 
-      {error && (
-        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs font-medium flex items-center gap-2">
-          <span>⚠️</span> {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Section 1: AI Provider Status & Preferences */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">AI Provider Router</h2>
-              <p className="text-xs text-slate-500">Configure task routing and daily budget limits</p>
+      {/* Channel */}
+      <SettingsSection title="Channel" description="The accounts CreatorBrain studies. Set during onboarding.">
+        <dl className="card divide-y divide-line">
+          {[
+            { label: 'YouTube', value: creator?.youtube_input || null, mono: true },
+            {
+              label: 'Instagram',
+              value: creator?.instagram_handle ? `@${creator.instagram_handle.replace(/^@/, '')}` : null,
+              mono: true,
+            },
+            {
+              label: 'Last studied',
+              value: creator?.last_studied_at ? formatDate(creator.last_studied_at) : null,
+              mono: true,
+            },
+            { label: 'Handle', value: creator?.handle ? `@${creator.handle}` : null, mono: true },
+          ].map((row) => (
+            <div key={row.label} className="flex items-center justify-between gap-4 px-4 h-11">
+              <dt className="text-[13px] text-fg-2">{row.label}</dt>
+              <dd className={`truncate text-right ${row.value ? 'text-fg' : 'text-fg-3'} ${row.mono ? 'font-mono text-[13px]' : ''}`}>
+                {row.value || 'Not set'}
+              </dd>
             </div>
-            <span className="px-2.5 py-0.5 text-[10px] font-semibold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200/60 font-mono">
-              Cloudflare KV
-            </span>
+          ))}
+          {creator?.handle && (
+            <div className="flex items-center justify-between gap-4 px-4 h-11">
+              <dt className="text-[13px] text-fg-2">Link-in-bio page</dt>
+              <dd>
+                <a
+                  href={`/@${creator.handle}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 font-mono text-[13px] text-accent-ink hover:underline"
+                >
+                  /@{creator.handle}
+                  <ArrowUpRight {...ICON} />
+                </a>
+              </dd>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 px-4 h-11">
+            <dt className="text-[13px] text-fg-2">Short links</dt>
+            <dd className="font-mono text-[13px] text-fg">/s/:slug</dd>
+          </div>
+        </dl>
+      </SettingsSection>
+
+      {/* Monetization */}
+      <SettingsSection
+        title="Monetization"
+        description="How you earn from your content. Drafts include affiliate links and disclosures to match."
+      >
+        <form onSubmit={handleSaveMonetization} className="card p-5 space-y-6">
+          <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div id="amazon-toggle-label" className="font-medium text-fg">
+                  Amazon Associates
+                </div>
+                <p className="mt-1 text-[13px] text-fg-2">Add your tracking ID to product links in scripts and descriptions</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={amazonOn}
+                aria-labelledby="amazon-toggle-label"
+                onClick={() => setAmazonOn((v) => !v)}
+                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
+                  amazonOn ? 'bg-accent' : 'bg-line-strong'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition-transform ${
+                    amazonOn ? 'translate-x-[18px]' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {amazonOn && (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="mon-tag" className="field-label">
+                    Tracking ID
+                  </label>
+                  <input
+                    id="mon-tag"
+                    type="text"
+                    className="input font-mono"
+                    placeholder="yourname-20"
+                    value={monTag}
+                    onChange={(e) => setMonTag(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="mon-market" className="field-label">
+                    Marketplace
+                  </label>
+                  <select
+                    id="mon-market"
+                    className="input"
+                    value={monMarketplace}
+                    onChange={(e) => setMonMarketplace(e.target.value)}
+                  >
+                    {MARKETPLACES.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Active Provider Indicators */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-              <span className={`w-2 h-2 rounded-full ${data?.availableProviders.claude ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              <span className="text-slate-800 font-medium">Claude (Anthropic)</span>
-              <span className="ml-auto text-[10px] text-slate-400 font-mono">{data?.availableProviders.claude ? 'Active' : 'Mock'}</span>
+          <fieldset className="pt-6 border-t border-line">
+            <legend className="field-label">Other income</legend>
+            <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {OTHER_INCOME.map((item) => (
+                <label key={item} className="flex items-center gap-2 h-8 text-fg cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 accent-accent"
+                    checked={otherIncome.includes(item)}
+                    onChange={() => toggleOther(item)}
+                  />
+                  {item}
+                </label>
+              ))}
             </div>
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-              <span className={`w-2 h-2 rounded-full ${data?.availableProviders.openai ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              <span className="text-slate-800 font-medium">OpenAI</span>
-              <span className="ml-auto text-[10px] text-slate-400 font-mono">{data?.availableProviders.openai ? 'Active' : 'Mock'}</span>
-            </div>
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-              <span className={`w-2 h-2 rounded-full ${data?.availableProviders.gemini ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              <span className="text-slate-800 font-medium">Gemini 1.5</span>
-              <span className="ml-auto text-[10px] text-slate-400 font-mono">{data?.availableProviders.gemini ? 'Active' : 'Mock'}</span>
-            </div>
-            <div className="flex items-center gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
-              <span className={`w-2 h-2 rounded-full ${data?.availableProviders.workersAi ? 'bg-emerald-500' : 'bg-slate-400'}`} />
-              <span className="text-slate-800 font-medium">Workers AI (Llama)</span>
-              <span className="ml-auto text-[10px] text-slate-400 font-mono">{data?.availableProviders.workersAi ? 'Edge' : 'Fallback'}</span>
-            </div>
-          </div>
+          </fieldset>
 
-          <form onSubmit={handleSaveAi} className="space-y-4 text-xs">
+          {errors.monetization && <ErrorNote>{errors.monetization}</ErrorNote>}
+
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={savingMon} className="btn btn-primary btn-sm">
+              {savingMon && <Spinner />}
+              Save monetization
+            </button>
+            <SavedNote show={saved?.section === 'monetization'} />
+          </div>
+        </form>
+      </SettingsSection>
+
+      {/* AI providers */}
+      <SettingsSection title="AI models" description="Which model handles each kind of task, and a daily spending cap.">
+        <form onSubmit={handleSaveAi} className="card p-5 space-y-5">
+          <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
+            {providerRows.map((p) => (
+              <li key={p.name} className="flex items-center gap-2 text-[13px]">
+                <span className={`dot ${p.on ? 'bg-positive' : 'bg-fg-3'}`} />
+                <span className="text-fg">{p.name}</span>
+                <span className="meta ml-auto">{p.on ? p.onLabel : p.offLabel}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="pt-5 border-t border-line space-y-4">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">
-                Primary Agent & Writing Model
+              <label htmlFor="ai-general" className="field-label">
+                Writing and agents
               </label>
               <select
+                id="ai-general"
                 value={preferredGeneral}
                 onChange={(e) => setPreferredGeneral(e.target.value as 'claude' | 'openai' | 'workers-ai')}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500"
+                className="input"
               >
-                <option value="claude">Claude 3.5 Sonnet (Anthropic - Recommended)</option>
-                <option value="openai">OpenAI (GPT-4o)</option>
-                <option value="workers-ai">Cloudflare Workers AI (Llama 3.1 8B)</option>
+                <option value="claude">Claude Sonnet (recommended)</option>
+                <option value="openai">OpenAI GPT-4o</option>
+                <option value="workers-ai">Workers AI, Llama 3.1 8B</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">
-                Fast Tasks (Captions, Tags, Classification)
+              <label htmlFor="ai-fast" className="field-label">
+                Fast tasks
               </label>
-              <select
-                value={preferredFast}
-                onChange={(e) => setPreferredFast(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="claude-haiku">Claude 3.5 Haiku (Fast & Precise)</option>
-                <option value="openai-mini">OpenAI GPT-4o-mini</option>
-                <option value="workers-ai">Cloudflare Workers AI</option>
+              <select id="ai-fast" value={preferredFast} onChange={(e) => setPreferredFast(e.target.value)} className="input">
+                <option value="claude-haiku">Claude Haiku</option>
+                <option value="openai-mini">OpenAI GPT-4o mini</option>
+                <option value="workers-ai">Workers AI</option>
+              </select>
+              <p className="field-hint">Captions, tags and classification</p>
+            </div>
+
+            <div>
+              <label htmlFor="ai-video" className="field-label">
+                Video analysis
+              </label>
+              <select id="ai-video" value={preferredVideo} onChange={(e) => setPreferredVideo(e.target.value)} className="input">
+                <option value="gemini">Gemini 1.5 Pro, reads YouTube URLs directly</option>
+                <option value="claude">Claude Sonnet vision</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">
-                Video & Multimodal Analysis
-              </label>
-              <select
-                value={preferredVideo}
-                onChange={(e) => setPreferredVideo(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="gemini">Google Gemini 1.5 Pro (Direct YouTube URL Vision)</option>
-                <option value="claude">Claude 3.5 Sonnet Vision</option>
-              </select>
-            </div>
-
-            {/* Daily Budget Slider */}
-            <div className="pt-2">
-              <div className="flex justify-between items-center text-xs mb-1">
-                <span className="text-slate-700 font-semibold">Daily AI Spend Limit</span>
-                <span className="text-indigo-600 font-bold">${dailyBudgetUsd.toFixed(2)} / day</span>
+              <div className="flex items-baseline justify-between">
+                <label htmlFor="ai-budget" className="field-label">
+                  Daily spending cap
+                </label>
+                <span className="font-mono text-[13px] num text-fg">${dailyBudgetUsd.toFixed(2)} / day</span>
               </div>
               <input
+                id="ai-budget"
                 type="range"
                 min="0.25"
                 max="10.0"
                 step="0.25"
                 value={dailyBudgetUsd}
                 onChange={(e) => setDailyBudgetUsd(parseFloat(e.target.value))}
-                className="w-full accent-indigo-600 bg-slate-200 h-1.5 rounded-lg appearance-none cursor-pointer"
+                className="w-full accent-accent cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] text-slate-500 mt-1">
-                <span>Today's spend: ${(data?.currentDailyUsageUsd || 0).toFixed(4)}</span>
-                <span>Max: $10.00</span>
+              <div className="mt-1 flex justify-between">
+                <span className="meta">Spent today ${(data?.currentDailyUsageUsd || 0).toFixed(2)}</span>
+                <span className="meta">Max $10.00</span>
               </div>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={savingAi}
-              className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-semibold transition text-xs shadow-xs active:scale-95 disabled:opacity-50"
-            >
-              {savingAi ? 'Saving AI Config...' : 'Save AI Preferences'}
+          {errors.ai && <ErrorNote>{errors.ai}</ErrorNote>}
+
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={savingAi} className="btn btn-primary btn-sm">
+              {savingAi && <Spinner />}
+              Save AI settings
             </button>
-          </form>
-        </div>
+            <SavedNote show={saved?.section === 'ai'} />
+          </div>
+        </form>
+      </SettingsSection>
 
-        {/* Section 2: Amazon BYO Credentials & Affiliate Settings */}
-        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Amazon Associates & Creator API</h2>
-              <p className="text-xs text-slate-500">Encrypted with AES-GCM (Web Crypto API)</p>
-            </div>
-            <span
-              className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border ${
-                data?.amazonConfig.hasCredentials
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-amber-50 text-amber-800 border-amber-200'
-              }`}
-            >
-              {data?.amazonConfig.hasCredentials ? 'Encrypted Keys Stored' : 'Using Mock Catalog'}
+      {/* Amazon API keys */}
+      <SettingsSection
+        title="Amazon API keys"
+        description="Optional. With your own Product Advertising API keys, product search uses live prices and stock."
+      >
+        <form onSubmit={handleSaveAmazon} className="card p-5 space-y-4">
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className={`dot ${data?.amazonConfig.hasCredentials ? 'bg-positive' : 'bg-fg-3'}`} />
+            <span className="text-fg-2">
+              {data?.amazonConfig.hasCredentials ? 'Keys stored, encrypted' : 'No keys stored, using the sample catalog'}
             </span>
           </div>
 
-          <form onSubmit={handleSaveAmazon} className="space-y-4 text-xs">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">
-                Amazon Associates Partner Tag
+              <label htmlFor="amz-tag" className="field-label">
+                Partner tag
               </label>
               <input
+                id="amz-tag"
                 type="text"
-                placeholder="e.g. techkabir-21 or yourtag-20"
+                placeholder="yourname-20"
                 value={partnerTag}
                 onChange={(e) => setPartnerTag(e.target.value)}
                 required
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono"
+                className="input font-mono"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Appended to all generated product links (e.g. <code className="text-slate-700 font-semibold">?tag={partnerTag || 'yourtag-21'}</code>)
+              <p className="field-hint">
+                Added to links as <code>?tag={partnerTag || 'yourname-20'}</code>
               </p>
             </div>
-
             <div>
-              <label className="block text-slate-700 font-semibold mb-1">Marketplace</label>
-              <select
-                value={marketplace}
-                onChange={(e) => setMarketplace(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="amazon.in">Amazon India (amazon.in)</option>
-                <option value="amazon.com">Amazon US (amazon.com)</option>
-                <option value="amazon.co.uk">Amazon UK (amazon.co.uk)</option>
-                <option value="amazon.de">Amazon Germany (amazon.de)</option>
-                <option value="amazon.ca">Amazon Canada (amazon.ca)</option>
+              <label htmlFor="amz-market" className="field-label">
+                Marketplace
+              </label>
+              <select id="amz-market" value={marketplace} onChange={(e) => setMarketplace(e.target.value)} className="input">
+                {MARKETPLACES.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
               </select>
             </div>
-
-            <div className="border-t border-slate-100 pt-3">
-              <label className="block text-slate-700 font-semibold mb-1">
-                Amazon PA-API / Creators Access Key <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <input
-                type="password"
-                placeholder={data?.amazonConfig.hasCredentials ? '••••••••••••••••••••' : 'AKIAIOSFODNN7EXAMPLE'}
-                value={accessKey}
-                onChange={(e) => setAccessKey(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-700 font-semibold mb-1">
-                Amazon PA-API / Creators Secret Key <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
-              <input
-                type="password"
-                placeholder={data?.amazonConfig.hasCredentials ? '••••••••••••••••••••••••••••••••' : 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'}
-                value={secretKey}
-                onChange={(e) => setSecretKey(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono"
-              />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Keys are never logged, never returned to browser, and encrypted via Web Crypto AES-GCM 256.
-              </p>
-            </div>
-
-            <button
-              type="submit"
-              disabled={savingAmazon}
-              className="w-full py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 rounded-xl font-semibold transition text-xs shadow-2xs active:scale-95 disabled:opacity-50"
-            >
-              {savingAmazon ? 'Saving Credentials...' : 'Save Amazon Credentials'}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Section 3: Platform & Domain Identifiers */}
-      <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs space-y-4">
-        <h2 className="text-sm font-bold text-slate-900">Platform Identity & Links</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/70 space-y-1">
-            <span className="text-slate-500 block">Creator Handle</span>
-            <span className="text-slate-900 font-mono text-sm font-bold">@{data?.creator.handle || 'techkabir'}</span>
           </div>
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/70 space-y-1">
-            <span className="text-slate-500 block">Public Link-in-Bio</span>
-            <a
-              href={`/@${data?.creator.handle || 'techkabir'}`}
-              target="_blank"
-              rel="noreferrer"
-              className="text-indigo-600 hover:text-indigo-800 font-mono text-sm font-bold flex items-center gap-1 truncate"
-            >
-              /@{data?.creator.handle || 'techkabir'} <span>↗</span>
-            </a>
-          </div>
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/70 space-y-1">
-            <span className="text-slate-500 block">Short Link Route</span>
-            <span className="text-slate-800 font-mono text-sm font-semibold">/s/:slug</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Section 4: Data Privacy & Wipe ("Delete My Data") */}
-      <div className="bg-rose-50/60 border border-rose-200/80 rounded-2xl p-6 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-sm font-bold text-rose-900">Danger Zone: Data Wipe</h2>
-            <p className="text-xs text-slate-600 mt-0.5">
-              Permanently delete all Creator DNA nodes, edges, project assets, links, quiz attempts, and encrypted credentials.
-            </p>
+            <label htmlFor="amz-access" className="field-label">
+              Access key
+            </label>
+            <input
+              id="amz-access"
+              type="password"
+              autoComplete="off"
+              placeholder={data?.amazonConfig.hasCredentials ? 'Stored, enter a new key to replace it' : 'AKIA…'}
+              value={accessKey}
+              onChange={(e) => setAccessKey(e.target.value)}
+              className="input font-mono"
+            />
           </div>
-          {!showDeleteConfirm ? (
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 bg-white hover:bg-rose-50 text-rose-700 border border-rose-300 rounded-xl text-xs font-semibold transition shadow-2xs shrink-0"
-            >
-              Delete My Data
+
+          <div>
+            <label htmlFor="amz-secret" className="field-label">
+              Secret key
+            </label>
+            <input
+              id="amz-secret"
+              type="password"
+              autoComplete="off"
+              placeholder={data?.amazonConfig.hasCredentials ? 'Stored, enter a new key to replace it' : 'Secret key'}
+              value={secretKey}
+              onChange={(e) => setSecretKey(e.target.value)}
+              className="input font-mono"
+            />
+            <p className="field-hint">Encrypted with AES-GCM. Keys are never logged or sent back to the browser.</p>
+          </div>
+
+          {errors.amazon && <ErrorNote>{errors.amazon}</ErrorNote>}
+
+          <div className="flex items-center gap-3">
+            <button type="submit" disabled={savingAmazon} className="btn btn-secondary btn-sm">
+              {savingAmazon && <Spinner />}
+              Save keys
             </button>
-          ) : (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={handleDeleteData}
-                disabled={deleting}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
-              >
-                {deleting ? 'Deleting...' : 'Confirm Wipe Everything'}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          )}
-        </div>
-        {showDeleteConfirm && (
-          <p className="text-xs text-rose-800 bg-white p-3.5 rounded-xl border border-rose-200">
-            ⚠️ Warning: This action is irreversible. All of your channel analyses, studio scripts, short link analytics, and personalized recommendations will be permanently scrubbed from Cloudflare D1.
+            <SavedNote show={saved?.section === 'amazon'} />
+          </div>
+        </form>
+      </SettingsSection>
+
+      {/* Delete data */}
+      <SettingsSection
+        title="Delete data"
+        description="Permanently removes your Brain, projects, links, quiz results and stored keys."
+      >
+        <div className="card p-5 space-y-4">
+          <p className="text-[13px] text-fg-2">
+            Everything CreatorBrain has learned and drafted for you is deleted. This cannot be undone.
           </p>
-        )}
-      </div>
+          {errors.delete && <ErrorNote>{errors.delete}</ErrorNote>}
+          <button
+            type="button"
+            onClick={handleDeleteData}
+            disabled={deleting}
+            className="btn btn-secondary btn-sm text-negative"
+          >
+            {deleting && <Spinner />}
+            {deleting ? 'Deleting' : 'Delete all data'}
+          </button>
+        </div>
+      </SettingsSection>
     </div>
   );
 };

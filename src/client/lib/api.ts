@@ -19,6 +19,58 @@ import type {
 
 const BASE_URL = '';
 
+export interface Monetization {
+  amazon?: boolean;
+  partnerTag?: string;
+  marketplace?: string;
+  other?: string[];
+}
+
+export interface OnboardingProfile {
+  niche: string;
+  language: string;
+  cadence: 'weekly' | 'biweekly' | 'monthly' | 'irregular';
+  youtube: string;
+  instagram: string;
+  instagramCaptions: string[];
+  amazon: { enabled: boolean; partnerTag: string; marketplace: string };
+  otherIncome: string[];
+  goals: string[];
+}
+
+export interface StudyJob {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  current_step: string;
+  progress_percent: number;
+  result_json?: string;
+  error_message?: string;
+}
+
+export interface ContentItem {
+  id: string;
+  platform: 'youtube' | 'instagram';
+  external_id: string;
+  title: string;
+  description?: string;
+  url?: string;
+  thumbnail_url?: string;
+  views: number;
+  likes: number;
+  published_at?: string;
+}
+
+/** Thrown for API errors; `sample` is true when the read-only sample workspace blocked a write */
+export class ApiError extends Error {
+  status: number;
+  sample: boolean;
+  constructor(message: string, status: number, sample = false) {
+    super(message);
+    this.status = status;
+    this.sample = sample;
+  }
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${url}`, {
     ...options,
@@ -30,14 +82,16 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
-    let errorMsg = `HTTP Error ${res.status}`;
+    let errorMsg = `Request failed (${res.status})`;
+    let sample = false;
     try {
-      const errData = (await res.json()) as { error?: string };
+      const errData = (await res.json()) as { error?: string; sample?: boolean };
       if (errData?.error) errorMsg = errData.error;
+      sample = !!errData?.sample;
     } catch {
       // ignore
     }
-    throw new Error(errorMsg);
+    throw new ApiError(errorMsg, res.status, sample);
   }
 
   return (await res.json()) as T;
@@ -45,20 +99,33 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 
 export const api = {
   auth: {
-    me: () => fetchJson<{ authenticated: boolean; isDemo: boolean; creator: Creator | null }>('/api/auth/me'),
-    demo: () => fetchJson<{ success: boolean; isDemo: boolean; creator: Creator }>('/api/auth/demo', { method: 'POST' }),
-    login: (body: { email: string; password?: string }) =>
+    me: () =>
+      fetchJson<{ authenticated: boolean; isDemo: boolean; isSample: boolean; creator: Creator | null }>('/api/auth/me'),
+    sample: () => fetchJson<{ success: boolean; isSample: boolean; creator: Creator }>('/api/auth/sample', { method: 'POST' }),
+    login: (body: { email: string; password: string }) =>
       fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
-    signup: (body: { name: string; handle: string; email: string; password?: string }) =>
+    signup: (body: { name: string; handle: string; email: string; password: string }) =>
       fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
+    handleAvailable: (handle: string) =>
+      fetchJson<{ available: boolean }>(`/api/auth/handle-available?handle=${encodeURIComponent(handle)}`),
     logout: () => fetchJson<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
   },
   onboarding: {
-    start: (body: { platform: string; urlOrHandle: string; consent: boolean }) =>
-      fetchJson<{ success: boolean; jobId: string }>('/api/onboarding/start', { method: 'POST', body: JSON.stringify(body) }),
-    getJob: (jobId: string) => fetchJson<{ job: import('../../shared/types').OnboardingJob }>(`/api/onboarding/job/${jobId}`),
-    instagramLite: (body: { handle: string; sampleCaptions?: string[] }) =>
-      fetchJson<{ success: boolean; result: Record<string, unknown> }>('/api/onboarding/instagram-lite', { method: 'POST', body: JSON.stringify(body) }),
+    saveProfile: (body: OnboardingProfile) =>
+      fetchJson<{ success: boolean }>('/api/onboarding/profile', { method: 'POST', body: JSON.stringify(body) }),
+    startStudy: () =>
+      fetchJson<{ success: boolean; jobId: string; steps: { id: string; label: string }[] }>('/api/onboarding/study/start', {
+        method: 'POST',
+      }),
+    runStep: (jobId: string) =>
+      fetchJson<{ job: StudyJob }>('/api/onboarding/study/step', { method: 'POST', body: JSON.stringify({ jobId }) }),
+    getJob: (jobId: string) => fetchJson<{ job: StudyJob }>(`/api/onboarding/job/${jobId}`),
+    getContent: () =>
+      fetchJson<{
+        items: ContentItem[];
+        stats: { count: number; medianViews: number; avgTitleLength: number; uploadsPerMonth: number; topWords: string[] };
+        lastStudiedAt: string | null;
+      }>('/api/onboarding/content'),
   },
   studio: {
     getProjects: () => fetchJson<{ projects: Project[] }>('/api/studio/projects'),
@@ -146,11 +213,15 @@ export const api = {
         currentDailyUsageUsd: number;
         amazonConfig: { hasCredentials: boolean; partnerTag: string; marketplace: string };
         creator: Creator;
+        monetization: Monetization;
+        goals: string[];
       }>('/api/settings'),
     updateProviders: (body: Partial<ProviderSettings>) =>
       fetchJson<{ success: boolean; providerSettings: ProviderSettings }>('/api/settings/providers', { method: 'PUT', body: JSON.stringify(body) }),
     updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
       fetchJson<{ success: boolean; message: string; hasCredentials: boolean; partnerTag: string; marketplace: string }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
+    updateMonetization: (body: Monetization) =>
+      fetchJson<{ success: boolean; monetization: Monetization }>('/api/settings/monetization', { method: 'PUT', body: JSON.stringify(body) }),
     deleteData: () => fetchJson<{ success: boolean; message: string }>('/api/settings/delete-data', { method: 'POST' }),
   },
   copilot: {

@@ -43,11 +43,53 @@ settingsRoutes.get('/', async (c) => {
     currentDailyUsageUsd: usage,
     amazonConfig: {
       hasCredentials: !!(creds?.amazon_access_key_enc && creds?.amazon_secret_key_enc),
-      partnerTag: creds?.amazon_partner_tag || 'techkabir-21',
+      partnerTag: creds?.amazon_partner_tag || '',
       marketplace: creds?.amazon_marketplace || 'amazon.in',
     },
     creator,
+    monetization: JSON.parse((creator as any).monetization_json || '{}'),
+    goals: JSON.parse((creator as any).goals_json || '[]'),
   });
+});
+
+// Edit the monetization answers from onboarding
+settingsRoutes.put('/monetization', async (c) => {
+  const creator = await getSessionCreator(c.env.DB, getCookie(c, 'cb_session'));
+  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const body = (await c.req.json().catch(() => ({}))) as {
+    amazon?: boolean;
+    partnerTag?: string;
+    marketplace?: string;
+    other?: string[];
+  };
+  if (body.amazon && !/^[\w-]{3,40}$/.test(body.partnerTag || '')) {
+    return c.json({ error: 'Enter your Amazon Associates tracking ID, like yourname-20' }, 400);
+  }
+  const monetization = {
+    amazon: !!body.amazon,
+    partnerTag: body.amazon ? body.partnerTag : '',
+    marketplace: body.marketplace || 'amazon.com',
+    other: (body.other || []).slice(0, 8),
+  };
+  const ts = new Date().toISOString();
+  const db = c.env.DB;
+  const stmts = [
+    db.prepare('UPDATE creators SET monetization_json = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(monetization), ts, creator.id),
+  ];
+  if (monetization.amazon) {
+    stmts.push(
+      db
+        .prepare(
+          `INSERT INTO credentials_encrypted (id, creator_id, amazon_partner_tag, amazon_marketplace, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON CONFLICT (creator_id) DO UPDATE SET amazon_partner_tag = excluded.amazon_partner_tag,
+             amazon_marketplace = excluded.amazon_marketplace, updated_at = excluded.updated_at`
+        )
+        .bind(`cred_${creator.id}`, creator.id, monetization.partnerTag, monetization.marketplace, ts, ts)
+    );
+  }
+  await db.batch(stmts);
+  return c.json({ success: true, monetization });
 });
 
 // Update AI provider settings & budget
@@ -91,7 +133,7 @@ settingsRoutes.put('/amazon', async (c) => {
     creator_id: creator.id,
     amazon_access_key_enc: accessEnc,
     amazon_secret_key_enc: secretEnc,
-    amazon_partner_tag: partnerTag || 'techkabir-21',
+    amazon_partner_tag: partnerTag || '',
     amazon_marketplace: marketplace || 'amazon.in',
     iv,
     created_at: new Date().toISOString(),

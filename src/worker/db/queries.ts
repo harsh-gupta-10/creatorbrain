@@ -16,6 +16,13 @@ import type {
   EarningsReport,
 } from '../../shared/types';
 
+// Never hand password material to routes; public lookups also drop the email
+function stripSecrets(row: Creator | null, keepEmail = true): Creator | null {
+  if (!row) return null;
+  const { password_hash: _h, password_salt: _s, email, ...rest } = row as Creator & Record<string, unknown>;
+  return (keepEmail ? { ...rest, email } : rest) as Creator;
+}
+
 export class DBClient {
   private db: D1Database;
 
@@ -24,17 +31,16 @@ export class DBClient {
   }
 
   async getCreator(id: string): Promise<Creator | null> {
-    return await this.db
-      .prepare('SELECT * FROM creators WHERE id = ?')
-      .bind(id)
-      .first<Creator>();
+    const row = await this.db.prepare('SELECT * FROM creators WHERE id = ?').bind(id).first<Creator>();
+    return stripSecrets(row);
   }
 
   async getCreatorByHandle(handle: string): Promise<Creator | null> {
     return await this.db
       .prepare('SELECT * FROM creators WHERE handle = ?')
       .bind(handle)
-      .first<Creator>();
+      .first<Creator>()
+      .then((row) => stripSecrets(row, false));
   }
 
   /**

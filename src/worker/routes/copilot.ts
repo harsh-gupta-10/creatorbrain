@@ -123,7 +123,7 @@ INSTRUCTIONS:
   // Generate actionable suggestions
   const suggestedPrompts = [
     'Turn this idea into a Content Studio project',
-    'Write 5 punchy title options in Kabir DNA',
+    'Write 5 title options in my voice',
     'Draft a 45-second YouTube Short script',
     'Find best Amazon affiliate deals for this',
   ];

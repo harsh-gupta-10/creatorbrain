@@ -33,7 +33,7 @@ export class AmazonCreatorsClient {
   }
 
   getPartnerTag(): string {
-    return this.credentials?.partnerTag || 'techkabir-21';
+    return this.credentials?.partnerTag || '';
   }
 
   private generateTimestamp(): string {

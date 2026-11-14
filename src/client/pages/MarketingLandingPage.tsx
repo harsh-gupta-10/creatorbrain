@@ -1,1024 +1,333 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Sparkles,
   ArrowRight,
-  Check,
-  FolderKanban,
-  Bot,
+  Clapperboard,
+  MessageSquare,
   Link2,
   ShoppingBag,
-  Brain as BrainIcon,
+  Network,
+  GraduationCap,
   ChevronDown,
-  Smartphone,
-  Send,
-  MessageSquare,
-  TrendingUp,
+  Menu,
+  X,
 } from 'lucide-react';
+import { api } from '../lib/api';
+import { linkProps } from '../lib/router';
+import { Logo, Meter, Spinner, ICON } from '../components/ui';
+import type { Creator } from '../../shared/types';
 
 interface MarketingLandingPageProps {
-  onLaunchApp: (tab?: string) => void;
+  session: { loading: boolean; creator: Creator | null; isSample: boolean };
 }
 
-export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ onLaunchApp }) => {
-  // Sandbox Simulator State
-  const [activeRole, setActiveRole] = useState<'creator' | 'brand' | 'agency'>('creator');
-  const [activeHeroTab, setActiveHeroTab] = useState<'auto-research' | 'studio' | 'affiliate'>('auto-research');
-  const [sandboxPrompt, setSandboxPrompt] = useState<string>('');
-  const [sandboxResponse, setSandboxResponse] = useState<{
-    query: string;
-    answer: string;
-    productTitle?: string;
-    productPrice?: string;
-    badge?: string;
-  } | null>({
-    query: 'Review Motorola Edge 50 vs Vivo T3 Pro under ₹25k',
-    answer:
-      'Synthesized in Kabir’s signature Hinglish DNA voice! Generated 5 high-CTR titles, 8-minute pacing outline with minute 3:45 thermal camera pattern interrupt, and resolved live Amazon pricing.',
-    productTitle: 'Motorola Edge 50 Fusion 5G (8GB RAM, 128GB)',
-    productPrice: '₹22,999 (price as of Nov 13, 2026)',
-    badge: 'Amazon Creators API Resolved',
-  });
+const FEATURES = [
+  {
+    icon: Clapperboard,
+    title: 'Studio',
+    body: 'Turn an idea into titles, a script outline, description, pinned comment and captions, drafted from how your past uploads were written',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Copilot',
+    body: 'Talk through a video idea. It knows your topics, what worked and what did not, and can hand the idea to the Studio',
+  },
+  {
+    icon: Network,
+    title: 'Brain',
+    body: 'Strengths, gaps, topics and audience learned from your content, each with a confidence level and the uploads behind it',
+  },
+  {
+    icon: GraduationCap,
+    title: 'Lessons',
+    body: 'Short lessons and a quiz planned from the gaps in your own channel, not a generic course',
+  },
+  {
+    icon: Link2,
+    title: 'Link in bio and short links',
+    body: 'A public page at your handle and tracked short links for descriptions, with clicks by country and device',
+  },
+  {
+    icon: ShoppingBag,
+    title: 'Amazon affiliate',
+    body: 'Only if you use it: tagged links, product cards, dated prices and disclosures placed where they belong',
+  },
+];
 
-  // Calculator State
-  const [selectedTools, setSelectedTools] = useState<Record<string, boolean>>({
-    chatgpt: true,
-    manychat: true,
-    vidiq: true,
-    linktree: true,
-    bitly: true,
-    compliance: true,
-  });
+const STEPS = [
+  { n: '01', title: 'Tell us where you publish', body: 'Your YouTube channel, Instagram captions, your niche and how you earn' },
+  { n: '02', title: 'We study your recent content', body: 'Your latest uploads, titles, descriptions and views become your Brain in about a minute' },
+  { n: '03', title: 'Draft in your voice', body: 'Every script, title and caption starts from what your audience already responds to' },
+];
 
-  // FAQ Accordion State
+const FAQS = [
+  {
+    q: 'What does it read from my channel',
+    a: 'Your public YouTube uploads feed: titles, descriptions, publish dates, view and like counts for your latest 15 videos. For Instagram, only the captions you paste during setup. It never posts or comments for you.',
+  },
+  {
+    q: 'Do I need to be an Amazon Associate',
+    a: 'No. During setup you tell us how you earn. If you do not use Amazon, the affiliate tools stay out of your way, and you can turn them on later in Settings.',
+  },
+  {
+    q: 'How does it keep learning',
+    a: 'Once a day it checks your channel for new uploads and refreshes your stats. You can also study your channel again from the dashboard at any time.',
+  },
+  {
+    q: 'Which AI does it use',
+    a: 'Cloudflare Workers AI by default, and Anthropic Claude when it is configured. If no model is reachable, your study still runs on title and view statistics, so nothing is made up.',
+  },
+];
+
+export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ session }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [sampleLoading, setSampleLoading] = useState(false);
+  const signedIn = !!session.creator && !session.isSample;
 
-  const sampleQueries = [
-    {
-      title: 'Why did my minute-4 retention dip?',
-      answer:
-        'Analyzed 3 recent teardown videos: retention dropped 14% at minute 3:45 during dry spec-sheet reading. Recommended: insert a 5-second physical camera macro zoom or audio sound bite before benchmark numbers.',
-    },
-    {
-      title: 'Review Motorola Edge 50 vs Vivo T3 Pro',
-      answer:
-        'Product Researcher resolved both phones via Amazon Creators API. Generated 5 titles in Kabir DNA, 8-min script breakdown, tagged short links, and auto-added product cards to your Link-in-Bio.',
-      productTitle: 'Motorola Edge 50 Fusion 5G (8GB RAM, 128GB)',
-      productPrice: '₹22,999 (price as of Nov 13, 2026)',
-      badge: 'Amazon Creators API Resolved',
-    },
-    {
-      title: 'Who bought from my Amazon links this week?',
-      answer:
-        'Tracked 2,387 total clicks across 5 active links. Top converter: /mac-mini-m4-deal (842 clicks, ₹4,210 estimated commission). Best placement: Line 2 of YouTube description.',
-    },
-    {
-      title: 'Can it write in Kabir’s Hinglish voice?',
-      answer:
-        'Strictly grounded in your Creator DNA: conversational pace, 75% English / 25% Hindi colloquial tech phrasing, zero sponsored fluff, and your signature catchphrase: "Let us pop the hood on this."',
-    },
-    {
-      title: 'Draft a 45s Shorts script for M4 Mac Mini',
-      answer:
-        '0:00 Hook: "Base M4 Mac Mini 256GB SSD for 4K ProRes... Is Apple trolling us?"\n0:12 Teardown: Blackmagic disk speed test\n0:30 Verdict: External NVMe workaround saves ₹20,000\n0:42 Link in bio for tested drive enclosure.',
-    },
-    {
-      title: 'Check FTC affiliate disclosure compliance',
-      answer:
-        'Compliance Checker verified: Pinned comment disclosure present, line 2 description disclosure active, and all Amazon pricing claims contain fresh timestamp. 100% compliant with Amazon Operating Agreement.',
-    },
-  ];
+  useEffect(() => {
+    document.title = 'CreatorBrain · Studies your channel, writes in your voice';
+  }, []);
 
-  const toolsCost: Record<string, { name: string; app: string; costInr: number; costUsd: number }> = {
-    chatgpt: { name: 'Ideas, scripts and captions', app: 'ChatGPT Plus / Claude Pro', costInr: 1920, costUsd: 20 },
-    manychat: { name: 'Auto-reply to comments & DMs', app: 'Manychat / Automations', costInr: 1340, costUsd: 15 },
-    vidiq: { name: 'Video SEO & Thumbnail scoring', app: 'TubeBuddy / VidIQ Pro', costInr: 1920, costUsd: 20 },
-    linktree: { name: 'Custom Link-in-Bio page', app: 'Linktree Pro / Beacons', costInr: 990, costUsd: 10 },
-    bitly: { name: 'Tracked short links & analytics', app: 'Bitly Enterprise / Dub', costInr: 2400, costUsd: 25 },
-    compliance: { name: 'FTC & Amazon Compliance Audit', app: 'Legal review / Manual checks', costInr: 2500, costUsd: 30 },
+  const openSample = async () => {
+    setSampleLoading(true);
+    try {
+      await api.auth.sample();
+      window.location.href = '/app';
+    } catch {
+      setSampleLoading(false);
+    }
   };
 
-  const totalMonthlySavingsInr = Object.entries(selectedTools).reduce(
-    (acc, [key, selected]) => (selected ? acc + (toolsCost[key]?.costInr || 0) : acc),
-    0
+  const primaryCta = signedIn ? (
+    <a {...linkProps('/app')} className="btn btn-primary btn-lg">
+      Open your workspace
+      <ArrowRight {...ICON} />
+    </a>
+  ) : (
+    <a {...linkProps('/signup')} className="btn btn-primary btn-lg">
+      Create your account
+    </a>
   );
 
-  const toggleTool = (key: string) => {
-    setSelectedTools((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const faqs = [
-    {
-      q: 'How does CreatorBrain run 100% free on Cloudflare?',
-      a: 'CreatorBrain is architected exclusively on Cloudflare’s generous Free Tier: Cloudflare Workers with Hono handles backend routing, D1 stores the relational knowledge graph, KV powers sub-millisecond link redirects, and React 19 is served as Workers Static Assets. Compressed bundle is only ~120 kB, well below the 3 MB limit.',
-    },
-    {
-      q: 'How does the Amazon Creators API integration work?',
-      a: 'The Product Researcher agent resolves products via Amazon Creators API / PA-API with SearchItems and GetItems operations. It pulls live specs, images, timestamped pricing, and generates tracked affiliate links formatted according to Amazon Operating Agreement Section 4 with mandatory price freshness disclaimers.',
-    },
-    {
-      q: 'What is Creator DNA and how does it learn my voice?',
-      a: 'During onboarding, our 6-agent pipeline analyzes your recent 10 videos (transcripts, thumbnail colors, title length, curiosity gaps, and editing rhythm). It builds a persistent mathematical profile (tone, Hinglish vocabulary, hook formulas, pacing) stored in Cloudflare D1 so all future scripts sound genuinely like you.',
-    },
-    {
-      q: 'Can I bring my own AI provider API keys?',
-      a: 'Yes! CreatorBrain includes a multi-provider AI router supporting Anthropic Claude (3.5 Sonnet / Haiku), OpenAI (GPT-4o), Google Gemini, and Cloudflare Workers AI. Your keys are encrypted locally using Web Crypto AES-GCM 256 with PBKDF2 and never logged.',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#fafaf9] text-slate-900 canvas-grid relative overflow-x-hidden selection:bg-rose-500/20 selection:text-rose-900">
-      {/* Ambient Synclify-inspired warm mesh glow */}
-      <div className="ambient-glow" />
-
-      {/* Top Sticky Header */}
-      <header className="sticky top-0 z-50 bg-[#fafaf9]/85 backdrop-blur-xl border-b border-slate-200/80 transition-colors">
-        <div className="max-w-7xl mx-auto px-5 md:px-8 h-16 flex items-center justify-between gap-4">
-          {/* Brand */}
-          <div className="flex items-center gap-8">
-            <div
-              onClick={() => onLaunchApp('overview')}
-              className="flex items-center gap-2.5 cursor-pointer group"
-            >
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/80 p-[1.5px] shadow-xs">
-                <div className="w-full h-full bg-white rounded-[10px] flex items-center justify-center text-sm">
-                  🧠
-                </div>
-              </div>
-              <span className="font-extrabold text-base tracking-tight text-slate-950 flex items-center gap-1.5">
-                CreatorBrain
-                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                  OS
-                </span>
-              </span>
-            </div>
-
-            {/* Desktop Navigation */}
-            <nav className="hidden md:flex items-center gap-1 text-sm font-medium text-slate-600">
-              <button
-                onClick={() => onLaunchApp('studio')}
-                className="px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-950 transition flex items-center gap-1"
-              >
-                Product <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-              </button>
-              <button
-                onClick={() => onLaunchApp('copilot')}
-                className="px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-950 transition flex items-center gap-1"
-              >
-                Copilot AI
-              </button>
-              <button
-                onClick={() => onLaunchApp('amazon')}
-                className="px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-950 transition"
-              >
-                Amazon Engine
-              </button>
-              <button
-                onClick={() => onLaunchApp('brain')}
-                className="px-3 py-1.5 rounded-lg hover:bg-slate-100 hover:text-slate-950 transition"
-              >
-                Brain Graph
-              </button>
-            </nav>
+    <div className="min-h-screen bg-[#f6f7f9] text-fg">
+      {/* Navigation */}
+      <header className="sticky top-0 z-30 bg-[#f6f7f9]/95 border-b border-line">
+        <div className="max-w-[1200px] mx-auto h-16 px-5 md:px-8 flex items-center justify-between">
+          <a {...linkProps('/')} aria-label="CreatorBrain home">
+            <Logo />
+          </a>
+          <nav className="hidden md:flex items-center gap-8 text-[14px] text-fg-2">
+            <a href="#how" className="hover:text-fg transition-colors">How it works</a>
+            <a href="#features" className="hover:text-fg transition-colors">Features</a>
+            <a href="#faq" className="hover:text-fg transition-colors">Questions</a>
+          </nav>
+          <div className="hidden md:flex items-center gap-4">
+            {signedIn ? (
+              <a {...linkProps('/app')} className="btn btn-primary btn-sm">Open workspace</a>
+            ) : (
+              <>
+                <a {...linkProps('/login')} className="text-[14px] text-fg-2 hover:text-fg transition-colors">Sign in</a>
+                <a {...linkProps('/signup')} className="btn btn-primary btn-sm">Create account</a>
+              </>
+            )}
           </div>
-
-          {/* Action CTAs */}
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => onLaunchApp('overview')}
-              className="hidden sm:inline-flex text-sm font-semibold text-slate-700 hover:text-slate-950 px-3 py-2 transition"
-            >
-              Log in
-            </button>
-            <button
-              onClick={() => onLaunchApp('overview')}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm transition-all shadow-md active:scale-95"
-            >
-              <span>Launch Creator OS</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button className="md:hidden btn btn-ghost btn-sm px-2" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu">
+            {menuOpen ? <X {...ICON} /> : <Menu {...ICON} />}
+          </button>
         </div>
+        {menuOpen && (
+          <div className="md:hidden border-t border-line px-5 py-4 flex flex-col gap-3 text-[14px]">
+            <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
+            <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
+            <a href="#faq" onClick={() => setMenuOpen(false)}>Questions</a>
+            <div className="flex gap-2 pt-2">
+              <a {...linkProps('/login')} className="btn btn-secondary btn-sm flex-1">Sign in</a>
+              <a {...linkProps('/signup')} className="btn btn-primary btn-sm flex-1">Create account</a>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* Main Marketing Hero */}
-      <section className="pt-12 md:pt-20 pb-16 md:pb-24 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          {/* Left Column: Headline & Value Proposition */}
-          <div className="lg:col-span-7 space-y-6">
-            {/* Ecosystem Lockup Badge */}
-            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/90 px-3.5 py-1.5 text-xs text-slate-700 shadow-sm backdrop-blur">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="font-semibold text-slate-900">Amazon Creators API & Cloudflare Free Tier Partner</span>
-            </div>
-
-            {/* Main Headline */}
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-950 tracking-tight leading-[1.08]">
-              The AI assistant for{' '}
-              <span className="gradient-text-coral block sm:inline">
-                your Creator Business.
-              </span>
-            </h1>
-
-            {/* Subtitle */}
-            <p className="text-base sm:text-lg text-slate-600 max-w-2xl leading-relaxed">
-              Ask about your numbers, generate complete 9-asset video packages in your signature voice, auto-tag Amazon affiliate links, and run your Link-in-Bio page. All from one persistent autonomous brain.
-            </p>
-
-            {/* Hero CTAs */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <button
-                onClick={() => onLaunchApp('overview')}
-                className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-slate-950 hover:bg-slate-800 text-white font-bold text-sm transition-all shadow-lg active:scale-95"
-              >
-                <span>Get started with Demo</span>
-                <ArrowRight className="w-4 h-4" />
+      {/* Hero */}
+      <section className="max-w-[1200px] mx-auto px-5 md:px-8 pt-12 md:pt-0 md:min-h-[calc(100vh-64px)] grid gap-12 md:grid-cols-[1fr_1.1fr] md:items-center">
+        <div className="max-w-[520px] rise-in">
+          <h1 className="text-[40px] leading-[44px] md:text-[60px] md:leading-[62px] font-medium tracking-[-0.03em]">
+            Your next video, written the way your audience likes you
+          </h1>
+          <p className="mt-6 text-[18px] leading-[28px] text-fg-2 max-w-[36rem]">
+            CreatorBrain studies your YouTube uploads and Instagram captions, learns how you title, hook and sell, then
+            drafts scripts, packaging and affiliate links in your voice
+          </p>
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            {primaryCta}
+            {!signedIn && (
+              <button className="btn btn-secondary btn-lg" onClick={openSample} disabled={sampleLoading}>
+                {sampleLoading && <Spinner size={14} />}
+                See a sample workspace
               </button>
-              <button
-                onClick={() => onLaunchApp('copilot')}
-                className="inline-flex items-center gap-2 px-5 py-3.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-900 font-semibold text-sm transition shadow-sm active:scale-95"
-              >
-                <MessageSquare className="w-4 h-4 text-rose-500" />
-                <span>Try Brain Copilot</span>
-              </button>
-              <a
-                href="/@techkabir"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-3.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium text-sm transition shadow-sm"
-              >
-                <Smartphone className="w-4 h-4 text-indigo-500" />
-                <span>Live Bio Page</span>
-              </a>
-            </div>
-
-            {/* Sub-Badges Row */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-slate-600 pt-1">
-              <span className="flex items-center gap-1.5">
-                <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                  FREE
-                </span>
-                Edge Link-in-Bio Page
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="rounded-md bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 border border-purple-200">
-                  FREE
-                </span>
-                Creator DNA Graph Audit
-              </span>
-              <button
-                onClick={() => onLaunchApp('studio')}
-                className="text-slate-900 hover:text-rose-600 font-semibold inline-flex items-center gap-1 transition"
-              >
-                See how it works <ArrowRight className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-
-          {/* Right Column: Synclify-inspired Floating Hero Card Preview */}
-          <div className="lg:col-span-5 relative">
-            <div className="relative mx-auto max-w-md">
-              {/* Floating notification badge (Synclify style) */}
-              <div className="absolute -top-4 -left-4 z-20 bg-white/95 border border-slate-200/90 rounded-2xl p-3.5 shadow-xl backdrop-blur-md flex items-center gap-3 animate-in fade-in slide-in-from-top-4">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white text-base shadow-sm">
-                  ⚡
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    CREATORBRAIN · JUST NOW
-                  </div>
-                  <div className="text-xs font-bold text-slate-900">
-                    Synthesized 9 assets for Motorola review
-                  </div>
-                </div>
-              </div>
-
-              {/* Main Visual Phone/Card Box */}
-              <div className="light-panel rounded-3xl p-5 shadow-2xl relative overflow-hidden border border-slate-200">
-                <div className="aspect-[4/5] rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 p-5 text-white flex flex-col justify-between relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500/20 rounded-full blur-3xl pointer-events-none" />
-
-                  {/* Card Top */}
-                  <div className="space-y-1 relative z-10">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-emerald-400 uppercase font-bold tracking-wider px-2 py-0.5 bg-emerald-950/60 rounded-full border border-emerald-800/40">
-                        ● DNA Voice Active
-                      </span>
-                      <span className="text-xs text-slate-300">@techkabir</span>
-                    </div>
-                    <h3 className="text-lg font-extrabold text-white pt-2 leading-tight">
-                      Motorola Edge 50 Fusion vs Vivo T3 Pro: The ₹22,000 Battle
-                    </h3>
-                  </div>
-
-                  {/* Center Chat Bubble */}
-                  <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-3.5 space-y-2 relative z-10">
-                    <div className="text-[11px] text-slate-300">
-                      <span className="font-bold text-rose-300">Hook Formula:</span> "Don't buy until you see this camera teardown."
-                    </div>
-                    <div className="flex items-center justify-between text-[11px] pt-1 border-t border-white/10">
-                      <span className="text-emerald-300 font-mono">₹22,999 on Amazon</span>
-                      <span className="text-[10px] text-slate-400">Tracked Link /s/moto-edge</span>
-                    </div>
-                  </div>
-
-                  {/* Bottom Action Pill */}
-                  <div className="pt-2 flex items-center justify-between text-xs text-slate-400 relative z-10">
-                    <span>9 Assets Ready in Studio</span>
-                    <button
-                      onClick={() => onLaunchApp('studio')}
-                      className="px-3 py-1.5 bg-rose-500 hover:bg-rose-400 text-white font-bold rounded-lg text-xs transition"
-                    >
-                      View Studio →
-                    </button>
-                  </div>
-                </div>
-
-                {/* Floating Bottom Card: Auto DM / Link pill */}
-                <div className="mt-3 p-3 bg-slate-50 border border-slate-200/80 rounded-2xl flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span className="font-semibold text-slate-800">Auto-Tagged Short Link:</span>
-                  </div>
-                  <span className="font-mono text-indigo-600 font-bold">/s/moto-edge-fusion</span>
-                </div>
-              </div>
-
-              {/* Tab Pills below hero preview */}
-              <div className="flex items-center justify-center gap-1.5 mt-4 p-1 bg-slate-200/60 rounded-full max-w-max mx-auto text-xs font-semibold text-slate-600">
-                <button
-                  onClick={() => setActiveHeroTab('auto-research')}
-                  className={`px-3 py-1.5 rounded-full transition ${
-                    activeHeroTab === 'auto-research' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-                  }`}
-                >
-                  Auto Research
-                </button>
-                <button
-                  onClick={() => setActiveHeroTab('studio')}
-                  className={`px-3 py-1.5 rounded-full transition ${
-                    activeHeroTab === 'studio' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-                  }`}
-                >
-                  Content Studio
-                </button>
-                <button
-                  onClick={() => setActiveHeroTab('affiliate')}
-                  className={`px-3 py-1.5 rounded-full transition ${
-                    activeHeroTab === 'affiliate' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
-                  }`}
-                >
-                  Amazon Links
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
+
+        <HeroPreview />
       </section>
 
-      {/* SECTION 2: INTERACTIVE LIVE SIMULATED APP SANDBOX (Synclify-inspired) */}
-      <section className="py-16 md:py-24 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="text-center space-y-3 mb-10">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-600">
-            Interactive Product Demo
-          </p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-950 tracking-tight">
-            This is the real app. Click anything to test it live.
+      {/* How it works */}
+      <section id="how" className="border-t border-line bg-surface">
+        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-20 md:py-28">
+          <h2 className="text-[32px] leading-[40px] font-medium tracking-[-0.02em] max-w-[560px]">
+            Set up once. It keeps studying
           </h2>
-          <p className="text-sm md:text-base text-slate-600 max-w-2xl mx-auto">
-            Switch between Creator, Brand, or Agency roles. Click any question below to see real-time AI responses and Amazon product resolution.
-          </p>
+          <ol className="mt-12 grid gap-8 md:grid-cols-3">
+            {STEPS.map((s) => (
+              <li key={s.n} className="border-t border-line-strong pt-6">
+                <div className="meta">{s.n}</div>
+                <div className="mt-3 text-[17px] font-medium">{s.title}</div>
+                <p className="mt-2 text-fg-2">{s.body}</p>
+              </li>
+            ))}
+          </ol>
         </div>
+      </section>
 
-        {/* The Realistic App Window Frame */}
-        <div className="light-panel rounded-3xl shadow-2xl border border-slate-300/80 overflow-hidden">
-          {/* macOS Window Top Bar */}
-          <div className="h-12 bg-slate-100/90 border-b border-slate-200 px-4 flex items-center justify-between">
-            {/* Window Traffic Lights */}
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E]" />
-              <span className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123]" />
-              <span className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29]" />
+      {/* Features */}
+      <section id="features" className="border-t border-line">
+        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-20 md:py-28">
+          <div className="grid gap-12 md:grid-cols-[1fr_2fr]">
+            <div>
+              <h2 className="text-[32px] leading-[40px] font-medium tracking-[-0.02em]">One workspace for the work around a video</h2>
+              <p className="mt-4 text-fg-2">
+                Ideas, drafts, links and what you learned live in one place, so each video starts where the last one left off
+              </p>
             </div>
-
-            {/* Role Switcher Tabs */}
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-sm text-xs font-semibold">
-              <button
-                onClick={() => setActiveRole('creator')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  activeRole === 'creator'
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-950'
-                }`}
-              >
-                Tech Creator (Kabir)
-              </button>
-              <button
-                onClick={() => setActiveRole('brand')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  activeRole === 'brand'
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-950'
-                }`}
-              >
-                Reviewer Brand
-              </button>
-              <button
-                onClick={() => setActiveRole('agency')}
-                className={`px-3 py-1 rounded-lg transition ${
-                  activeRole === 'agency'
-                    ? 'bg-slate-950 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-950'
-                }`}
-              >
-                Creator Agency
-              </button>
-            </div>
-
-            {/* Simulated URL pill */}
-            <div className="hidden sm:flex items-center gap-1 text-[11px] font-mono text-slate-400 bg-white/80 px-3 py-1 rounded-lg border border-slate-200">
-              <span className="text-emerald-500">🔒</span> app.creatorbrain.dev/copilot
-            </div>
-          </div>
-
-          {/* Window Body: Sidebar + Assistant Canvas + Simulated Mobile Preview */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 min-h-[580px]">
-            {/* Left Simulated Sidebar (3 cols) */}
-            <div className="lg:col-span-3 border-r border-slate-200 bg-slate-50/70 p-4 space-y-4">
-              <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white border border-slate-200 shadow-sm">
-                <img
-                  src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&h=128&q=80"
-                  alt="Kabir Verma"
-                  className="w-8 h-8 rounded-full object-cover border border-rose-300"
-                />
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900 truncate">Kabir Verma</div>
-                  <div className="text-[10px] text-slate-500">Tech & Hardware · 7.5k</div>
+            <div className="grid gap-px bg-line rounded-[16px] overflow-hidden border border-line sm:grid-cols-2">
+              {FEATURES.map((f) => (
+                <div key={f.title} className="bg-surface p-6">
+                  <f.icon {...ICON} className="text-fg-2" />
+                  <div className="mt-4 font-medium">{f.title}</div>
+                  <p className="mt-2 text-[14px] text-fg-2 leading-[22px]">{f.body}</p>
                 </div>
-              </div>
-
-              <div className="space-y-1 text-xs font-semibold text-slate-600">
-                <button
-                  onClick={() => onLaunchApp('overview')}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white transition text-slate-900"
-                >
-                  <TrendingUp className="w-4 h-4 text-slate-500" /> Dashboard
-                </button>
-                <button
-                  onClick={() => onLaunchApp('copilot')}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl bg-white text-slate-950 font-bold border border-slate-200 shadow-sm"
-                >
-                  <MessageSquare className="w-4 h-4 text-rose-500" /> Brain Copilot
-                </button>
-                <button
-                  onClick={() => onLaunchApp('studio')}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white transition"
-                >
-                  <FolderKanban className="w-4 h-4 text-cyan-600" /> Content Studio
-                </button>
-                <button
-                  onClick={() => onLaunchApp('amazon')}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white transition"
-                >
-                  <ShoppingBag className="w-4 h-4 text-amber-600" /> Amazon Affiliate
-                </button>
-                <button
-                  onClick={() => onLaunchApp('brain')}
-                  className="w-full flex items-center gap-2 px-3 py-2 rounded-xl hover:bg-white transition"
-                >
-                  <BrainIcon className="w-4 h-4 text-purple-600" /> Brain Graph
-                </button>
-              </div>
-
-              <div className="pt-4 border-t border-slate-200">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
-                  Recent Researches
-                </span>
-                <div className="space-y-1 text-xs text-slate-600">
-                  <div className="truncate p-1.5 rounded-lg hover:bg-white cursor-pointer">
-                    • Moto Edge vs Vivo T3 Pro
-                  </div>
-                  <div className="truncate p-1.5 rounded-lg hover:bg-white cursor-pointer">
-                    • M4 Mac Mini 4K edit test
-                  </div>
-                  <div className="truncate p-1.5 rounded-lg hover:bg-white cursor-pointer">
-                    • Budget Rode mic comparison
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Center Interactive Assistant Canvas (6 cols) */}
-            <div className="lg:col-span-6 p-6 flex flex-col justify-between bg-white space-y-6">
-              {/* Center Top Prompt Section */}
-              <div className="space-y-4">
-                <div className="text-center space-y-1 pt-2">
-                  <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 mx-auto">
-                    <Sparkles className="w-5 h-5" />
-                  </div>
-                  <h3 className="text-lg font-extrabold text-slate-950">
-                    Evening, Kabir. What do you want to create?
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Pick a question below to see real-time agent synthesis.
-                  </p>
-                </div>
-
-                {/* 6 Clickable Question Pills (Synclify style) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {sampleQueries.map((q, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setSandboxPrompt(q.title);
-                        setSandboxResponse({
-                          query: q.title,
-                          answer: q.answer,
-                          productTitle: q.productTitle,
-                          productPrice: q.productPrice,
-                          badge: q.badge,
-                        });
-                      }}
-                      className="p-3 rounded-2xl bg-slate-50 hover:bg-slate-100 border border-slate-200/90 text-left transition flex items-center justify-between text-xs font-semibold text-slate-800 hover:border-slate-300 group"
-                    >
-                      <span className="truncate pr-2">{q.title}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-rose-600 shrink-0" />
-                    </button>
-                  ))}
-                </div>
-
-                {/* Live Output Box */}
-                {sandboxResponse && (
-                  <div className="p-4 rounded-2xl bg-[#f8fafc] border border-slate-200/90 space-y-3 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                        <Bot className="w-4 h-4 text-rose-600" />
-                        CreatorBrain Response
-                      </span>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                        DNA Voice Grounded
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line font-medium">
-                      {sandboxResponse.answer}
-                    </p>
-
-                    {/* Resolved Product Card if present */}
-                    {sandboxResponse.productTitle && (
-                      <div className="p-3 bg-white border border-amber-300/80 rounded-xl flex items-center justify-between gap-3 shadow-sm">
-                        <div>
-                          <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wider block">
-                            📦 {sandboxResponse.badge}
-                          </span>
-                          <span className="text-xs font-bold text-slate-900">
-                            {sandboxResponse.productTitle}
-                          </span>
-                          <span className="text-[11px] text-slate-500 block">
-                            {sandboxResponse.productPrice}
-                          </span>
-                        </div>
-                        <button
-                          onClick={() => onLaunchApp('studio')}
-                          className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-lg transition shrink-0"
-                        >
-                          Open in Studio →
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Chat Input Bar */}
-              <div className="p-2 rounded-2xl bg-slate-100 border border-slate-200/90 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={sandboxPrompt}
-                  onChange={(e) => setSandboxPrompt(e.target.value)}
-                  placeholder="Ask anything about your YouTube videos, Amazon deals, or scripts..."
-                  className="flex-1 bg-transparent px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none"
-                />
-                <button
-                  onClick={() => onLaunchApp('copilot')}
-                  className="p-2.5 rounded-xl bg-slate-950 text-white font-bold text-xs hover:bg-slate-800 transition"
-                  title="Open in Copilot"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Right Mobile App Live Mirror (3 cols) */}
-            <div className="lg:col-span-3 border-l border-slate-200 bg-slate-50/50 p-5 flex flex-col justify-center items-center">
-              <div className="w-full max-w-[240px] rounded-[36px] bg-slate-950 p-2.5 shadow-2xl border-4 border-slate-800">
-                {/* Phone Speaker Notch */}
-                <div className="w-20 h-4 bg-slate-900 rounded-full mx-auto mb-2" />
-
-                {/* Phone Screen */}
-                <div className="rounded-[26px] bg-white p-3 space-y-3 min-h-[380px] text-slate-900 flex flex-col justify-between">
-                  <div className="space-y-2 text-center pt-1">
-                    <img
-                      src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=128&h=128&q=80"
-                      alt="Kabir Verma"
-                      className="w-12 h-12 rounded-full object-cover mx-auto border-2 border-rose-500"
-                    />
-                    <div className="font-extrabold text-xs text-slate-950">Kabir Verma</div>
-                    <div className="text-[10px] text-slate-500 font-mono">/@techkabir · Bio Page</div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="p-2 rounded-xl bg-slate-100 text-[10px] font-bold text-center border border-slate-200">
-                      🔥 Motorola Edge 50 Deal (₹22,999)
-                    </div>
-                    <div className="p-2 rounded-xl bg-slate-100 text-[10px] font-bold text-center border border-slate-200">
-                      ⚡ M4 Mac Mini 4K Studio Setup
-                    </div>
-                    <div className="p-2 rounded-xl bg-slate-100 text-[10px] font-bold text-center border border-slate-200">
-                      🎙️ Budget Mic Kit on Amazon
-                    </div>
-                  </div>
-
-                  <div className="text-center pt-2 border-t border-slate-100">
-                    <span className="text-[9px] text-slate-400 font-mono">
-                      Sub-millisecond Edge Bio · D1 Powered
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <span className="text-[11px] text-slate-500 mt-3 font-medium">
-                Live mobile sync preview
-              </span>
+              ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* SECTION 3: "SAY IT ONCE, RUN IT ANYWHERE" */}
-      <section className="py-16 md:py-24 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="text-center space-y-3 mb-12">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-600">
-            Omnichannel Autonomous Execution
-          </p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-950 tracking-tight">
-            Say it once. 13 agents run it everywhere.
-          </h2>
-          <p className="text-sm md:text-base text-slate-600 max-w-2xl mx-auto">
-            You don't need to manually click through 6 different dashboards. Just speak or type your video concept, and your agents orchestrate everything in parallel.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Review Motorola Edge 50, ₹22k budget"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
-                Voice & Chat
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Product Researcher pulls live specs from Amazon Creators API; Studio Agent writes 5 title options and full description.
-            </p>
-          </div>
-
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Why did retention dip at minute 3:45?"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 border border-purple-200">
-                Diagnostician
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Diagnostician inspects audience graph, isolates dry spec reading, and schedules an interactive coaching lesson.
-            </p>
-          </div>
-
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Generate tracked links for my description"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                Link Agent
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Registers transparent KV short links (`/s/:slug`), generates tagged Amazon affiliate URLs, and auto-adds product cards to Bio.
-            </p>
-          </div>
-
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Check FTC and Amazon Compliance"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600 border border-cyan-200">
-                Compliance
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Verifies mandatory affiliate disclosure lines and ensures pricing claims include fresh date timestamps.
-            </p>
-          </div>
-
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Draft a 45s Shorts & Reels script"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                Shorts Agent
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Cuts down long-form comparison into vertical 9:16 high-velocity hook with verbal CTA to pinned link.
-            </p>
-          </div>
-
-          <div className="light-card p-5 rounded-2xl space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-900">"Autonomous Daily Cron Fleet"</span>
-              <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">
-                Hourly Cron
-              </span>
-            </div>
-            <p className="text-xs text-slate-500">
-              Memory Curator merges redundant style traits, evaluates click-through performance, and updates the dashboard Next Best Action.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 4: THE ICONIC TOOL REPLACEMENT & SAVINGS CALCULATOR (Synclify style) */}
-      <section className="py-16 md:py-24 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="light-panel rounded-3xl p-6 md:p-10 border border-slate-300/80 shadow-2xl">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-            {/* Left Column: Apps to stop paying for */}
-            <div className="lg:col-span-7 space-y-4">
-              <div>
-                <span className="text-xs font-bold uppercase tracking-wider text-rose-600">
-                  Consolidate Your Creator Stack
-                </span>
-                <h3 className="text-2xl md:text-3xl font-extrabold text-slate-950 tracking-tight mt-1">
-                  Replace 6+ scattered subscriptions with one autonomous brain.
-                </h3>
-                <p className="text-xs md:text-sm text-slate-600 mt-1">
-                  Check or uncheck the tools you currently use to calculate your monthly savings:
-                </p>
-              </div>
-
-              {/* Checklist */}
-              <div className="space-y-2 pt-2">
-                {Object.entries(toolsCost).map(([key, item]) => {
-                  const isChecked = selectedTools[key] ?? false;
-                  return (
-                    <div
-                      key={key}
-                      onClick={() => toggleTool(key)}
-                      className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
-                        isChecked
-                          ? 'bg-white border-slate-300 shadow-sm'
-                          : 'bg-slate-50/60 border-slate-200 opacity-60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-5 h-5 rounded-md flex items-center justify-center transition ${
-                            isChecked ? 'bg-slate-950 text-white' : 'border border-slate-400 bg-white'
-                          }`}
-                        >
-                          {isChecked && <Check className="w-3.5 h-3.5" />}
-                        </div>
-                        <div>
-                          <div className="text-xs font-bold text-slate-900">{item.name}</div>
-                          <div className="text-[11px] text-slate-500">{item.app}</div>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-slate-900 font-mono">
-                          ₹{item.costInr.toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block">/ month</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Right Column: Savings Summary Card (Synclify style) */}
-            <div className="lg:col-span-5">
-              <div className="p-6 md:p-8 rounded-3xl bg-[#0f172a] text-white shadow-2xl space-y-6 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-rose-500/20 rounded-full blur-2xl pointer-events-none" />
-
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
-                    What you spend today
-                  </span>
-                  <div className="mt-2 flex items-baseline gap-2">
-                    <span className="text-4xl md:text-5xl font-extrabold line-through text-slate-400 font-mono">
-                      ₹{totalMonthlySavingsInr.toLocaleString()}
-                    </span>
-                    <span className="text-sm text-slate-300">/ month</span>
-                  </div>
-                  <div className="text-xs text-slate-400 mt-1">
-                    That's ₹{(totalMonthlySavingsInr * 12).toLocaleString()} every year in fragmented subscriptions.
-                  </div>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-white uppercase tracking-wider">
-                      CreatorBrain on Cloudflare
-                    </span>
-                    <span className="text-xs font-extrabold text-emerald-400 font-mono">
-                      ₹0 / Free Tier
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-300 leading-relaxed">
-                    Zero platform fees. Host on Cloudflare Workers Free Tier (100,000 req/day, D1 database, KV edge caching) with BYO API keys.
-                  </p>
-                </div>
-
+      {/* FAQ */}
+      <section id="faq" className="border-t border-line bg-surface">
+        <div className="max-w-[760px] mx-auto px-5 md:px-8 py-20 md:py-28">
+          <h2 className="text-[32px] leading-[40px] font-medium tracking-[-0.02em]">Questions</h2>
+          <div className="mt-8 border-t border-line">
+            {FAQS.map((f, i) => (
+              <div key={f.q} className="border-b border-line">
                 <button
-                  onClick={() => onLaunchApp('overview')}
-                  className="w-full py-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition shadow-lg shadow-indigo-600/25 active:scale-95"
+                  className="w-full flex items-center justify-between gap-4 py-5 text-left"
+                  aria-expanded={openFaq === i}
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 >
-                  Start Saving with CreatorBrain →
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 5: 4 CORE SYSTEM PILLARS */}
-      <section className="py-16 md:py-24 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="text-center space-y-3 mb-12">
-          <p className="text-xs font-bold uppercase tracking-wider text-rose-600">
-            End-to-End Capabilities
-          </p>
-          <h2 className="text-3xl md:text-4xl font-extrabold text-slate-950 tracking-tight">
-            Built from scratch for modern video creators.
-          </h2>
-          <p className="text-sm md:text-base text-slate-600 max-w-2xl mx-auto">
-            Everything your channel needs to research, script, monetize, and audit in one place.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="light-panel p-6 rounded-3xl space-y-3">
-            <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600">
-              <BrainIcon className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-950">Persistent Creator DNA</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              14 graph nodes and 18 edges in Cloudflare D1 retain your exact pacing, catchphrases, vocabulary mix, and thumbnail visual identity.
-            </p>
-          </div>
-
-          <div className="light-panel p-6 rounded-3xl space-y-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
-              <FolderKanban className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-950">9-Asset Content Studio</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Synthesizes 5 titles, description, tags, pinned comment, Shorts script, IG caption, outline, thumbnail concepts, and community polls.
-            </p>
-          </div>
-
-          <div className="light-panel p-6 rounded-3xl space-y-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
-              <ShoppingBag className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-950">Amazon Creators API</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Automatic product resolution with price freshness timestamps, ASIN validation, and FTC-compliant disclosure tracking.
-            </p>
-          </div>
-
-          <div className="light-panel p-6 rounded-3xl space-y-3">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
-              <Link2 className="w-5 h-5" />
-            </div>
-            <h3 className="text-base font-bold text-slate-950">Sub-ms Edge Short Links</h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Cloudflare KV transparent redirect engine with SSRF domain safety and server-rendered Link-in-Bio pages.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* SECTION 6: FAQ ACCORDION */}
-      <section className="py-16 md:py-24 px-5 md:px-8 max-w-4xl mx-auto relative z-10">
-        <div className="text-center space-y-3 mb-10">
-          <h2 className="text-3xl font-extrabold text-slate-950 tracking-tight">
-            Frequently Asked Questions
-          </h2>
-          <p className="text-sm text-slate-600">
-            Everything you need to know about hosting, Amazon compliance, and agent workflows.
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {faqs.map((faq, idx) => {
-            const isOpen = openFaq === idx;
-            return (
-              <div
-                key={idx}
-                className="light-panel rounded-2xl border border-slate-200/90 overflow-hidden transition"
-              >
-                <button
-                  onClick={() => setOpenFaq(isOpen ? null : idx)}
-                  className="w-full p-4 md:p-5 text-left flex items-center justify-between font-bold text-sm text-slate-900"
-                >
-                  <span>{faq.q}</span>
+                  <span className="text-[16px] font-medium">{f.q}</span>
                   <ChevronDown
-                    className={`w-4 h-4 text-slate-400 transition-transform ${
-                      isOpen ? 'rotate-180 text-rose-600' : ''
-                    }`}
+                    {...ICON}
+                    className={`text-fg-3 shrink-0 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`}
                   />
                 </button>
-                {isOpen && (
-                  <div className="px-5 pb-5 text-xs text-slate-600 leading-relaxed border-t border-slate-100 pt-3">
-                    {faq.a}
-                  </div>
-                )}
+                {openFaq === i && <p className="pb-5 -mt-1 text-fg-2 leading-[22px]">{f.a}</p>}
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* SECTION 7: FINAL CTA BANNER */}
-      <section className="py-16 px-5 md:px-8 max-w-7xl mx-auto relative z-10">
-        <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 p-8 md:p-14 text-white text-center space-y-6 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-1/4 w-96 h-96 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="max-w-2xl mx-auto space-y-3 relative z-10">
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
-              Open Innovation · Hack2Skill & Google AgentX 2.0
-            </span>
-            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight">
-              Ready to run your channel on an autonomous brain?
-            </h2>
-            <p className="text-sm md:text-base text-slate-300">
-              Try the pre-analyzed demo channel or onboard your own YouTube or Instagram handle in under 2 minutes.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-3 pt-2 relative z-10">
-            <button
-              onClick={() => onLaunchApp('overview')}
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white hover:bg-slate-100 text-slate-950 font-bold text-sm transition shadow-lg active:scale-95"
-            >
-              <span>Launch Creator OS</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => onLaunchApp('copilot')}
-              className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-sm transition backdrop-blur active:scale-95"
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>Chat with Copilot</span>
-            </button>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* FOOTER */}
-      <footer className="border-t border-slate-200/80 bg-white py-12 px-5 md:px-8 text-xs text-slate-500 relative z-10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-xs">
-              🧠
-            </div>
-            <span className="font-extrabold text-sm text-slate-900 tracking-tight">CreatorBrain OS</span>
-            <span>·</span>
-            <span>Agentic Creator Operating System</span>
-          </div>
+      {/* Closing */}
+      <section className="border-t border-line">
+        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-20 md:py-24 flex flex-col md:flex-row md:items-end md:justify-between gap-8">
+          <h2 className="text-[32px] leading-[40px] md:text-[40px] md:leading-[48px] font-medium tracking-[-0.02em] max-w-[620px]">
+            Bring your channel. Setup takes about three minutes
+          </h2>
+          {primaryCta}
+        </div>
+      </section>
 
-          <div className="flex items-center gap-6 font-medium text-slate-600">
-            <button onClick={() => onLaunchApp('overview')} className="hover:text-slate-900">
-              App
-            </button>
-            <button onClick={() => onLaunchApp('copilot')} className="hover:text-slate-900">
-              Copilot
-            </button>
-            <button onClick={() => onLaunchApp('studio')} className="hover:text-slate-900">
-              Studio
-            </button>
-            <button onClick={() => onLaunchApp('amazon')} className="hover:text-slate-900">
-              Amazon
-            </button>
-            <a href="/@techkabir" target="_blank" rel="noreferrer" className="hover:text-slate-900">
-              Bio Page
-            </a>
-          </div>
-
-          <div className="flex items-center gap-2 font-mono text-[11px] text-slate-400">
-            <span>Cloudflare Free Tier</span>
-            <span>•</span>
-            <span>React 19</span>
-            <span>•</span>
-            <span>Hono</span>
-          </div>
+      <footer className="border-t border-line">
+        <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between text-[13px] text-fg-3">
+          <Logo />
+          <span>Runs on Cloudflare</span>
         </div>
       </footer>
+    </div>
+  );
+};
+
+/** The product moment: a channel study result, built in code with plausible data */
+const PREVIEW_VIEWS = [41, 38, 52, 47, 36, 61, 44, 58, 49, 112, 63, 71];
+const HeroPreview: React.FC = () => {
+  const max = 120;
+  return (
+    <div className="relative pb-12 md:pb-0 rise-in" style={{ animationDelay: '60ms' }}>
+      <div className="panel shadow-[0_8px_24px_rgb(0_0_0/0.06)] overflow-hidden">
+        <div className="h-11 px-4 flex items-center justify-between border-b border-line">
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="font-medium">Channel study</span>
+            <span className="text-fg-3">@mayacooks</span>
+          </div>
+          <span className="meta">12 uploads · Nov 14</span>
+        </div>
+
+        <div className="p-5 grid gap-5 sm:grid-cols-[1.4fr_1fr]">
+          <div>
+            <div className="flex items-baseline justify-between">
+              <span className="text-[13px] text-fg-2">Views per upload</span>
+              <span className="meta">median 50K</span>
+            </div>
+            <div className="mt-4 h-[148px] flex items-end gap-[6px] relative">
+              <div className="absolute left-0 right-0 border-t border-dashed border-fg-3/50" style={{ bottom: `${(50 / max) * 100}%` }} />
+              {PREVIEW_VIEWS.map((v, i) => (
+                <div
+                  key={i}
+                  className={`flex-1 rounded-[3px] ${i === 9 ? 'bg-accent' : 'bg-[#d4d4d8]'}`}
+                  style={{ height: `${(v / max) * 100}%` }}
+                />
+              ))}
+            </div>
+            <div className="mt-3 rounded-[8px] bg-accent-soft px-3 py-2">
+              <div className="text-[13px] text-fg leading-5">One-pan dal for busy weeknights in 20 minutes</div>
+              <div className="meta mt-[2px]">112K views · 2.2x your median</div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <span className="text-[13px] text-fg-2">Learned</span>
+            {[
+              { k: 'Hook', v: 'Shows the finished dish first', c: 0.9 },
+              { k: 'Titles', v: 'Time promise up front', c: 0.8 },
+              { k: 'Tone', v: 'Warm, practical, no filler', c: 0.7 },
+              { k: 'Gap', v: 'Descriptions skip ingredients', c: 0.6 },
+            ].map((t) => (
+              <div key={t.k} className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[12px] text-fg-3">{t.k}</div>
+                  <div className="text-[13px] leading-5">{t.v}</div>
+                </div>
+                <Meter value={t.c} className="mt-1 shrink-0" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t border-line p-5">
+          <div className="text-[13px] text-fg-2">Drafted for your next upload</div>
+          <ul className="mt-3 flex flex-col gap-2">
+            {['Weeknight palak paneer in 25 minutes, one pan', 'I cooked dinner for a week on $40: what worked'].map((t, i) => (
+              <li key={t} className="flex items-center gap-3">
+                <span className="meta w-5">{String(i + 1).padStart(2, '0')}</span>
+                <span className="text-[14px]">{t}</span>
+                <span className="meta ml-auto hidden sm:inline">{t.length} ch</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,20 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  Sparkles,
-  Send,
-  Bot,
-  User,
-  ShoppingBag,
-  ArrowRight,
-  FolderPlus,
-  RefreshCw,
-  Lightbulb,
-  Film,
-  ShieldCheck,
-  Check,
-  Zap,
-} from 'lucide-react';
+import { ArrowUp, FolderPlus, Check, Package } from 'lucide-react';
 import { api } from '../lib/api';
+import { PageHeader, ErrorNote, Segmented, Spinner, ICON } from '../components/ui';
 import type { Product, Creator } from '../../shared/types';
 
 interface Message {
@@ -24,6 +11,7 @@ interface Message {
   time: string;
   product?: Product | null;
   proposedProject?: { title: string; brief: string } | null;
+  isError?: boolean;
 }
 
 interface CopilotTabProps {
@@ -36,7 +24,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     {
       id: 'welcome',
       role: 'assistant',
-      content: `### Welcome to your Creator Brain Copilot 👋\n\nI am your persistent AI co-strategist, fully synchronized with your **Creator DNA** (${creator?.name || 'Kabir Verma'}, ${creator?.niche || 'Tech & Hardware'}).\n\nTell me about any video idea you're thinking of making—whether it's a rough thought, a product comparison on Amazon, or a retention question. I will:\n- 🎯 Shape it into high-CTR angles in your voice\n- 🔍 Look up live Amazon specs, pricing, and ASINs\n- ⏱️ Architect the 8-minute pacing to prevent minute-4 drop-offs\n- 🎬 Turn it directly into a project in your Content Studio with 1 click!\n\nWhat are you thinking of creating today?`,
+      content: `${creator?.name ? `Working from ${creator.name}'s published videos and posts${creator.niche ? ` (${creator.niche})` : ''}.` : 'Working from your published videos and posts.'}\n\nDescribe a video you are considering, a product comparison or a retention problem. I can:\n- Suggest angles and hooks in your voice\n- Look up Amazon specs, prices and ASINs\n- Plan pacing around where viewers usually drop off\n- Turn the idea into a Content Studio project\n\nWhat are you working on?`,
       time: 'Just now',
     },
   ]);
@@ -45,6 +33,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const [loading, setLoading] = useState(false);
   const [activeMode, setActiveMode] = useState<'brainstorm' | 'script' | 'review' | 'strategy'>('brainstorm');
   const [createdProjectSuccess, setCreatedProjectSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -58,22 +47,22 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
   const starterPrompts = [
     {
-      label: 'Motorola vs Vivo Review',
-      prompt: 'I want to review the Motorola Edge 50 Fusion vs Vivo T3 Pro 5G for college students under ₹25k. Give me 3 viral angles and teardown points.',
+      label: 'Compare two phones',
+      prompt: 'I want to review the Motorola Edge 50 Fusion vs Vivo T3 Pro 5G for college students under ₹25k. Give me 3 angles and teardown points.',
       mode: 'brainstorm' as const,
     },
     {
-      label: 'M4 Mac Mini 4K Test',
+      label: 'Hook for a Mac mini test',
       prompt: 'Testing the base M4 Mac Mini for 4K video editing. What is the most contrarian hook to test if 256GB SSD is really enough?',
       mode: 'script' as const,
     },
     {
-      label: 'Fix Minute-4 Dip',
+      label: 'Fix the minute 4 drop',
       prompt: 'My viewers drop off between minutes 3:45 and 5:00. How do I build a forward loop and pattern interrupt for my next phone teardown?',
       mode: 'strategy' as const,
     },
     {
-      label: 'Amazon Studio Kit',
+      label: 'Budget gear kit',
       prompt: 'Suggest a budget YouTube creator gear kit on Amazon India under ₹15,000 that I can recommend to my student audience.',
       mode: 'review' as const,
     },
@@ -95,7 +84,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     setLoading(true);
 
     try {
-      const history = messages.slice(-6).map((m) => ({
+      const history = messages.filter((m) => !m.isError).slice(-6).map((m) => ({
         role: m.role,
         content: m.content,
       }));
@@ -117,11 +106,12 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
 
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : 'Please retry.';
+      const errMsg = err instanceof Error ? err.message : 'Try again';
       const errorMsg: Message = {
         id: `msg_${Date.now()}_err`,
         role: 'assistant',
-        content: `⚠️ Encountered an issue connecting to CreatorBrain AI engine: ${errMsg}`,
+        content: `Could not get a reply: ${errMsg}`,
+        isError: true,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, errorMsg]);
@@ -137,7 +127,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         brief,
         status: 'Idea',
       });
-      setCreatedProjectSuccess(`Project "${res.project.title}" created! Opening Content Studio...`);
+      setActionError(null);
+      setCreatedProjectSuccess(`Created "${res.project.title}". Opening Content Studio`);
       setTimeout(() => {
         if (onNavigateTab) {
           onNavigateTab('studio');
@@ -145,7 +136,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       }, 1200);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
-      alert(`Failed to create project: ${errMsg}`);
+      setActionError(`Could not create the project: ${errMsg}`);
     }
   };
 
@@ -172,7 +163,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     return parts.map((part, i) => {
       if (part.startsWith('**') && part.endsWith('**')) {
         return (
-          <strong key={i} className="font-bold text-slate-900">
+          <strong key={i} className="font-medium text-fg">
             {part.slice(2, -2)}
           </strong>
         );
@@ -186,308 +177,227 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     return lines.map((line, idx) => {
       if (line.startsWith('### ')) {
         return (
-          <h3 key={idx} className="text-sm font-extrabold text-slate-900 mt-2.5 mb-1 tracking-tight">
+          <h3 key={idx} className="text-[15px] font-medium text-fg mt-3 mb-1">
             {line.replace('### ', '')}
           </h3>
         );
       }
       if (line.startsWith('#### ')) {
         return (
-          <h4 key={idx} className="text-xs font-bold text-indigo-700 mt-2 mb-0.5">
+          <h4 key={idx} className="font-medium text-fg mt-2 mb-1">
             {line.replace('#### ', '')}
           </h4>
         );
       }
       if (line.startsWith('- ')) {
         return (
-          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
-            <span className="text-indigo-500 font-bold">•</span>
+          <div key={idx} className="flex items-start gap-2 pl-1">
+            <span className="text-fg-3" aria-hidden="true">
+              &bull;
+            </span>
             <span>{renderInline(line.replace('- ', ''))}</span>
           </div>
         );
       }
       if (/^\d+\.\s/.test(line)) {
         return (
-          <div key={idx} className="flex items-start gap-1.5 ml-2 my-0.5 text-slate-700">
-            <span className="text-indigo-600 font-mono font-bold text-[11px]">{line.match(/^\d+\./)?.[0]}</span>
+          <div key={idx} className="flex items-start gap-2 pl-1">
+            <span className="meta leading-5">{line.match(/^\d+\./)?.[0]}</span>
             <span>{renderInline(line.replace(/^\d+\.\s*/, ''))}</span>
           </div>
         );
       }
       if (!line.trim()) {
-        return <div key={idx} className="h-1.5" />;
+        return <div key={idx} className="h-2" />;
       }
-      return (
-        <p key={idx} className="my-0.5 text-slate-700 leading-relaxed">
-          {renderInline(line)}
-        </p>
-      );
+      return <p key={idx}>{renderInline(line)}</p>;
     });
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-w-6xl mx-auto p-4 sm:p-6 space-y-4">
-      {/* Top Banner / Mode Switcher */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200/80">
-              <Sparkles className="w-4 h-4" />
-            </span>
-            <h1 className="text-lg font-bold text-slate-900 tracking-tight flex items-center gap-2">
-              CreatorBrain Copilot
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 font-mono font-bold">
-                DNA Synced
-              </span>
-            </h1>
-          </div>
-          <p className="text-xs text-slate-500">
-            Describe your video ideas in plain words. 13 autonomous agents research specs, build hooks in your voice, and prep your assets.
-          </p>
-        </div>
-
-        {/* Mode Selector */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100 border border-slate-200/80 rounded-xl self-start md:self-auto overflow-x-auto text-xs">
-          <button
-            onClick={() => setActiveMode('brainstorm')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeMode === 'brainstorm'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-            Brainstorm
-          </button>
-          <button
-            onClick={() => setActiveMode('script')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeMode === 'script'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Film className="w-3.5 h-3.5 text-purple-500" />
-            Script Architecture
-          </button>
-          <button
-            onClick={() => setActiveMode('review')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeMode === 'review'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShoppingBag className="w-3.5 h-3.5 text-orange-500" />
-            Amazon Deals
-          </button>
-          <button
-            onClick={() => setActiveMode('strategy')}
-            className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 whitespace-nowrap ${
-              activeMode === 'strategy'
-                ? 'bg-white text-slate-900 shadow-xs font-semibold'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            Retention & Gaps
-          </button>
-        </div>
-      </div>
-
-      {createdProjectSuccess && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 animate-in fade-in shadow-xs font-medium">
-          <Check className="w-4 h-4 text-emerald-600" />
-          {createdProjectSuccess}
-        </div>
-      )}
-
-      {/* Main Conversation Canvas */}
-      <div className="flex-1 min-h-0 bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-6 overflow-y-auto space-y-6 shadow-xs">
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`flex gap-3.5 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-xl bg-indigo-600 flex items-center justify-center text-white shrink-0 shadow-xs">
-                <Bot className="w-4 h-4" />
-              </div>
-            )}
-
-            <div className={`max-w-2xl space-y-3 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-              {/* Message Header */}
-              <div
-                className={`flex items-center gap-2 text-[11px] ${
-                  msg.role === 'user' ? 'justify-end text-slate-500' : 'text-slate-500'
-                }`}
-              >
-                <span className="font-semibold text-slate-700">
-                  {msg.role === 'user' ? creator?.name || 'You' : 'CreatorBrain Copilot'}
-                </span>
-                <span>•</span>
-                <span>{msg.time}</span>
-              </div>
-
-              {/* Message Bubble */}
-              <div
-                className={`p-4 rounded-2xl text-xs leading-relaxed shadow-xs ${
-                  msg.role === 'user'
-                    ? 'bg-slate-900 text-white rounded-tr-none font-medium'
-                    : 'bg-slate-50 border border-slate-200/80 text-slate-800 rounded-tl-none font-sans'
-                }`}
-              >
-                {renderContent(msg.content)}
-              </div>
-
-              {/* Embedded Resolved Amazon Product Card */}
-              {msg.product && (
-                <div className="p-3.5 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 text-xs shadow-xs animate-in fade-in">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={msg.product.image_url}
-                      alt={msg.product.title}
-                      className="w-12 h-12 object-contain rounded-xl bg-slate-50 p-1 border border-slate-200 shrink-0"
-                    />
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-bold text-indigo-700 uppercase tracking-wider flex items-center gap-1">
-                        <span>📦</span> Amazon Creators API Resolved
-                      </div>
-                      <h4 className="font-semibold text-slate-900 truncate text-xs">{msg.product.title}</h4>
-                      <p className="text-[11px] text-slate-600">
-                        {msg.product.price_str}{' '}
-                        <span className="text-[9px] text-slate-500">
-                          (price as of {formatPriceTimestamp(msg.product.price_timestamp)})
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      handleCreateProjectFromChat(
-                        `Review: ${msg.product?.title}`,
-                        `In-depth review and teardown of ${msg.product?.title} (ASIN: ${msg.product?.asin}) targeting budget tech buyers.`
-                      )
-                    }
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
-                  >
-                    <FolderPlus className="w-3.5 h-3.5" />
-                    Open in Studio
-                  </button>
-                </div>
-              )}
-
-              {/* Action Button: Create Project from Proposed Concept */}
-              {msg.proposedProject && (
-                <div className="p-3 bg-slate-50 border border-slate-200/90 rounded-xl flex items-center justify-between gap-3 text-xs shadow-xs">
-                  <div>
-                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">
-                      Proposed Studio Project
-                    </span>
-                    <span className="text-slate-900 font-semibold">{msg.proposedProject.title}</span>
-                  </div>
-                  <button
-                    onClick={() =>
-                      handleCreateProjectFromChat(
-                        msg.proposedProject!.title,
-                        msg.proposedProject!.brief
-                      )
-                    }
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 shrink-0 shadow-xs"
-                  >
-                    Create Project →
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {msg.role === 'user' && (
-              <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
-                <User className="w-4 h-4" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {loading && (
-          <div className="flex gap-3.5 items-center text-xs text-indigo-600 animate-pulse py-2">
-            <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200/80 flex items-center justify-center text-indigo-600">
-              <RefreshCw className="w-4 h-4 animate-spin" />
-            </div>
-            <span>CreatorBrain Copilot is analyzing your idea against Creator DNA and Amazon catalog...</span>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Starter Prompt Chips */}
-      {messages.length <= 2 && (
-        <div className="space-y-1.5">
-          <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-            <Zap className="w-3 h-3 text-indigo-600" />
-            Quick Ideas to Try
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-            {starterPrompts.map((item, idx) => (
-              <button
-                key={idx}
-                onClick={() => {
-                  setActiveMode(item.mode);
-                  handleSend(item.prompt);
-                }}
-                className="p-2.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-indigo-300 text-left transition text-xs space-y-1 group shadow-xs"
-              >
-                <div className="font-semibold text-slate-800 group-hover:text-indigo-600 flex items-center justify-between">
-                  <span>{item.label}</span>
-                  <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-indigo-600" />
-                </div>
-                <div className="text-[11px] text-slate-500 line-clamp-1">{item.prompt}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Input Bar */}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          handleSend();
-        }}
-        className="bg-white border border-slate-200/90 rounded-2xl p-2.5 shadow-sm space-y-2"
-      >
-        <div className="flex items-end gap-2">
-          <textarea
-            ref={textareaRef}
-            rows={2}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Describe your video idea, comparison, or review angle in plain words... (Press Enter to send)`}
-            className="flex-1 bg-transparent border-0 text-xs text-slate-900 placeholder-slate-400 focus:outline-none resize-none px-2 py-1 leading-relaxed"
+    <div className="flex flex-col">
+      <PageHeader
+        title="Copilot"
+        description="Talk through a video idea. Answers draw on your published content and live Amazon data"
+        actions={
+          <Segmented
+            value={activeMode}
+            onChange={setActiveMode}
+            options={[
+              { value: 'brainstorm', label: 'Brainstorm' },
+              { value: 'script', label: 'Script' },
+              { value: 'review', label: 'Products' },
+              { value: 'strategy', label: 'Retention' },
+            ]}
           />
+        }
+      />
 
-          <button
-            type="submit"
-            disabled={loading || !input.trim()}
-            className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-600/20 disabled:opacity-40 shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+      {(createdProjectSuccess || actionError) && (
+        <div className="mb-4">
+          {actionError ? (
+            <ErrorNote>{actionError}</ErrorNote>
+          ) : (
+            <div className="card px-4 py-3 flex items-center gap-2 text-[13px] text-fg">
+              <Check {...ICON} className="text-positive shrink-0" />
+              {createdProjectSuccess}
+            </div>
+          )}
         </div>
+      )}
 
-        <div className="flex items-center justify-between text-[11px] text-slate-400 px-2 pt-1 border-t border-slate-100">
-          <div className="flex items-center gap-2">
-            <span>Mode:</span>
-            <span className="font-semibold text-indigo-600 capitalize">{activeMode}</span>
-            <span>•</span>
-            <span>Grounding: Creator DNA + Cloudflare D1 Graph</span>
+      <div className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
+          <div className="max-w-3xl mx-auto space-y-6">
+            {messages.map((msg) =>
+              msg.role === 'user' ? (
+                <div key={msg.id} className="flex flex-col items-end gap-1">
+                  <div className="max-w-[85%] rounded-[12px] bg-raised px-4 py-3 text-fg whitespace-pre-wrap">
+                    {msg.content}
+                  </div>
+                  <span className="meta">{msg.time}</span>
+                </div>
+              ) : (
+                <div key={msg.id} className="space-y-3">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-[13px] font-medium text-fg">Copilot</span>
+                    <span className="meta">{msg.time}</span>
+                  </div>
+
+                  {msg.isError ? (
+                    <ErrorNote>{msg.content}</ErrorNote>
+                  ) : (
+                    <div className="text-fg-2 leading-[22px] space-y-1">{renderContent(msg.content)}</div>
+                  )}
+
+                  {msg.product && (
+                    <div className="card p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {msg.product.image_url ? (
+                          <img
+                            src={msg.product.image_url}
+                            alt={msg.product.title}
+                            className="w-12 h-12 object-contain rounded-[8px] bg-raised p-1 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-[8px] bg-raised flex items-center justify-center shrink-0">
+                            <Package {...ICON} className="text-fg-3" />
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <div className="font-medium text-fg truncate">{msg.product.title}</div>
+                          <div className="flex items-baseline gap-2 mt-1">
+                            <span className="num text-fg-2">{msg.product.price_str}</span>
+                            <span className="meta">
+                              as of {formatPriceTimestamp(msg.product.price_timestamp)} &middot; {msg.product.asin}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() =>
+                          handleCreateProjectFromChat(
+                            `Review: ${msg.product?.title}`,
+                            `In-depth review and teardown of ${msg.product?.title} (ASIN: ${msg.product?.asin}) targeting budget tech buyers.`
+                          )
+                        }
+                        className="btn btn-secondary btn-sm shrink-0"
+                      >
+                        <FolderPlus {...ICON} />
+                        Open in Studio
+                      </button>
+                    </div>
+                  )}
+
+                  {msg.proposedProject && (
+                    <div className="well p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[12px] leading-4 text-fg-3">Suggested project</div>
+                        <div className="font-medium text-fg truncate mt-1">{msg.proposedProject.title}</div>
+                      </div>
+                      <button
+                        onClick={() =>
+                          handleCreateProjectFromChat(msg.proposedProject!.title, msg.proposedProject!.brief)
+                        }
+                        className="btn btn-primary btn-sm shrink-0"
+                      >
+                        Create project
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+
+            {loading && (
+              <div className="flex items-center gap-2 text-[13px] text-fg-3">
+                <Spinner />
+                Reading your past videos and the Amazon catalog
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-          <span className="hidden sm:inline">Shift + Enter for new line</span>
         </div>
-      </form>
+
+        <div className="border-t border-line px-4 sm:px-6 py-4">
+          <div className="max-w-3xl mx-auto space-y-3">
+            {messages.length <= 2 && (
+              <div className="flex flex-wrap gap-2">
+                {starterPrompts.map((item, idx) => (
+                  <button
+                    key={idx}
+                    title={item.prompt}
+                    onClick={() => {
+                      setActiveMode(item.mode);
+                      handleSend(item.prompt);
+                    }}
+                    disabled={loading}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSend();
+              }}
+              className="flex items-end gap-2 rounded-[12px] border border-line-strong bg-surface p-2 transition-colors focus-within:border-accent"
+            >
+              <textarea
+                ref={textareaRef}
+                rows={2}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe a video idea"
+                aria-label="Message"
+                className="flex-1 bg-transparent border-0 resize-none px-2 py-1 text-fg placeholder:text-fg-3 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={loading || !input.trim()}
+                aria-label="Send"
+                className="btn btn-accent w-9 px-0 shrink-0"
+              >
+                <ArrowUp {...ICON} />
+              </button>
+            </form>
+
+            <div className="hidden sm:flex justify-end">
+              <span className="inline-flex items-center gap-1 text-[12px] text-fg-3">
+                <span className="kbd">Enter</span> to send, <span className="kbd">Shift</span>
+                <span className="kbd">Enter</span> for a new line
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
