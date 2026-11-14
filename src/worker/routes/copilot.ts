@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { amazonClientFor } from '../amazon/credentials';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
+import { appendToThread, loadThread } from '../lib/chats';
 import { AIRouter } from '../ai/router';
 import { runProductResearcher } from '../agents/definitions/studioAndResearch';
 import type { Product } from '../../shared/types';
@@ -93,10 +94,13 @@ INSTRUCTIONS:
 3. If discussing products or reviews, automatically suggest 2-3 viral angles, the ideal retention structure, and affiliate link placement.
 4. Keep advice crisp, actionable, and formatted for fast scanning.`;
 
+  // Context comes from the saved conversation, so it survives refreshes and other devices
+  const saved = await loadThread(c.env.DB, creator.id, 'copilot', 12);
+  const history = saved.length ? saved.map((m) => ({ role: m.role, content: m.content })) : (body.history || []).slice(-12);
   const messages = [
-    ...(body.history || []).map((h) => ({
+    ...history.map((h) => ({
       role: h.role,
-      content: h.content,
+      content: h.content.slice(0, 4000),
     })),
     {
       role: 'user' as const,
@@ -136,6 +140,11 @@ INSTRUCTIONS:
       brief: userMessage,
     };
   }
+
+  await appendToThread(c.env.DB, creator.id, 'copilot', [
+    { role: 'user', content: userMessage, meta: { mode } },
+    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, suggestedPrompts } },
+  ]);
 
   return c.json({
     reply: replyText,

@@ -15,6 +15,7 @@ import { copilotRoutes } from './routes/copilot';
 import { contentRoutes } from './routes/content';
 import { publicRoutes } from './routes/public';
 import { dealsRoutes } from './routes/deals';
+import { chatRoutes } from './routes/chats';
 import { analyzeContentItem, pendingItems } from './content/analyze';
 import { AIRouter } from './ai/router';
 import { DBClient } from './db/queries';
@@ -52,6 +53,7 @@ app.route('/api/copilot', copilotRoutes);
 app.route('/api/content', contentRoutes);
 app.route('/api/public', publicRoutes);
 app.route('/api/deals', dealsRoutes);
+app.route('/api/chats', chatRoutes);
 
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)

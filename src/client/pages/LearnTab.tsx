@@ -27,6 +27,24 @@ export const LearnTab: React.FC = () => {
   const [isTutorThinking, setIsTutorThinking] = useState(false);
   const [tutorError, setTutorError] = useState<string | null>(null);
 
+  // Restore the saved tutor conversation
+  useEffect(() => {
+    api.chats
+      .get('tutor')
+      .then(({ messages: saved }) => {
+        if (!saved.length) return;
+        setTutorMessages((prev) => [
+          prev[0],
+          ...saved.map((m) => ({
+            role: m.role === 'user' ? ('user' as const) : ('tutor' as const),
+            text: m.content,
+            time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          })),
+        ]);
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadLessons();
   }, []);

@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { appendToThread } from '../lib/chats';
 import { creatorDna } from '../lib/dna';
 import { amazonClientFor } from '../amazon/credentials';
 import type { AppEnv } from '../env';
@@ -248,10 +249,26 @@ Flags: ${compliance.flags.length === 0 ? 'None. Fully compliant with Amazon Oper
   // Reload updated assets
   const updatedData = await dbClient.getProjectWithAssets(creator.id, projectId);
 
+  const origin = new URL(c.req.url).origin;
+  const shortUrl = shortSlug ? `${origin}/s/${shortSlug}` : null;
+  const reply = [
+    product ? `Researched ${product.title}.` : null,
+    'Drafted titles, script outline, description, pinned comment, captions and thumbnail ideas from your Creator DNA.',
+    shortUrl ? `Tracked link: ${shortUrl}.` : null,
+    'Compliance check done.',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
+    { role: 'user', content: message },
+    { role: 'assistant', content: reply, meta: { product: product ? { title: product.title, asin: product.asin } : null, shortLink: shortUrl } },
+  ]);
+
   return c.json({
-    reply: `I have researched ${product ? product.title : 'the product'}, synthesized all 9 project assets in your signature Creator DNA voice, created tracked short link (https://creatorbrain.dev/s/${shortSlug || 'deal'}), and completed compliance verification!`,
+    reply,
     product,
-    shortLink: shortSlug ? `https://creatorbrain.dev/s/${shortSlug}` : null,
+    shortLink: shortUrl,
     compliance,
     assets: updatedData.assets,
     project: updatedData.project,

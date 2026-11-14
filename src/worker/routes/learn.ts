@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { appendToThread } from '../lib/chats';
 import { creatorDna } from '../lib/dna';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
@@ -55,5 +56,9 @@ learnRoutes.post('/tutor', async (c) => {
     db: c.env.DB,
   });
 
+  await appendToThread(c.env.DB, creator.id, 'tutor', [
+    { role: 'user', content: String(message) },
+    { role: 'assistant', content: reply },
+  ]);
   return c.json({ reply });
 });

@@ -249,6 +249,17 @@ describe('Brand deals', () => {
   });
 });
 
+describe('Saved conversations', () => {
+  it('validates thread names and starts empty for a new creator', async () => {
+    const api = client();
+    await signup(api);
+    expect((await api('/api/chats/not-a-thread')).status).toBe(400);
+    const res = (await (await api('/api/chats/copilot')).json()) as any;
+    expect(res.messages).toEqual([]);
+    expect((await api('/api/chats/studio:proj_123', { method: 'DELETE' })).status).toBe(200);
+  });
+});
+
 describe('Free audit', () => {
   it('is public and validates input', async () => {
     const res = await fetch(`${base}/api/public/audit`, {

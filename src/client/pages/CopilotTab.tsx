@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ArrowUp, FolderPlus, Check, Package } from 'lucide-react';
+import { ArrowUp, FolderPlus, Check, Package, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHeader, ErrorNote, Segmented, Spinner, ICON } from '../components/ui';
 import type { Product, Creator } from '../../shared/types';
@@ -35,6 +35,43 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const [createdProjectSuccess, setCreatedProjectSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Restore the saved conversation so a refresh or tab change keeps it
+  useEffect(() => {
+    let alive = true;
+    api.chats
+      .get('copilot')
+      .then(({ messages: saved }) => {
+        if (!alive || !saved.length) return;
+        setMessages((prev) => {
+          return [
+            prev[0],
+            ...saved.map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              product: (m.meta?.detectedProduct as Product | null) || null,
+              proposedProject: (m.meta?.proposedProject as Message['proposedProject']) || null,
+            })),
+          ];
+        });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const clearConversation = async () => {
+    if (!window.confirm('Clear this conversation? Saved messages will be deleted')) return;
+    try {
+      await api.chats.clear('copilot');
+      setMessages((prev) => [prev[0]]);
+    } catch (err: unknown) {
+      setActionError(err instanceof Error ? err.message : 'Could not clear the conversation');
+    }
+  };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
@@ -221,6 +258,13 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         title="Copilot"
         description="Talk through a video idea. Answers draw on your published content and live Amazon data"
         actions={
+          <>
+          {messages.length > 1 && (
+            <button className="btn btn-ghost btn-sm" onClick={clearConversation}>
+              <Trash2 {...ICON} />
+              Clear
+            </button>
+          )}
           <Segmented
             label="Copilot mode"
             value={activeMode}
@@ -232,6 +276,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               { value: 'strategy', label: 'Retention' },
             ]}
           />
+          </>
         }
       />
 

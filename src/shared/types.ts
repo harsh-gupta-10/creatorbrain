@@ -77,8 +77,31 @@ export interface OnboardingJob {
 // GRAPH NODES & EDGES
 // ==========================================
 
-export type NodeType = 'Style' | 'Strength' | 'Gap' | 'Audience' | 'Concept' | 'Topic' | 'Video';
-export type EdgeRelation = 'STRONG_AT' | 'NEEDS_WORK' | 'LEARNED_FROM' | 'RELATES_TO' | 'COVERS' | 'EVIDENCE_FOR';
+export type NodeType =
+  | 'Style'
+  | 'Strength'
+  | 'Gap'
+  | 'Audience'
+  | 'Concept'
+  | 'Topic'
+  | 'Video'
+  | 'Hook'
+  | 'Phrase'
+  | 'Product'
+  | 'Thumbnail'
+  | 'CTA';
+export type EdgeRelation =
+  | 'STRONG_AT'
+  | 'NEEDS_WORK'
+  | 'LEARNED_FROM'
+  | 'RELATES_TO'
+  | 'COVERS'
+  | 'EVIDENCE_FOR'
+  | 'USES'
+  | 'SAYS'
+  | 'MENTIONS'
+  | 'LOOKS_LIKE'
+  | 'ASKS';
 
 export interface GraphNode {
   id: string;

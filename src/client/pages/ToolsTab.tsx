@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Copy, Check, Mic, FileCode, Image as ImageIcon, Hash, Wrench } from 'lucide-react';
 import { api } from '../lib/api';
 import { PageHeader, EmptyState, ErrorNote, Spinner, ICON } from '../components/ui';
@@ -14,13 +14,40 @@ const TOOLS: { id: ToolType; label: string; icon: typeof Mic }[] = [
 
 export const ToolsTab: React.FC = () => {
   const [activeTool, setActiveTool] = useState<ToolType>('hook');
-  const [topic, setTopic] = useState('Motorola Edge 50 Fusion vs Vivo T3 Pro 5G comparison');
-  const [targetProduct, setTargetProduct] = useState('Motorola Edge 50 Fusion');
+  const [topic, setTopic] = useState('');
+  const [targetProduct, setTargetProduct] = useState('');
   const [platform, setPlatform] = useState<'youtube' | 'shorts' | 'reels' | 'instagram'>('youtube');
   const [generatedOutput, setGeneratedOutput] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+
+  // Each tool keeps its last result, so switching tabs or refreshing doesn't lose it
+  useEffect(() => {
+    let alive = true;
+    setGeneratedOutput('');
+    setSavedAt(null);
+    api.chats
+      .get(`tools:${activeTool}`)
+      .then(({ messages }) => {
+        if (!alive) return;
+        const lastAnswer = [...messages].reverse().find((m) => m.role === 'assistant');
+        const lastAsk = [...messages].reverse().find((m) => m.role === 'user');
+        if (lastAnswer) {
+          setGeneratedOutput(lastAnswer.content);
+          setSavedAt(lastAnswer.created_at);
+        }
+        if (lastAsk) {
+          setTopic(lastAsk.content);
+          if (lastAsk.meta?.targetProduct) setTargetProduct(String(lastAsk.meta.targetProduct));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [activeTool]);
 
   const activeLabel = TOOLS.find((t) => t.id === activeTool)?.label ?? 'Hook';
 
@@ -38,6 +65,7 @@ export const ToolsTab: React.FC = () => {
         platform,
       });
       setGeneratedOutput(res.output);
+      setSavedAt(new Date().toISOString());
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Generation failed');
     } finally {
@@ -145,7 +173,14 @@ export const ToolsTab: React.FC = () => {
 
         <div className="lg:col-span-7 h-[500px] card flex flex-col overflow-hidden">
           <div className="h-12 px-4 border-b border-line flex items-center justify-between">
-            <h2 className="text-[13px] font-medium text-fg">{activeLabel} output</h2>
+            <h2 className="text-[13px] font-medium text-fg">
+              {activeLabel} output
+              {savedAt && (
+                <span className="meta font-normal ml-2">
+                  saved {new Date(savedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+            </h2>
             {generatedOutput && (
               <button onClick={handleCopy} className="btn btn-ghost btn-sm">
                 {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}

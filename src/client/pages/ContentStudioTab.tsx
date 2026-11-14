@@ -93,13 +93,27 @@ export const ContentStudioTab: React.FC = () => {
         setEditableContent(active.content);
       }
 
-      setChatMessages([
-        {
-          role: 'agent',
-          text: `Working on "${res.project.title}". Ask for product research, a script in your voice, new title options or a disclosure check.`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        },
-      ]);
+      const intro = {
+        role: 'agent' as const,
+        text: `Working on "${res.project.title}". Ask for product research, a script in your voice, new title options or a disclosure check.`,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setChatMessages([intro]);
+      // Restore this project's saved conversation
+      api.chats
+        .get(`studio:${res.project.id}`)
+        .then(({ messages: saved }) => {
+          if (!saved.length) return;
+          setChatMessages([
+            intro,
+            ...saved.map((m) => ({
+              role: m.role === 'user' ? ('user' as const) : ('agent' as const),
+              text: m.content,
+              time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            })),
+          ]);
+        })
+        .catch(() => {});
     } catch (err: unknown) {
       console.error('Failed to select project:', err);
       setError(err instanceof Error ? err.message : 'Could not open the project');

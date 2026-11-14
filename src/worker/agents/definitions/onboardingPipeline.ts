@@ -389,6 +389,10 @@ function parseAnalysis(raw?: string | null): VideoAnalysis | null {
 }
 
 /** Counts how often each value appears across per-video breakdowns */
+function topicNodes0<T extends { type: string; label: string }>(nodes: T[]): T[] {
+  return nodes.filter((n) => n.type === 'Topic');
+}
+
 function tally(values: string[], max = 6): string[] {
   const m = new Map<string, { label: string; n: number }>();
   for (const v of values) {
@@ -554,11 +558,42 @@ async function writeBrain(
     ...nodes.filter((n) => n.type === 'Topic').map((t) => ({ source: t.id, target: audience.id, relation: 'RELATES_TO', weight: 0.6 })),
   ];
 
+  // More topics: anything covered by two or more studied videos joins the Brain
+  const knownTopics = new Set(topicNodes0(nodes).map((t) => t.label.toLowerCase()));
+  for (const t of tally(analyses.flatMap((x) => x.a.topics), 12)) {
+    const covered = analyses.filter((x) => x.a.topics.some((v) => v.toLowerCase() === t.toLowerCase())).length;
+    if (covered >= 2 && !knownTopics.has(t.toLowerCase()) && knownTopics.size < 12) {
+      knownTopics.add(t.toLowerCase());
+      nodes.push({ id: uid('node'), type: 'Topic', label: t, description: `Covered in ${covered} studied videos`, confidence: 0.6 + covered / Math.max(analyses.length, 1) / 3, evidence: '[]' });
+    }
+  }
+
+  // Traits learned across videos become their own nodes: hook styles, recurring phrases,
+  // products, calls to action and thumbnail styles. Each links to the videos that show it.
+  const traitNodes = new Map<string, N>();
+  const trait = (type: string, rawLabel: string, description: string, confidence: number) => {
+    const label = rawLabel.trim().replace(/\s+/g, ' ').slice(0, 80);
+    if (!label || /^(none|n\/a|unclassified|unknown)$/i.test(label)) return null;
+    const key = `${type}:${label.toLowerCase()}`;
+    let node = traitNodes.get(key);
+    if (!node) {
+      node = { id: uid('node'), type, label, description, confidence, evidence: '[]' };
+      traitNodes.set(key, node);
+    }
+    return node;
+  };
+  const evidenceOf = new Map<string, string[]>();
+  const link = (vid: N, target: N | null, relation: string, itemId: string) => {
+    if (!target) return;
+    edges.push({ source: vid.id, target: target.id, relation, weight: 0.6 });
+    evidenceOf.set(target.id, [...(evidenceOf.get(target.id) || []), itemId]);
+  };
+
   // Each deep-studied video becomes a node linked to the topics it covers and, for
   // top performers, to the strengths it is evidence for
   const topicNodes = nodes.filter((n) => n.type === 'Topic');
   const bestIds = new Set(stats.best.map((b) => b.id));
-  for (const { item, a } of analyses.slice(0, 15)) {
+  for (const { item, a } of analyses.slice(0, 25)) {
     const vid: N = {
       id: uid('node'),
       type: 'Video',
@@ -576,6 +611,33 @@ async function writeBrain(
     if (bestIds.has(item.id)) {
       for (const st of strengths) edges.push({ source: vid.id, target: st.id, relation: 'EVIDENCE_FOR', weight: 0.8 });
     }
+    link(vid, trait('Hook', `${a.hook.type} openings`, 'How videos start', 0.7), 'USES', item.id);
+    for (const p of a.catchphrases.slice(0, 3)) link(vid, trait('Phrase', `"${p.replace(/^["“]|["”]$/g, '')}"`, 'Something you say again and again', 0.7), 'SAYS', item.id);
+    for (const pr of a.products_mentioned.slice(0, 4)) link(vid, trait('Product', pr, 'Mentioned in your videos', 0.65), 'MENTIONS', item.id);
+    for (const cta of a.calls_to_action.slice(0, 2)) link(vid, trait('CTA', cta, 'What you ask viewers to do', 0.6), 'ASKS', item.id);
+    if (a.thumbnail.composition) link(vid, trait('Thumbnail', a.thumbnail.composition, 'A thumbnail style you use', 0.65), 'LOOKS_LIKE', item.id);
+  }
+
+  // Keep traits seen in more than one video (or all of them for small channels), strongest first
+  const minSeen = analyses.length >= 6 ? 2 : 1;
+  const perType = new Map<string, number>();
+  const bySeen = (n: N) => evidenceOf.get(n.id)?.length || 0;
+  for (const node of [...traitNodes.values()].sort((x, y) => bySeen(y) - bySeen(x))) {
+    const seen = bySeen(node);
+    const count = perType.get(node.type) || 0;
+    // Repeated traits first; single-video traits fill a type up to 3 so no region is empty
+    if ((seen >= minSeen && count < 8) || (seen >= 1 && count < 3)) {
+      perType.set(node.type, count + 1);
+      node.evidence = JSON.stringify(evidenceOf.get(node.id));
+      node.confidence = Math.min(0.95, 0.5 + seen / Math.max(analyses.length, 1) / 2);
+      node.description = `${node.description} · seen in ${seen} of ${analyses.length} studied videos`;
+      nodes.push(node);
+    }
+  }
+  // Drop edges that point at traits we did not keep
+  const kept = new Set(nodes.map((n) => n.id));
+  for (let i = edges.length - 1; i >= 0; i--) {
+    if (!kept.has(edges[i].target) || !kept.has(edges[i].source)) edges.splice(i, 1);
   }
 
   const stmts: D1PreparedStatement[] = [

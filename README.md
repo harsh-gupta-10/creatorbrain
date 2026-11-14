@@ -80,7 +80,8 @@ Link in bio · Short links   ◄──────────── /@handle (s
 
 - **Dashboard:** median views, upload rhythm, link clicks, lesson progress, a views-per-upload chart, what we learned, recent content compared with the median
 - **Library:** every studied video or post, with its full searchable transcript (timestamps link into the video), hook and its strength, structure timeline, thumbnail reading, title pattern, topics, phrases, calls to action, products, what worked and what to improve
-- **Brain:** the knowledge graph of videos, topics, strengths, gaps, style and audience, with confidence levels
+- **Brain:** a rotating 3D brain where every learned node sits in a region that matches it (voice and hooks in the frontal lobe, recurring phrases near the speech area, thumbnails in the visual cortex), linked by fibres to the videos that show it. Node types: strengths, gaps, voice, audience, topics, videos, hook styles, phrases, products, calls to action and thumbnail styles. Drawn on a plain canvas with no 3D library, with a keyboard-friendly list beside it
+- **Saved conversations:** Copilot, the Studio agent (one thread per project), the Tutor and Quick tools are stored in D1, so a refresh or a tab change brings them back, and Copilot uses the saved thread as context
 - **Studio, Copilot, Quick tools:** drafting grounded in the Creator DNA
 - **Lessons and Assessments:** planned from the creator's own gaps
 - **Link in bio, Short links, Amazon:** a public page at `/@handle`, tracked redirects, product cards and earnings import

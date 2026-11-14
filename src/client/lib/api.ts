@@ -176,7 +176,19 @@ export interface BrandDeal {
 }
 export type DealInput = Partial<Omit<BrandDeal, 'id' | 'created_at' | 'updated_at' | 'paid_at'>>;
 
+export interface SavedMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  meta?: Record<string, any> | null;
+  created_at: string;
+}
+
 export const api = {
+  chats: {
+    get: (thread: string) => fetchJson<{ thread: string; messages: SavedMessage[] }>(`/api/chats/${encodeURIComponent(thread)}`),
+    clear: (thread: string) => fetchJson<{ success: boolean }>(`/api/chats/${encodeURIComponent(thread)}`, { method: 'DELETE' }),
+  },
   publicAudit: (channel: string) =>
     fetchJson<{ audit: ChannelAudit; cached: boolean }>('/api/public/audit', { method: 'POST', body: JSON.stringify({ channel }) }),
   deals: {

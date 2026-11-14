@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { appendToThread } from '../lib/chats';
 import { creatorDna } from '../lib/dna';
 import type { AppEnv } from '../env';
 import { AIRouter } from '../ai/router';
@@ -53,6 +54,11 @@ Each must feature at most 3 words of bold text overlay, complementary color sepa
     ],
     { creatorId: creator.id, maxTokens: 2048, fast: toolType === 'caption_hashtag' }
   );
+
+  await appendToThread(c.env.DB, creator.id, `tools:${toolType}`, [
+    { role: 'user', content: topic, meta: { platform, targetProduct: targetProduct || null } },
+    { role: 'assistant', content: generated },
+  ]);
 
   return c.json({
     toolType,

@@ -504,7 +504,7 @@ export class DBClient {
       'edges', 'nodes', 'learnings', 'lessons', 'quizzes', 'agent_traces', 'asset_versions_by_creator',
       'assets', 'projects', 'affiliate_links', 'link_clicks', 'short_links', 'bio_blocks_by_creator', 'bio_pages',
       'products', 'provider_settings', 'credentials_encrypted', 'earnings_reports', 'content_items',
-      'brand_deals', 'analysis_jobs', 'sessions',
+      'brand_deals', 'chat_messages', 'analysis_jobs', 'sessions',
     ];
     const stmts = tables.map((t) => {
       if (t === 'asset_versions_by_creator') {
