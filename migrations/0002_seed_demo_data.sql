@@ -11,9 +11,9 @@ INSERT OR REPLACE INTO creators (
   'kabir@creatorbrain.dev',
   'demo_no_password_needed',
   'Kabir Verma',
-  'techkabir',
+  'izoog10',
   'TechExplains by Kabir',
-  'https://youtube.com/@techkabir',
+  'https://youtube.com/@izoog10',
   'youtube',
   7520,
   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=256&h=256&q=80',
@@ -49,7 +49,7 @@ INSERT OR REPLACE INTO bio_pages (
 ) VALUES (
   'bio_demo_kabir',
   'creator_demo_tech_kabir',
-  'techkabir',
+  'izoog10',
   'dna-accent',
   'Kabir Verma | TechExplains',
   'Hardware teardowns, honest smartphone benchmarks & maker builds. All my tracked gear & recommended deals below.',
@@ -151,7 +151,7 @@ INSERT OR REPLACE INTO bio_blocks (
   'product_card',
   1,
   'Motorola Edge 50 Fusion (My Current Budget Recommendation)',
-  'https://www.amazon.in/dp/B0D3G78JKL?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0D3G78JKL?tag=izoog10-21',
   'prod_moto_edge_50',
   '{"badge":"Editor Choice","note":"Best camera under ₹23k"}',
   1,
@@ -164,7 +164,7 @@ INSERT OR REPLACE INTO bio_blocks (
   'product_card',
   2,
   'Vivo T3 Pro 5G (Best Gaming & Battery Pick)',
-  'https://www.amazon.in/dp/B0DCF9X11M?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0DCF9X11M?tag=izoog10-21',
   'prod_vivo_t3_pro',
   '{"badge":"Best Battery","note":"5500mAh + 80W Charger"}',
   1,
@@ -190,7 +190,7 @@ INSERT OR REPLACE INTO bio_blocks (
   'product_card',
   4,
   'Apple M4 Mac Mini (The 4K Video Editing Machine)',
-  'https://www.amazon.in/dp/B0DLH4567M?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0DLH4567M?tag=izoog10-21',
   'prod_mac_mini_m4',
   '{"badge":"Desktop King","note":"16GB Base RAM"}',
   1,
@@ -205,7 +205,7 @@ INSERT OR REPLACE INTO bio_blocks (
   'Connect With Me',
   NULL,
   NULL,
-  '{"youtube":"https://youtube.com/@techkabir","instagram":"https://instagram.com/techkabir","github":"https://github.com/kabirbuilds","twitter":"https://twitter.com/techkabir"}',
+  '{"youtube":"https://youtube.com/@izoog10","instagram":"https://instagram.com/theharshlab","github":"https://github.com/harsh-gupta-10","twitter":"https://twitter.com/izoog10"}',
   1,
   187,
   '2026-10-15T10:00:00Z'
@@ -315,7 +315,7 @@ INSERT OR REPLACE INTO agent_traces (
   1,
   3,
   'fetchChannelVideos',
-  '{"channelId":"UC_techkabir_id","maxResults":30}',
+  '{"channelId":"UCroMu6jR_yfnVDYIyZAjrfQ","maxResults":30}',
   '{"fetched":30,"selected":10,"topVideos":["vid_moto_edge_50","vid_mac_mini_m4","vid_vivo_t3"]}',
   'Retrieved 30 videos from YouTube Data API v3; selected 10 key videos (3 top, 3 recent, 2 median, 2 low) across 7.5K subscriber channel.',
   'success',
@@ -416,7 +416,7 @@ INSERT OR REPLACE INTO assets (id, project_id, creator_id, type, current_version
 Check Current Prices & Best Deals on Amazon:
 👉 Moto Edge 50 Fusion: https://creatorbrain.dev/s/moto-edge-fusion
 👉 Vivo T3 Pro 5G: https://creatorbrain.dev/s/vivo-t3-pro
-👉 My Complete Gear Kit: https://creatorbrain.dev/@techkabir
+👉 My Complete Gear Kit: https://creatorbrain.dev/@izoog10
 
 Affiliate Disclosure: As an Amazon Associate, I earn from qualifying purchases made through the links above at zero extra cost to you. Prices and availability are accurate as of video upload and are subject to change.
 
@@ -484,7 +484,7 @@ Which one would you buy right now? Comment below!
   'The ₹22,000 battle everyone asked for: Motorola Edge 50 Fusion vs Vivo T3 Pro 5G! 💥
 
 Swipe through for uncompressed 50MP Sony sensor crops and 20-min thermal heat maps. 
-🔗 Tap link in bio (@techkabir) for live Amazon pricing and complete YouTube review!
+🔗 Tap link in bio (@izoog10) for live Amazon pricing and complete YouTube review!
 
 #techblogger #smartphonephotography #gadgetreview #teardown #creatorbrain #delhicreator',
   '2026-11-10T14:15:00Z',
@@ -592,7 +592,7 @@ INSERT OR REPLACE INTO short_links (
   'link_1',
   'creator_demo_tech_kabir',
   'moto-edge-fusion',
-  'https://www.amazon.in/dp/B0D3G78JKL?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0D3G78JKL?tag=izoog10-21',
   'amazon.in',
   'Motorola Edge 50 Fusion (Amazon India)',
   'youtube',
@@ -606,7 +606,7 @@ INSERT OR REPLACE INTO short_links (
   'link_2',
   'creator_demo_tech_kabir',
   'vivo-t3-pro',
-  'https://www.amazon.in/dp/B0DCF9X11M?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0DCF9X11M?tag=izoog10-21',
   'amazon.in',
   'Vivo T3 Pro 5G (Amazon India)',
   'youtube',
@@ -620,7 +620,7 @@ INSERT OR REPLACE INTO short_links (
   'link_3',
   'creator_demo_tech_kabir',
   'mac-mini-m4-deal',
-  'https://www.amazon.in/dp/B0DLH4567M?tag=techkabir-21',
+  'https://www.amazon.in/dp/B0DLH4567M?tag=izoog10-21',
   'amazon.in',
   'Apple M4 Mac Mini 16GB (Amazon Deal)',
   'youtube',
@@ -634,7 +634,7 @@ INSERT OR REPLACE INTO short_links (
   'link_4',
   'creator_demo_tech_kabir',
   'kabir-gear-kit',
-  'https://creatorbrain.dev/@techkabir',
+  'https://creatorbrain.dev/@izoog10',
   'creatorbrain.dev',
   'Complete Studio Gear & Bio Page',
   'instagram',
@@ -648,7 +648,7 @@ INSERT OR REPLACE INTO short_links (
   'link_5',
   'creator_demo_tech_kabir',
   'sony-xm5-offer',
-  'https://www.amazon.in/dp/B09XS7JWHH?tag=techkabir-21',
+  'https://www.amazon.in/dp/B09XS7JWHH?tag=izoog10-21',
   'amazon.in',
   'Sony WH-1000XM5 Silver (Discounted)',
   'youtube',
@@ -676,10 +676,10 @@ INSERT OR REPLACE INTO link_clicks (id, short_link_id, bio_block_id, creator_id,
 
 -- Affiliate Links
 INSERT OR REPLACE INTO affiliate_links (id, creator_id, project_id, product_id, tracking_id, original_url, tagged_url, created_at) VALUES
-('aff_1', 'creator_demo_tech_kabir', 'proj_moto_vs_vivo', 'prod_moto_edge_50', 'techkabir-21', 'https://www.amazon.in/dp/B0D3G78JKL', 'https://www.amazon.in/dp/B0D3G78JKL?tag=techkabir-21', '2026-10-23T10:00:00Z'),
-('aff_2', 'creator_demo_tech_kabir', 'proj_moto_vs_vivo', 'prod_vivo_t3_pro', 'techkabir-21', 'https://www.amazon.in/dp/B0DCF9X11M', 'https://www.amazon.in/dp/B0DCF9X11M?tag=techkabir-21', '2026-10-25T10:00:00Z'),
-('aff_3', 'creator_demo_tech_kabir', 'proj_mac_mini_m4', 'prod_mac_mini_m4', 'techkabir-21', 'https://www.amazon.in/dp/B0DLH4567M', 'https://www.amazon.in/dp/B0DLH4567M?tag=techkabir-21', '2026-11-02T10:00:00Z'),
-('aff_4', 'creator_demo_tech_kabir', NULL, 'prod_sony_xm5', 'techkabir-21', 'https://www.amazon.in/dp/B09XS7JWHH', 'https://www.amazon.in/dp/B09XS7JWHH?tag=techkabir-21', '2026-10-28T10:00:00Z');
+('aff_1', 'creator_demo_tech_kabir', 'proj_moto_vs_vivo', 'prod_moto_edge_50', 'izoog10-21', 'https://www.amazon.in/dp/B0D3G78JKL', 'https://www.amazon.in/dp/B0D3G78JKL?tag=izoog10-21', '2026-10-23T10:00:00Z'),
+('aff_2', 'creator_demo_tech_kabir', 'proj_moto_vs_vivo', 'prod_vivo_t3_pro', 'izoog10-21', 'https://www.amazon.in/dp/B0DCF9X11M', 'https://www.amazon.in/dp/B0DCF9X11M?tag=izoog10-21', '2026-10-25T10:00:00Z'),
+('aff_3', 'creator_demo_tech_kabir', 'proj_mac_mini_m4', 'prod_mac_mini_m4', 'izoog10-21', 'https://www.amazon.in/dp/B0DLH4567M', 'https://www.amazon.in/dp/B0DLH4567M?tag=izoog10-21', '2026-11-02T10:00:00Z'),
+('aff_4', 'creator_demo_tech_kabir', NULL, 'prod_sony_xm5', 'izoog10-21', 'https://www.amazon.in/dp/B09XS7JWHH', 'https://www.amazon.in/dp/B09XS7JWHH?tag=izoog10-21', '2026-10-28T10:00:00Z');
 
 -- Earnings Reports
 INSERT OR REPLACE INTO earnings_reports (id, creator_id, report_date, asin, product_title, items_ordered, items_shipped, revenue, commission, created_at) VALUES

@@ -45,5 +45,5 @@ INSERT OR IGNORE INTO content_items (id, creator_id, platform, external_id, titl
 ('ci_sample_08','creator_demo_tech_kabir','youtube','s08','My desk setup for 2026, every item linked','Monitor arm, lights, mic and cables, with what I would skip.','','https://images.unsplash.com/photo-1593062096033-9a26b09da705?auto=format&fit=crop&w=320&q=70',73900,3300,'2026-11-09T12:00:00Z','2026-11-14T00:00:00Z','2026-11-14T00:00:00Z');
 
 UPDATE creators SET last_studied_at = '2026-11-14T06:00:00Z', upload_cadence = 'weekly', content_language = 'English and Hindi',
-  monetization_json = '{"amazon":true,"partnerTag":"techkabir-21","marketplace":"amazon.in","other":["Brand sponsorships"]}'
+  monetization_json = '{"amazon":true,"partnerTag":"izoog10-21","marketplace":"amazon.in","other":["Brand sponsorships"]}'
 WHERE id = 'creator_demo_tech_kabir';
