@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link2, Plus, Copy, Check, ExternalLink, BarChart3, ShieldCheck, X } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ShortLink, LinkClick } from '../../shared/types';
-import { ICON, PageHeader, Stat, SectionTitle, EmptyState, ErrorNote, Spinner, formatCount } from '../components/ui';
+import { ICON, PageHeader, Stat, SectionTitle, EmptyState, ErrorNote, Spinner, Dialog, formatCount } from '../components/ui';
 
 const errMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -52,14 +52,36 @@ const ClicksChart: React.FC<{ clicks: LinkClick[] }> = ({ clicks }) => {
   const ticks = [max, Math.round(max / 2), 0];
   const chartH = 140;
 
+  const total = series.reduce((a, s) => a + s.count, 0);
+  const label = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
   return (
-    <div className="flex gap-3">
-      <div className="flex flex-col justify-between text-right meta !leading-none w-6" style={{ height: chartH }}>
+    <figure className="flex gap-3">
+      <figcaption className="sr-only">
+        Clicks per day for the last 14 days: {total} in total, {series[series.length - 1].count} today.
+      </figcaption>
+      <table className="sr-only">
+        <thead>
+          <tr>
+            <th scope="col">Day</th>
+            <th scope="col">Clicks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {series.map((s, i) => (
+            <tr key={i}>
+              <th scope="row">{label(s.date)}</th>
+              <td>{s.count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex flex-col justify-between text-right meta !leading-none w-6" style={{ height: chartH }} aria-hidden="true">
         {ticks.map((t, i) => (
           <span key={i}>{t}</span>
         ))}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0" aria-hidden="true">
         <div className="relative" style={{ height: chartH }}>
           {[0, 0.5, 1].map((p) => (
             <div key={p} className="absolute inset-x-0 border-t border-line" style={{ top: `${p * 100}%` }} />
@@ -83,7 +105,7 @@ const ClicksChart: React.FC<{ clicks: LinkClick[] }> = ({ clicks }) => {
           <span>Today</span>
         </div>
       </div>
-    </div>
+    </figure>
   );
 };
 
@@ -92,23 +114,23 @@ const RankedList: React.FC<{ title: string; rows: { label: string; count: number
   rows,
 }) => (
   <div>
-    <div className="text-[13px] text-fg-2 mb-2">{title}</div>
+    <h3 className="text-[13px] text-fg-2 mb-2">{title}</h3>
     {rows.length === 0 ? (
       <div className="meta">No clicks yet</div>
     ) : (
-      <div className="space-y-2">
+      <ul className="space-y-2" aria-label={title}>
         {rows.map((r) => (
-          <div key={r.label}>
+          <li key={r.label}>
             <div className="flex items-baseline justify-between gap-2 text-[13px]">
               <span className="truncate text-fg">{r.label}</span>
               <span className="meta">{Math.round(r.share * 100)}%</span>
             </div>
-            <div className="mt-1 h-1 rounded-full bg-raised">
+            <div className="mt-1 h-1 rounded-full bg-raised" aria-hidden="true">
               <div className="h-1 rounded-full bg-fg-3" style={{ width: `${r.share * 100}%` }} />
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     )}
   </div>
 );
@@ -250,7 +272,7 @@ export const ShortLinksTab: React.FC = () => {
       <SectionTitle title="All links" meta={links.length ? links.length : undefined} />
       <div className="card overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center gap-2 py-12 text-fg-3">
+          <div className="flex items-center justify-center gap-2 py-12 text-fg-3" role="status">
             <Spinner />
             Loading links
           </div>
@@ -271,11 +293,11 @@ export const ShortLinksTab: React.FC = () => {
             <table className="w-full text-left text-[13px]">
               <thead className="text-fg-3 border-b border-line">
                 <tr>
-                  <th className="px-4 h-10 font-normal">Short link</th>
-                  <th className="px-4 h-10 font-normal">Title and destination</th>
-                  <th className="px-4 h-10 font-normal">UTM</th>
-                  <th className="px-4 h-10 font-normal text-right">Clicks</th>
-                  <th className="px-4 h-10 font-normal text-right">
+                  <th scope="col" className="px-4 h-10 font-normal">Short link</th>
+                  <th scope="col" className="px-4 h-10 font-normal">Title and destination</th>
+                  <th scope="col" className="px-4 h-10 font-normal">UTM</th>
+                  <th scope="col" className="px-4 h-10 font-normal text-right">Clicks</th>
+                  <th scope="col" className="px-4 h-10 font-normal text-right">
                     <span className="sr-only">Actions</span>
                   </th>
                 </tr>
@@ -290,7 +312,7 @@ export const ShortLinksTab: React.FC = () => {
                           onClick={() => handleCopy(link.slug)}
                           className="btn btn-ghost btn-sm !h-7 !px-2"
                           title="Copy short link"
-                          aria-label="Copy short link"
+                          aria-label={copiedSlug === link.slug ? `Copied /s/${link.slug}` : `Copy short link /s/${link.slug}`}
                         >
                           {copiedSlug === link.slug ? (
                             <Check {...ICON} className="text-positive" />
@@ -316,7 +338,7 @@ export const ShortLinksTab: React.FC = () => {
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => handleViewStats(link)} className="btn btn-secondary btn-sm">
                           <BarChart3 {...ICON} className="text-fg-2" />
-                          Analytics
+                          Analytics<span className="sr-only"> for /s/{link.slug}</span>
                         </button>
                         <a
                           href={`/s/${link.slug}`}
@@ -324,7 +346,7 @@ export const ShortLinksTab: React.FC = () => {
                           rel="noopener noreferrer"
                           className="btn btn-ghost btn-sm !px-2"
                           title="Test redirect"
-                          aria-label="Test redirect"
+                          aria-label={`Test redirect for /s/${link.slug} (opens in a new tab)`}
                         >
                           <ExternalLink {...ICON} />
                         </a>
@@ -340,12 +362,11 @@ export const ShortLinksTab: React.FC = () => {
 
       {/* Create short link */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="panel w-full max-w-lg p-6" role="dialog" aria-modal="true" aria-labelledby="create-link-title">
+        <Dialog onClose={() => setShowCreateModal(false)} labelledBy="create-link-title" className="panel w-full max-w-lg p-6" backdropClassName="bg-black/30">
             <div className="flex items-center justify-between mb-4">
-              <h3 id="create-link-title" className="text-[15px] font-medium text-fg">
+              <h2 id="create-link-title" className="text-[15px] font-medium text-fg">
                 New short link
-              </h3>
+              </h2>
               <button
                 onClick={() => setShowCreateModal(false)}
                 className="btn btn-ghost btn-sm !px-2"
@@ -366,12 +387,13 @@ export const ShortLinksTab: React.FC = () => {
                   id="sl-dest"
                   type="url"
                   required
+                  aria-describedby="sl-dest-hint"
                   value={destUrl}
                   onChange={(e) => setDestUrl(e.target.value)}
                   placeholder="https://www.amazon.in/dp/B0D3G78JKL"
                   className="input"
                 />
-                <p className="field-hint">Any public URL, including Amazon product pages</p>
+                <p id="sl-dest-hint" className="field-hint">Any public URL, including Amazon product pages</p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -447,25 +469,24 @@ export const ShortLinksTab: React.FC = () => {
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-ghost">
                   Cancel
                 </button>
-                <button type="submit" disabled={creating} className="btn btn-primary">
+                <button type="submit" disabled={creating} aria-busy={creating} className="btn btn-primary">
                   {creating && <Spinner />}
                   Create link
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Link analytics */}
       {showStatsModal && selectedLink && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="panel w-full max-w-2xl p-6" role="dialog" aria-modal="true" aria-labelledby="stats-title">
+        <Dialog onClose={() => setShowStatsModal(false)} labelledBy="stats-title" className="panel w-full max-w-2xl p-6" backdropClassName="bg-black/30">
             <div className="flex items-start justify-between gap-4 mb-6">
               <div className="min-w-0">
-                <h3 id="stats-title" className="text-[15px] font-medium text-fg">
+                <h2 id="stats-title" className="text-[15px] font-medium text-fg">
+                  <span className="sr-only">Analytics for </span>
                   <span className="font-mono">/s/{selectedLink.slug}</span>
-                </h3>
+                </h2>
                 <p className="text-[13px] text-fg-3 truncate mt-1">{selectedLink.destination_url}</p>
               </div>
               <button
@@ -494,7 +515,7 @@ export const ShortLinksTab: React.FC = () => {
             </div>
 
             {statsLoading ? (
-              <div className="flex items-center justify-center gap-2 h-40 text-fg-3">
+              <div className="flex items-center justify-center gap-2 h-40 text-fg-3" role="status">
                 <Spinner />
                 Loading clicks
               </div>
@@ -507,8 +528,7 @@ export const ShortLinksTab: React.FC = () => {
               <RankedList title="Device" rows={devices} />
               <RankedList title="Referrer" rows={referrers} />
             </div>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

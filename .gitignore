@@ -1,17 +1,21 @@
 # Dependencies
 node_modules/
-.npm/
-
-# Cloudflare & Wrangler
-.wrangler/
-.dev.vars
 
 # Build output
 dist/
-
-# Logs & temp
-*.log
-.DS_Store
-
-# Vitest
 coverage/
+
+# Cloudflare local state and secrets
+.wrangler/
+.dev.vars
+.env
+.env.*
+
+# Local AI tooling (installed skills, editor launch configs)
+.agents/
+.claude/
+skills-lock.json
+
+# OS and logs
+.DS_Store
+*.log

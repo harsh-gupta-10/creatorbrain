@@ -12,9 +12,9 @@ export async function runProductResearcher(
   productQuery: string,
   creatorId: string,
   router: AIRouter,
-  db?: D1Database
+  db?: D1Database,
+  amazonClient: AmazonCreatorsClient = new AmazonCreatorsClient()
 ): Promise<Product | null> {
-  const amazonClient = new AmazonCreatorsClient();
 
   const tools: AIToolDefinition[] = [
     {
@@ -72,6 +72,7 @@ export async function runProductResearcher(
  * Shorts caption, Instagram caption, script outline, thumbnail ideas, community poll.
  */
 export async function runContentStudioAgent(options: {
+  amazon?: AmazonCreatorsClient;
   creatorId: string;
   projectId: string;
   brief: string;
@@ -92,10 +93,9 @@ export async function runContentStudioAgent(options: {
 }> {
   const { creatorId, brief, product, dna, router } = options;
 
-  const amazonClient = new AmazonCreatorsClient();
-  const affiliateUrl = product
-    ? amazonClient.buildAffiliateUrl(product.product_url)
-    : 'https://creatorbrain.dev/s/deal';
+  // Tag links with this creator's own tracking ID
+  const amazonClient = options.amazon || new AmazonCreatorsClient();
+  const affiliateUrl = product ? amazonClient.buildAffiliateUrl(product.product_url) : '[product link]';
 
   const systemPrompt = `You are the Content Studio Agent for CreatorBrain.
 You speak and write in this Creator's exact DNA Voice:
@@ -160,7 +160,7 @@ Check Live Amazon Deals & Discounts:
 
 Affiliate Disclosure: As an Amazon Associate, I earn from qualifying purchases made through links above at no extra cost to you. Pricing and availability accurate as of video upload (${product?.price_timestamp || 'recent'}).
 
-In this video, we pop the hood and examine real performance, build quality, and value-for-money.
+In this video I look at real performance, build quality, and value-for-money.
 
 ⏱️ Timestamps:
 0:00 - The Real Dilemma
@@ -174,7 +174,7 @@ In this video, we pop the hood and examine real performance, build quality, and 
 
   const tags =
     extractSection(responseText, 'tags', 'video tags') ||
-    `${product?.title?.toLowerCase().slice(0, 30) || 'gadget review'}, honest review, benchmark test, unboxing, teardown, best budget tech, amazon deals, paisa vasool`;
+    `${product?.title?.toLowerCase().slice(0, 30) || 'gadget review'}, honest review, benchmark test, unboxing, teardown, best budget tech, amazon deals`;
 
   const pinnedComment =
     extractSection(responseText, 'pinned comment', 'pinned') ||
@@ -193,7 +193,7 @@ In this video, we pop the hood and examine real performance, build quality, and 
   const scriptOutline =
     extractSection(responseText, 'script outline', 'script') ||
     `### 0:00 - 0:40: The Teardown Hook
-- Macro shot of product. You: "Most reviewers claim this is flawless. They're wrong. Let's pop the hood."
+- Macro shot of product. You: "Most reviewers claim this is flawless. Here is what they skip."
 - Forward loop: "Stay until minute 5 for the thermal stress test that shocked me."
 
 ### 0:40 - 2:30: Build & Hardware Internals

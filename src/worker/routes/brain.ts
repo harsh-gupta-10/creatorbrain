@@ -1,19 +1,11 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 
-export const brainRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-  };
-}>();
+export const brainRoutes = new Hono<AppEnv>();
 
 brainRoutes.get('/graph', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const graph = await dbClient.getBrainGraph(creator.id);
@@ -37,9 +29,7 @@ brainRoutes.get('/graph', async (c) => {
 });
 
 brainRoutes.get('/learnings', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const learnings = await dbClient.getLearnings(creator.id, 10);

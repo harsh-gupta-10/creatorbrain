@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { linkProps } from '../lib/router';
-import { Logo, Meter, Spinner, ICON } from '../components/ui';
+import { Logo, Meter, Spinner, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
 interface MarketingLandingPageProps {
@@ -111,13 +111,14 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
 
   return (
     <div className="min-h-screen bg-[#f6f7f9] text-fg">
+      <SkipLink />
       {/* Navigation */}
       <header className="sticky top-0 z-30 bg-[#f6f7f9]/95 border-b border-line">
         <div className="max-w-[1200px] mx-auto h-16 px-5 md:px-8 flex items-center justify-between">
           <a {...linkProps('/')} aria-label="CreatorBrain home">
             <Logo />
           </a>
-          <nav className="hidden md:flex items-center gap-8 text-[14px] text-fg-2">
+          <nav className="hidden md:flex items-center gap-8 text-[14px] text-fg-2" aria-label="Primary">
             <a href="#how" className="hover:text-fg transition-colors">How it works</a>
             <a href="#features" className="hover:text-fg transition-colors">Features</a>
             <a href="#faq" className="hover:text-fg transition-colors">Questions</a>
@@ -132,12 +133,18 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
               </>
             )}
           </div>
-          <button className="md:hidden btn btn-ghost btn-sm px-2" onClick={() => setMenuOpen((v) => !v)} aria-label="Menu">
+          <button
+            className="md:hidden btn btn-ghost btn-sm px-2"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            aria-controls="landing-mobile-menu"
+          >
             {menuOpen ? <X {...ICON} /> : <Menu {...ICON} />}
           </button>
         </div>
         {menuOpen && (
-          <div className="md:hidden border-t border-line px-5 py-4 flex flex-col gap-3 text-[14px]">
+          <nav id="landing-mobile-menu" aria-label="Primary" className="md:hidden border-t border-line px-5 py-4 flex flex-col gap-3 text-[14px]">
             <a href="#how" onClick={() => setMenuOpen(false)}>How it works</a>
             <a href="#features" onClick={() => setMenuOpen(false)}>Features</a>
             <a href="#faq" onClick={() => setMenuOpen(false)}>Questions</a>
@@ -145,10 +152,11 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
               <a {...linkProps('/login')} className="btn btn-secondary btn-sm flex-1">Sign in</a>
               <a {...linkProps('/signup')} className="btn btn-primary btn-sm flex-1">Create account</a>
             </div>
-          </div>
+          </nav>
         )}
       </header>
 
+      <main id="main" tabIndex={-1} className="outline-none">
       {/* Hero */}
       <section className="max-w-[1200px] mx-auto px-5 md:px-8 pt-12 md:pt-0 md:min-h-[calc(100vh-64px)] grid gap-12 md:grid-cols-[1fr_1.1fr] md:items-center">
         <div className="max-w-[520px] rise-in">
@@ -162,7 +170,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
           <div className="mt-8 flex flex-wrap items-center gap-3">
             {primaryCta}
             {!signedIn && (
-              <button className="btn btn-secondary btn-lg" onClick={openSample} disabled={sampleLoading}>
+              <button className="btn btn-secondary btn-lg" onClick={openSample} disabled={sampleLoading} aria-busy={sampleLoading}>
                 {sampleLoading && <Spinner size={14} />}
                 See a sample workspace
               </button>
@@ -183,7 +191,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
             {STEPS.map((s) => (
               <li key={s.n} className="border-t border-line-strong pt-6">
                 <div className="meta">{s.n}</div>
-                <div className="mt-3 text-[17px] font-medium">{s.title}</div>
+                <h3 className="mt-3 text-[17px] font-medium">{s.title}</h3>
                 <p className="mt-2 text-fg-2">{s.body}</p>
               </li>
             ))}
@@ -205,7 +213,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
               {FEATURES.map((f) => (
                 <div key={f.title} className="bg-surface p-6">
                   <f.icon {...ICON} className="text-fg-2" />
-                  <div className="mt-4 font-medium">{f.title}</div>
+                  <h3 className="mt-4 font-medium">{f.title}</h3>
                   <p className="mt-2 text-[14px] text-fg-2 leading-[22px]">{f.body}</p>
                 </div>
               ))}
@@ -221,9 +229,12 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
           <div className="mt-8 border-t border-line">
             {FAQS.map((f, i) => (
               <div key={f.q} className="border-b border-line">
+                <h3>
                 <button
+                  id={`faq-q-${i}`}
                   className="w-full flex items-center justify-between gap-4 py-5 text-left"
                   aria-expanded={openFaq === i}
+                  aria-controls={`faq-a-${i}`}
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                 >
                   <span className="text-[16px] font-medium">{f.q}</span>
@@ -232,7 +243,10 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
                     className={`text-fg-3 shrink-0 transition-transform duration-200 ${openFaq === i ? 'rotate-180' : ''}`}
                   />
                 </button>
-                {openFaq === i && <p className="pb-5 -mt-1 text-fg-2 leading-[22px]">{f.a}</p>}
+                </h3>
+                <div id={`faq-a-${i}`} role="region" aria-labelledby={`faq-q-${i}`} hidden={openFaq !== i}>
+                  <p className="pb-5 -mt-1 text-fg-2 leading-[22px]">{f.a}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -248,6 +262,7 @@ export const MarketingLandingPage: React.FC<MarketingLandingPageProps> = ({ sess
           {primaryCta}
         </div>
       </section>
+      </main>
 
       <footer className="border-t border-line">
         <div className="max-w-[1200px] mx-auto px-5 md:px-8 py-8 flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between text-[13px] text-fg-3">
@@ -264,7 +279,7 @@ const PREVIEW_VIEWS = [41, 38, 52, 47, 36, 61, 44, 58, 49, 112, 63, 71];
 const HeroPreview: React.FC = () => {
   const max = 120;
   return (
-    <div className="relative pb-12 md:pb-0 rise-in" style={{ animationDelay: '60ms' }}>
+    <figure className="relative pb-12 md:pb-0 rise-in" style={{ animationDelay: '60ms' }} aria-label="Example channel study for @mayacooks">
       <div className="panel shadow-[0_8px_24px_rgb(0_0_0/0.06)] overflow-hidden">
         <div className="h-11 px-4 flex items-center justify-between border-b border-line">
           <div className="flex items-center gap-2 text-[13px]">
@@ -280,7 +295,11 @@ const HeroPreview: React.FC = () => {
               <span className="text-[13px] text-fg-2">Views per upload</span>
               <span className="meta">median 50K</span>
             </div>
-            <div className="mt-4 h-[148px] flex items-end gap-[6px] relative">
+            <div
+              className="mt-4 h-[148px] flex items-end gap-[6px] relative"
+              role="img"
+              aria-label={`Bar chart of views per upload for the last 12 uploads, in thousands: ${PREVIEW_VIEWS.join(', ')}. Median 50K; the tenth upload reached 112K.`}
+            >
               <div className="absolute left-0 right-0 border-t border-dashed border-fg-3/50" style={{ bottom: `${(50 / max) * 100}%` }} />
               {PREVIEW_VIEWS.map((v, i) => (
                 <div
@@ -309,7 +328,7 @@ const HeroPreview: React.FC = () => {
                   <div className="text-[12px] text-fg-3">{t.k}</div>
                   <div className="text-[13px] leading-5">{t.v}</div>
                 </div>
-                <Meter value={t.c} className="mt-1 shrink-0" />
+                <Meter value={t.c} label={`${t.k} confidence`} className="mt-1 shrink-0" />
               </div>
             ))}
           </div>
@@ -328,6 +347,6 @@ const HeroPreview: React.FC = () => {
           </ul>
         </div>
       </div>
-    </div>
+    </figure>
   );
 };

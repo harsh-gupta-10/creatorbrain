@@ -1,26 +1,15 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import { amazonClientFor } from '../amazon/credentials';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { AIRouter } from '../ai/router';
 import { runProductResearcher } from '../agents/definitions/studioAndResearch';
 import type { Product } from '../../shared/types';
 
-export const copilotRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    ANTHROPIC_API_KEY?: string;
-    OPENAI_API_KEY?: string;
-    GEMINI_API_KEY?: string;
-    AI?: import('../ai/types').WorkersAIBinding;
-  };
-}>();
+export const copilotRoutes = new Hono<AppEnv>();
 
 copilotRoutes.post('/chat', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const body = await c.req.json<{
     message: string;
@@ -63,7 +52,13 @@ copilotRoutes.post('/chat', async (c) => {
     lowerMsg.includes('headphone')
   ) {
     try {
-      detectedProduct = await runProductResearcher(userMessage, creator.id, router, c.env.DB);
+      detectedProduct = await runProductResearcher(
+        userMessage,
+        creator.id,
+        router,
+        c.env.DB,
+        await amazonClientFor(c.env.DB, c.env, creator.id)
+      );
       if (detectedProduct) {
         await dbClient.saveProduct(detectedProduct);
       }
@@ -74,15 +69,15 @@ copilotRoutes.post('/chat', async (c) => {
 
   // Build System Prompt grounded in Creator DNA
   const systemPrompt = `You are CreatorBrain Copilot, the world's most capable AI pair-creator and strategist for YouTube and short-form creators.
-You are collaborating with ${creator.name} (@${creator.handle}), who runs the channel "${creator.channel_title || creator.name}" (${creator.subscribers.toLocaleString()} subscribers, Niche: ${creator.niche || 'Tech & Hardware'}).
+You are collaborating with ${creator.name} (@${creator.handle}), who runs the channel "${creator.channel_title || creator.name}" (${creator.subscribers.toLocaleString()} subscribers, Niche: ${creator.niche || 'not set'}).
 
 CREATOR DNA & SIGNATURE VOICE:
-- Tone: ${dnaSummary?.voice?.tone || 'Candid, enthusiastic, engineering-grounded, zero fluff'}
-- Pacing: ${dnaSummary?.voice?.pace || 'Conversational and high-velocity'}
-- Language Mix: ${dnaSummary?.voice?.language_mix || 'Hinglish (75% English, 25% Hindi colloquial tech terms)'}
-- Signature Catchphrases: ${dnaSummary?.voice?.catchphrases?.join(', ') || '"Let us pop the hood on this", "Is it worth your hard-earned rupees?", "Real talk", "No sponsored BS"'}
-- Hook Formula: ${dnaSummary?.voice?.hook_formula || 'Bold provocation + physical component teardown in first 4s'}
-- Target Audience: ${dnaSummary?.audience?.primary_demographic || '18-34 tech enthusiasts, engineering students, value-conscious buyers'}
+- Tone: ${dnaSummary?.voice?.tone || 'Not learned yet; keep it clear and direct'}
+- Pacing: ${dnaSummary?.voice?.pace || 'Conversational'}
+- Language: ${dnaSummary?.voice?.language_mix || creator.content_language || 'English'}
+- Signature Catchphrases: ${dnaSummary?.voice?.catchphrases?.join(', ') || 'None learned yet; do not invent any'}
+- Hook Formula: ${dnaSummary?.voice?.hook_formula || 'Open on the result or the question the title promises'}
+- Target Audience: ${dnaSummary?.audience?.primary_demographic || `Viewers interested in ${creator.niche || 'their niche'}`}
 - Retention Focus: Prevent viewer drop-offs between minutes 4 and 6 with deliberate pattern interrupts and forward loops.
 
 CURRENT MODE: ${mode.toUpperCase()}

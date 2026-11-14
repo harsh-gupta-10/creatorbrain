@@ -1,39 +1,18 @@
-# ==============================================================================
-# CreatorBrain Environment Variables & Secrets
-# ==============================================================================
-# Copy this file to .dev.vars for local development with wrangler:
-# cp .dev.vars.example .dev.vars
-#
-# NOTE: CreatorBrain works 100% out of the box with zero external API keys!
-# If no keys are provided, the system seamlessly falls back to the intelligent
-# mock provider with realistic responses and offline catalog fixtures.
-# ==============================================================================
+# Copy to .dev.vars for `wrangler dev`. .dev.vars is gitignored; never commit real keys.
+# In production set each secret with: npx wrangler secret put <NAME>
 
-# Primary AI Provider (Anthropic Messages API)
-ANTHROPIC_API_KEY=sk-ant-api03-...
-ANTHROPIC_MODEL=claude-sonnet-5-5
-ANTHROPIC_FAST_MODEL=claude-haiku-5-5
-
-# Secondary AI Provider (OpenAI Structured Outputs & Function Calling)
-OPENAI_API_KEY=sk-proj-...
-OPENAI_MODEL=gpt-4o-mini
-
-# Video Understanding Provider (Google Gemini API - Accepts public YouTube URLs)
-GEMINI_API_KEY=AIzaSy...
-GEMINI_MODEL=gemini-1.5-pro
-
-# YouTube Data API v3 (Channel Scout)
-YOUTUBE_API_KEY=AIzaSy...
-
-# Amazon Creators API / PA-API Credentials (Optional - Mock catalog used by default)
-# Creators can also BYO credentials in the UI, encrypted with Web Crypto AES-GCM 256.
-AMAZON_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE
-AMAZON_SECRET_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
-AMAZON_PARTNER_TAG=techkabir-21
-AMAZON_DEFAULT_MARKETPLACE=amazon.in
-
-# Web Crypto AES-GCM Master Key for BYO Amazon credentials (32+ chars)
-ENCRYPTION_KEY=creatorbrain_dev_secret_master_encryption_key_32bytes!
-
-# Environment
 ENVIRONMENT=development
+
+# Required: 32+ random characters. Encrypts each creator's Amazon credentials (AES-GCM).
+# Generate one with: openssl rand -base64 48
+ENCRYPTION_KEY=
+
+# Optional. Without these the app uses free fallbacks:
+# Workers AI for analysis, YouTube's public feed and caption tracks for uploads and transcripts.
+GEMINI_API_KEY=      # Gemini watches each video and its thumbnail
+YOUTUBE_API_KEY=     # lists up to 50 uploads with duration, tags and comment counts
+ANTHROPIC_API_KEY=   # Claude for channel strategy and drafting
+OPENAI_API_KEY=
+
+# Amazon Associates credentials are NOT environment variables: each creator enters their
+# own tracking ID and API keys in the app, and they are stored encrypted per creator in D1.

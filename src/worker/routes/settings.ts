@@ -1,34 +1,29 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { AIRouter } from '../ai/router';
-import { encryptCredential } from '../amazon/crypto';
-import type { ProviderSettings, EncryptedCredentials } from '../../shared/types';
+import { z } from 'zod';
+import {
+  loadAmazonCredentials,
+  saveAmazonCredentials,
+  describeCredentials,
+  MARKETPLACES,
+  PARTNER_TAG_RE,
+} from '../amazon/credentials';
+import { SAMPLE_CREATOR_ID } from './auth';
+import type { ProviderSettings } from '../../shared/types';
 
-export const settingsRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    ANTHROPIC_API_KEY?: string;
-    OPENAI_API_KEY?: string;
-    GEMINI_API_KEY?: string;
-    AI?: any;
-    ENCRYPTION_KEY?: string;
-  };
-}>();
+export const settingsRoutes = new Hono<AppEnv>();
 
 // Get settings overview
 settingsRoutes.get('/', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const router = new AIRouter(c.env);
 
   const providerSettings = await dbClient.getProviderSettings(creator.id);
-  const creds = await dbClient.getEncryptedCredentials(creator.id);
+  const creds = await loadAmazonCredentials(c.env.DB, c.env, creator.id).catch(() => null);
   const usage = await router.getBudgetManager().getCurrentUsage(creator.id);
 
   return c.json({
@@ -41,62 +36,44 @@ settingsRoutes.get('/', async (c) => {
       daily_budget_usd: 5.0,
     },
     currentDailyUsageUsd: usage,
-    amazonConfig: {
-      hasCredentials: !!(creds?.amazon_access_key_enc && creds?.amazon_secret_key_enc),
-      partnerTag: creds?.amazon_partner_tag || '',
-      marketplace: creds?.amazon_marketplace || 'amazon.in',
-    },
+    amazonConfig: describeCredentials(creds),
     creator,
-    monetization: JSON.parse((creator as any).monetization_json || '{}'),
-    goals: JSON.parse((creator as any).goals_json || '[]'),
+    monetization: { ...safeJson(creator.monetization_json, {}), partnerTag: creds?.partnerTag || '', marketplace: creds?.marketplace },
+    goals: safeJson(creator.goals_json, []),
   });
 });
 
-// Edit the monetization answers from onboarding
+const Marketplace = z.enum(MARKETPLACES);
+
+const MonetizationSchema = z
+  .object({
+    amazon: z.boolean().default(false),
+    partnerTag: z.string().trim().max(40).optional().default(''),
+    marketplace: Marketplace.default('amazon.com'),
+    other: z.array(z.string().max(40)).max(8).default([]),
+  })
+  .refine((v) => !v.amazon || PARTNER_TAG_RE.test(v.partnerTag), {
+    message: 'Enter your Amazon Associates tracking ID, like yourname-20',
+  });
+
+// Edit the monetization answers from onboarding. The tracking ID is encrypted, never stored in plain JSON
 settingsRoutes.put('/monetization', async (c) => {
-  const creator = await getSessionCreator(c.env.DB, getCookie(c, 'cb_session'));
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
-  const body = (await c.req.json().catch(() => ({}))) as {
-    amazon?: boolean;
-    partnerTag?: string;
-    marketplace?: string;
-    other?: string[];
-  };
-  if (body.amazon && !/^[\w-]{3,40}$/.test(body.partnerTag || '')) {
-    return c.json({ error: 'Enter your Amazon Associates tracking ID, like yourname-20' }, 400);
-  }
-  const monetization = {
-    amazon: !!body.amazon,
-    partnerTag: body.amazon ? body.partnerTag : '',
-    marketplace: body.marketplace || 'amazon.com',
-    other: (body.other || []).slice(0, 8),
-  };
-  const ts = new Date().toISOString();
-  const db = c.env.DB;
-  const stmts = [
-    db.prepare('UPDATE creators SET monetization_json = ?, updated_at = ? WHERE id = ?').bind(JSON.stringify(monetization), ts, creator.id),
-  ];
-  if (monetization.amazon) {
-    stmts.push(
-      db
-        .prepare(
-          `INSERT INTO credentials_encrypted (id, creator_id, amazon_partner_tag, amazon_marketplace, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (creator_id) DO UPDATE SET amazon_partner_tag = excluded.amazon_partner_tag,
-             amazon_marketplace = excluded.amazon_marketplace, updated_at = excluded.updated_at`
-        )
-        .bind(`cred_${creator.id}`, creator.id, monetization.partnerTag, monetization.marketplace, ts, ts)
-    );
-  }
-  await db.batch(stmts);
-  return c.json({ success: true, monetization });
+  const creator = c.get('creator');
+  const parsed = MonetizationSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
+  const { amazon, partnerTag, marketplace, other } = parsed.data;
+
+  await c.env.DB.prepare('UPDATE creators SET monetization_json = ?, updated_at = ? WHERE id = ?')
+    .bind(JSON.stringify({ amazon, marketplace, other }), new Date().toISOString(), creator.id)
+    .run();
+  if (amazon) await saveAmazonCredentials(c.env.DB, c.env, creator.id, { partnerTag, marketplace });
+
+  return c.json({ success: true, monetization: { amazon, partnerTag: amazon ? partnerTag : '', marketplace, other } });
 });
 
 // Update AI provider settings & budget
 settingsRoutes.put('/providers', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const body = await c.req.json<Partial<ProviderSettings>>();
   const dbClient = new DBClient(c.env.DB);
@@ -106,59 +83,47 @@ settingsRoutes.put('/providers', async (c) => {
   return c.json({ success: true, providerSettings: updated });
 });
 
-// Save BYO Amazon credentials (AES-GCM encrypted)
+const AmazonKeysSchema = z.object({
+  partnerTag: z.string().trim().regex(PARTNER_TAG_RE, 'Tracking IDs use 3 to 40 letters, numbers and dashes').optional(),
+  marketplace: Marketplace.optional(),
+  accessKey: z.string().trim().regex(/^[A-Z0-9]{16,128}$/, 'That access key does not look right').optional().or(z.literal('')),
+  secretKey: z.string().trim().min(20, 'That secret key looks too short').max(256).optional().or(z.literal('')),
+});
+
+// Save the creator's own Amazon API keys and tracking ID, each encrypted with AES-GCM
 settingsRoutes.put('/amazon', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
-
-  const { accessKey, secretKey, partnerTag, marketplace } = await c.req.json();
-  const dbClient = new DBClient(c.env.DB);
-  const pass = c.env.ENCRYPTION_KEY || 'creatorbrain_default_dev_key_32b';
-
-  let accessEnc = undefined;
-  let secretEnc = undefined;
-  let iv = undefined;
-
-  if (accessKey && secretKey) {
-    const enc1 = await encryptCredential(accessKey, pass);
-    const enc2 = await encryptCredential(secretKey, pass);
-    accessEnc = enc1.encrypted;
-    secretEnc = enc2.encrypted;
-    iv = enc1.iv; // shared IV for this pair
+  const creator = c.get('creator');
+  const parsed = AmazonKeysSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
+  const { partnerTag, marketplace, accessKey, secretKey } = parsed.data;
+  if (!!accessKey !== !!secretKey) {
+    return c.json({ error: 'Enter both the access key and the secret key' }, 400);
   }
 
-  const credObj: EncryptedCredentials = {
-    id: `cred_${creator.id}`,
-    creator_id: creator.id,
-    amazon_access_key_enc: accessEnc,
-    amazon_secret_key_enc: secretEnc,
-    amazon_partner_tag: partnerTag || '',
-    amazon_marketplace: marketplace || 'amazon.in',
-    iv,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  await dbClient.saveEncryptedCredentials(credObj);
-
-  return c.json({
-    success: true,
-    message: 'Amazon credentials encrypted with AES-GCM and stored securely.',
-    hasCredentials: !!accessEnc,
-    partnerTag: credObj.amazon_partner_tag,
-    marketplace: credObj.amazon_marketplace,
+  await saveAmazonCredentials(c.env.DB, c.env, creator.id, {
+    partnerTag,
+    marketplace,
+    // Blank key fields keep the stored keys
+    accessKey: accessKey || undefined,
+    secretKey: secretKey || undefined,
   });
+  const creds = await loadAmazonCredentials(c.env.DB, c.env, creator.id);
+  return c.json({ success: true, message: 'Saved and encrypted', ...describeCredentials(creds) });
+});
+
+// Remove stored Amazon API keys (the tracking ID stays)
+settingsRoutes.delete('/amazon/keys', async (c) => {
+  const creator = c.get('creator');
+  await saveAmazonCredentials(c.env.DB, c.env, creator.id, { accessKey: '', secretKey: '' });
+  return c.json({ success: true });
 });
 
 // "Delete my data" button wipes creator's rows
 settingsRoutes.post('/delete-data', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   // If demo creator, prevent wiping the global seed data, but return success
-  if (creator.id === 'creator_demo_tech_kabir') {
+  if (creator.id === SAMPLE_CREATOR_ID) {
     return c.json({
       success: true,
       message: 'Demo creator data reset. In a production account, all database rows are permanently wiped.',
@@ -173,3 +138,11 @@ settingsRoutes.post('/delete-data', async (c) => {
     message: 'All creator profile, graph nodes, assets, and project data permanently wiped.',
   });
 });
+
+function safeJson<T>(raw: string | null | undefined, fallback: T): T {
+  try {
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}

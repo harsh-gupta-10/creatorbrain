@@ -38,7 +38,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    messagesEndRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
   };
 
   useEffect(() => {
@@ -221,6 +222,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         description="Talk through a video idea. Answers draw on your published content and live Amazon data"
         actions={
           <Segmented
+            label="Copilot mode"
             value={activeMode}
             onChange={setActiveMode}
             options={[
@@ -233,26 +235,37 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         }
       />
 
-      {(createdProjectSuccess || actionError) && (
-        <div className="mb-4">
-          {actionError ? (
-            <ErrorNote>{actionError}</ErrorNote>
-          ) : (
-            <div className="card px-4 py-3 flex items-center gap-2 text-[13px] text-fg">
-              <Check {...ICON} className="text-positive shrink-0" />
-              {createdProjectSuccess}
-            </div>
-          )}
-        </div>
-      )}
+      <div role="status" aria-live="polite">
+        {(createdProjectSuccess || actionError) && (
+          <div className="mb-4">
+            {actionError ? (
+              <ErrorNote>{actionError}</ErrorNote>
+            ) : (
+              <div className="card px-4 py-3 flex items-center gap-2 text-[13px] text-fg">
+                <Check {...ICON} className="text-positive shrink-0" />
+                {createdProjectSuccess}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
-      <div className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden">
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6">
+      <section className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden" aria-labelledby="copilot-conversation">
+        <h2 id="copilot-conversation" className="sr-only">Conversation</h2>
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6"
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-labelledby="copilot-conversation"
+          tabIndex={0}
+        >
           <div className="max-w-3xl mx-auto space-y-6">
             {messages.map((msg) =>
               msg.role === 'user' ? (
                 <div key={msg.id} className="flex flex-col items-end gap-1">
                   <div className="max-w-[85%] rounded-[12px] bg-raised px-4 py-3 text-fg whitespace-pre-wrap">
+                    <span className="sr-only">You said: </span>
                     {msg.content}
                   </div>
                   <span className="meta">{msg.time}</span>
@@ -276,7 +289,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                         {msg.product.image_url ? (
                           <img
                             src={msg.product.image_url}
-                            alt={msg.product.title}
+                            alt=""
                             className="w-12 h-12 object-contain rounded-[8px] bg-raised p-1 shrink-0"
                           />
                         ) : (
@@ -331,7 +344,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             )}
 
             {loading && (
-              <div className="flex items-center gap-2 text-[13px] text-fg-3">
+              <div className="flex items-center gap-2 text-[13px] text-fg-3" role="status">
                 <Spinner />
                 Reading your past videos and the Amazon catalog
               </div>
@@ -377,6 +390,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                 onKeyDown={handleKeyDown}
                 placeholder="Describe a video idea"
                 aria-label="Message"
+                aria-describedby="copilot-send-hint"
                 className="flex-1 bg-transparent border-0 resize-none px-2 py-1 text-fg placeholder:text-fg-3 focus:outline-none"
               />
               <button
@@ -390,14 +404,14 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             </form>
 
             <div className="hidden sm:flex justify-end">
-              <span className="inline-flex items-center gap-1 text-[12px] text-fg-3">
+              <span id="copilot-send-hint" className="inline-flex items-center gap-1 text-[12px] text-fg-3">
                 <span className="kbd">Enter</span> to send, <span className="kbd">Shift</span>
                 <span className="kbd">Enter</span> for a new line
               </span>
             </div>
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

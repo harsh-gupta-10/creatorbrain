@@ -20,7 +20,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '../lib/api';
-import { PageHeader, EmptyState, ErrorNote, Spinner, ICON } from '../components/ui';
+import { PageHeader, EmptyState, ErrorNote, Spinner, ICON, Dialog } from '../components/ui';
 import type { Project, ProjectAsset, AssetType } from '../../shared/types';
 
 const ASSET_ICONS: Record<AssetType, LucideIcon> = {
@@ -339,11 +339,18 @@ ${a.content}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-5 h-[620px] panel flex flex-col overflow-hidden">
           <div className="h-12 px-4 border-b border-line flex items-center justify-between">
-            <span className="text-[13px] font-medium text-fg">Studio agent</span>
+            <h2 id="studio-agent-title" className="text-[13px] font-medium text-fg">Studio agent</h2>
             <span className="meta">Researches, drafts and checks</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div
+            className="flex-1 overflow-y-auto p-4 space-y-4"
+            role="log"
+            aria-live="polite"
+            aria-relevant="additions"
+            aria-labelledby="studio-agent-title"
+            tabIndex={0}
+          >
             {chatMessages.length === 0 && !selectedProjectId && (
               <EmptyState
                 icon={<FolderKanban {...ICON} />}
@@ -355,6 +362,7 @@ ${a.content}
               msg.role === 'user' ? (
                 <div key={i} className="flex flex-col items-end gap-1">
                   <div className="max-w-[88%] rounded-[12px] bg-raised px-3 py-2 text-fg whitespace-pre-wrap">
+                    <span className="sr-only">You said: </span>
                     {msg.text}
                   </div>
                   <span className="meta">{msg.time}</span>
@@ -364,14 +372,17 @@ ${a.content}
                   {msg.isError ? (
                     <ErrorNote>{msg.text}</ErrorNote>
                   ) : (
-                    <div className="text-fg-2 whitespace-pre-wrap">{msg.text}</div>
+                    <div className="text-fg-2 whitespace-pre-wrap">
+                      <span className="sr-only">Studio agent: </span>
+                      {msg.text}
+                    </div>
                   )}
                   <span className="meta">{msg.time}</span>
                 </div>
               )
             )}
             {isGenerating && (
-              <div className="flex items-center gap-2 text-[13px] text-fg-3">
+              <div className="flex items-center gap-2 text-[13px] text-fg-3" role="status">
                 <Spinner />
                 Researching products, drafting and checking disclosures
               </div>
@@ -400,7 +411,23 @@ ${a.content}
         </div>
 
         <div className="lg:col-span-7 h-[620px] panel flex flex-col overflow-hidden">
-          <div className="border-b border-line p-2 overflow-x-auto flex items-center gap-1" role="tablist">
+          <div
+            className="border-b border-line p-2 overflow-x-auto flex items-center gap-1"
+            role="tablist"
+            aria-label="Project assets"
+            onKeyDown={(e) => {
+              // Arrow keys move between tabs (WAI-ARIA tabs pattern)
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+              const tabs = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+              const i = tabs.indexOf(document.activeElement as HTMLButtonElement);
+              if (i < 0) return;
+              e.preventDefault();
+              const next =
+                e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+              tabs[next].focus();
+              tabs[next].click();
+            }}
+          >
             {[
               { type: 'titles' as const, label: 'Titles' },
               { type: 'description' as const, label: 'Description' },
@@ -418,8 +445,12 @@ ${a.content}
               return (
                 <button
                   key={tab.type}
+                  id={`asset-tab-${tab.type}`}
+                  type="button"
                   role="tab"
                   aria-selected={isActive}
+                  aria-controls="asset-panel"
+                  tabIndex={isActive ? 0 : -1}
                   onClick={() => handleAssetTabChange(tab.type)}
                   className={`flex items-center gap-2 h-8 px-3 rounded-[8px] text-[13px] whitespace-nowrap transition-colors ${
                     isActive ? 'bg-raised text-fg' : 'text-fg-2 hover:text-fg hover:bg-raised'
@@ -432,18 +463,24 @@ ${a.content}
             })}
           </div>
 
+          <div
+            id="asset-panel"
+            role="tabpanel"
+            aria-labelledby={`asset-tab-${activeAssetType}`}
+            className="flex-1 min-h-0 flex flex-col"
+          >
           <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <h3 className="text-[15px] font-medium text-fg truncate">{currentAsset?.title || activeAssetType}</h3>
+              <h2 className="text-[15px] font-medium text-fg truncate">{currentAsset?.title || activeAssetType}</h2>
               <p className="text-[12px] leading-4 text-fg-3 mt-1">Drafted from your past videos and captions</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => setIsEditing(!isEditing)} className="btn btn-ghost btn-sm">
+              <button onClick={() => setIsEditing(!isEditing)} className="btn btn-ghost btn-sm" aria-pressed={isEditing}>
                 <Edit3 {...ICON} />
                 {isEditing ? 'Cancel' : 'Edit'}
               </button>
               {isEditing && (
-                <button onClick={handleSaveAssetEdit} disabled={isSaving} className="btn btn-primary btn-sm">
+                <button onClick={handleSaveAssetEdit} disabled={isSaving} aria-busy={isSaving} className="btn btn-primary btn-sm">
                   {isSaving ? <Spinner /> : <Save {...ICON} />}
                   Save
                 </button>
@@ -455,7 +492,7 @@ ${a.content}
                 {copiedType === activeAssetType ? (
                   <>
                     <Check {...ICON} className="text-positive" />
-                    Copied
+                    <span role="status">Copied</span>
                   </>
                 ) : (
                   <>
@@ -487,20 +524,20 @@ ${a.content}
               />
             )}
           </div>
+          </div>
         </div>
       </div>
 
       {showNewModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-fg/30 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-project-title"
+        <Dialog
+          onClose={() => setShowNewModal(false)}
+          labelledBy="new-project-title"
+          backdropClassName="bg-fg/30"
+          className="panel w-full max-w-md p-6 shadow-[0_8px_24px_rgb(0_0_0/0.12)]"
         >
-          <div className="panel w-full max-w-md p-6 shadow-[0_8px_24px_rgb(0_0_0/0.12)]">
-            <h3 id="new-project-title" className="text-[16px] font-medium text-fg mb-4">
+            <h2 id="new-project-title" className="text-[16px] font-medium text-fg mb-4">
               New video project
-            </h3>
+            </h2>
             <form onSubmit={handleCreateNewProject} className="space-y-4">
               <div>
                 <label className="field-label" htmlFor="new-project-name">
@@ -510,6 +547,7 @@ ${a.content}
                   id="new-project-name"
                   type="text"
                   required
+                  aria-required="true"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
                   placeholder="Vivo T3 Pro 5G review"
@@ -539,8 +577,7 @@ ${a.content}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

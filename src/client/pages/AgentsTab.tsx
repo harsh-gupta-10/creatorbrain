@@ -50,7 +50,7 @@ export const AgentsTab: React.FC = () => {
         title="Agents"
         description="Step-by-step traces of each agent run: what it read, which tool it called and what it returned"
         actions={
-          <button onClick={handleRunAgentsNow} disabled={isRunningAgents} className="btn btn-primary">
+          <button onClick={handleRunAgentsNow} disabled={isRunningAgents} aria-busy={isRunningAgents} className="btn btn-primary">
             {isRunningAgents ? <Spinner /> : <Play {...ICON} />}
             {isRunningAgents ? 'Running' : 'Run agents now'}
           </button>
@@ -63,17 +63,19 @@ export const AgentsTab: React.FC = () => {
         </div>
       )}
 
-      {runMessage && (
-        <div className="mb-4 card px-4 py-3 flex items-center gap-2 text-[13px] text-fg">
-          <Check {...ICON} className="text-positive shrink-0" />
-          {runMessage}
-        </div>
-      )}
+      <div role="status">
+        {runMessage && (
+          <div className="mb-4 card px-4 py-3 flex items-center gap-2 text-[13px] text-fg">
+            <Check {...ICON} className="text-positive shrink-0" />
+            {runMessage}
+          </div>
+        )}
+      </div>
 
       <SectionTitle title="Recent traces" meta={traces.length} action={<span className="meta">Up to 6 steps per run</span>} />
 
       {loading && traces.length === 0 ? (
-        <div className="card flex items-center justify-center gap-2 py-12 text-fg-3">
+        <div className="card flex items-center justify-center gap-2 py-12 text-fg-3" role="status">
           <Spinner /> <span className="text-[13px]">Loading traces</span>
         </div>
       ) : traces.length === 0 ? (
@@ -96,13 +98,14 @@ export const AgentsTab: React.FC = () => {
                     ? 'bg-accent'
                     : 'bg-negative'
                 }`}
-                aria-label={trace.status}
+                aria-hidden="true"
               />
 
               <div className="card p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="font-medium text-fg truncate">{trace.agent_name}</span>
+                    <h3 className="font-medium text-fg truncate">{trace.agent_name}</h3>
+                    <span className="sr-only">Status: {trace.status}.</span>
                     <span className="meta">
                       Step {trace.step_number} of {trace.total_steps}
                     </span>

@@ -58,15 +58,15 @@ export const ToolsTab: React.FC = () => {
         description="Single-purpose generators for hooks, scripts, thumbnails and captions, written in your voice"
       />
 
-      <div className="flex flex-wrap gap-1 p-[2px] mb-6 rounded-[8px] bg-raised w-fit" role="tablist">
+      <div className="flex flex-wrap gap-1 p-[2px] mb-6 rounded-[8px] bg-raised w-fit" role="group" aria-label="Tool">
         {TOOLS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTool === tab.id;
           return (
             <button
               key={tab.id}
-              role="tab"
-              aria-selected={isActive}
+              type="button"
+              aria-pressed={isActive}
               onClick={() => {
                 setActiveTool(tab.id);
                 setGeneratedOutput('');
@@ -105,7 +105,7 @@ export const ToolsTab: React.FC = () => {
 
             <div>
               <label className="field-label" htmlFor="tool-product">
-                Product or ASIN
+                Product or ASIN <span className="text-fg-3 font-normal">optional</span>
               </label>
               <input
                 id="tool-product"
@@ -136,7 +136,7 @@ export const ToolsTab: React.FC = () => {
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <button type="submit" disabled={isGenerating || !topic.trim()} className="btn btn-primary w-full">
+            <button type="submit" disabled={isGenerating || !topic.trim()} aria-busy={isGenerating} className="btn btn-primary w-full">
               {isGenerating && <Spinner />}
               {isGenerating ? 'Writing' : `Write ${activeLabel.toLowerCase()}`}
             </button>
@@ -145,16 +145,19 @@ export const ToolsTab: React.FC = () => {
 
         <div className="lg:col-span-7 h-[500px] card flex flex-col overflow-hidden">
           <div className="h-12 px-4 border-b border-line flex items-center justify-between">
-            <span className="text-[13px] font-medium text-fg">{activeLabel} output</span>
+            <h2 className="text-[13px] font-medium text-fg">{activeLabel} output</h2>
             {generatedOutput && (
               <button onClick={handleCopy} className="btn btn-ghost btn-sm">
                 {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}
-                {copied ? 'Copied' : 'Copy'}
+                <span role="status">{copied ? 'Copied' : 'Copy'}</span>
               </button>
             )}
           </div>
 
-          <div className="flex-1 p-5 overflow-y-auto">
+          <p className="sr-only" role="status">
+            {isGenerating ? `Writing ${activeLabel.toLowerCase()}` : generatedOutput ? `${activeLabel} ready` : ''}
+          </p>
+          <div className="flex-1 p-5 overflow-y-auto" tabIndex={generatedOutput ? 0 : undefined} aria-label={`${activeLabel} output`}>
             {generatedOutput ? (
               <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
                 {generatedOutput}

@@ -14,6 +14,7 @@ export interface AIRouterEnv {
   OPENAI_API_KEY?: string;
   OPENAI_MODEL?: string;
   GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   AI?: any; // Cloudflare Workers AI binding
   KV?: KVNamespace;
 }
@@ -45,7 +46,7 @@ export class AIRouter {
     }
 
     if (env.GEMINI_API_KEY) {
-      this.gemini = new GeminiProvider(env.GEMINI_API_KEY, 'gemini-1.5-flash');
+      this.gemini = new GeminiProvider(env.GEMINI_API_KEY, env.GEMINI_MODEL || 'gemini-2.5-flash');
     }
 
     if (env.AI) {
@@ -215,6 +216,10 @@ export class AIRouter {
       text: 'Executed step using autonomous agent reasoning engine.',
       toolCalls: [],
     };
+  }
+
+  getWorkersAi(): WorkersAIProvider | undefined {
+    return this.workersAi;
   }
 
   getGemini(): GeminiProvider | undefined {

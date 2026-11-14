@@ -10,6 +10,7 @@ import {
   EmptyState,
   ErrorNote,
   Spinner,
+  Dialog,
   formatCount,
   formatDate,
 } from '../components/ui';
@@ -62,13 +63,30 @@ const EarningsChart: React.FC<{ series: { date: string; value: number }[]; money
   const ticks = [max, max / 2, 0];
 
   return (
-    <div className="flex gap-3">
-      <div className="flex flex-col justify-between text-right meta !leading-none shrink-0" style={{ height: chartH }}>
+    <figure className="flex gap-3">
+      <figcaption className="sr-only">Commission by report date</figcaption>
+      <table className="sr-only">
+        <thead>
+          <tr>
+            <th scope="col">Report date</th>
+            <th scope="col">Commission</th>
+          </tr>
+        </thead>
+        <tbody>
+          {series.map((s) => (
+            <tr key={s.date}>
+              <th scope="row">{formatDate(s.date)}</th>
+              <td>{money(s.value)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="flex flex-col justify-between text-right meta !leading-none shrink-0" style={{ height: chartH }} aria-hidden="true">
         {ticks.map((t, i) => (
           <span key={i}>{money(t)}</span>
         ))}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0" aria-hidden="true">
         <div className="relative" style={{ height: chartH }}>
           {[0, 0.5, 1].map((p) => (
             <div key={p} className="absolute inset-x-0 border-t border-line" style={{ top: `${p * 100}%` }} />
@@ -96,7 +114,7 @@ const EarningsChart: React.FC<{ series: { date: string; value: number }[]; money
           <span>{formatDate(series[series.length - 1]?.date)}</span>
         </div>
       </div>
-    </div>
+    </figure>
   );
 };
 
@@ -262,7 +280,7 @@ export const AmazonAffiliateTab: React.FC = () => {
         actions={
           !off && (
             <>
-              <button onClick={handleHealthCheck} disabled={isHealthChecking} className="btn btn-secondary">
+              <button onClick={handleHealthCheck} disabled={isHealthChecking} aria-busy={isHealthChecking} className="btn btn-secondary">
                 {isHealthChecking ? <Spinner /> : <RefreshCw {...ICON} className="text-fg-2" />}
                 Check links
               </button>
@@ -298,12 +316,14 @@ export const AmazonAffiliateTab: React.FC = () => {
         </div>
       )}
 
-      {healthStatusMsg && (
-        <div className="mb-6 rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2">
-          <Check {...ICON} className="shrink-0" />
-          {healthStatusMsg}
-        </div>
-      )}
+      <div role="status">
+        {healthStatusMsg && (
+          <div className="mb-6 rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2">
+            <Check {...ICON} className="shrink-0" />
+            {healthStatusMsg}
+          </div>
+        )}
+      </div>
 
       {!off && (
         <>
@@ -344,15 +364,15 @@ export const AmazonAffiliateTab: React.FC = () => {
                     <EarningsChart series={series} money={money} />
                   </div>
                   <div>
-                    <div className="text-[13px] text-fg-2 mb-3">Top products by commission</div>
-                    <div className="space-y-3">
+                    <h3 id="top-products-heading" className="text-[13px] text-fg-2 mb-3">Top products by commission</h3>
+                    <div className="space-y-3" role="list" aria-labelledby="top-products-heading">
                       {topProducts.map(([title, value]) => (
-                        <div key={title}>
+                        <div key={title} role="listitem">
                           <div className="flex items-baseline justify-between gap-3 text-[13px]">
                             <span className="truncate text-fg">{title}</span>
                             <span className="meta shrink-0">{money(value)}</span>
                           </div>
-                          <div className="mt-1 h-1 rounded-full bg-raised">
+                          <div className="mt-1 h-1 rounded-full bg-raised" aria-hidden="true">
                             <div className="h-1 rounded-full bg-fg-3" style={{ width: `${(value / topMax) * 100}%` }} />
                           </div>
                         </div>
@@ -382,13 +402,16 @@ export const AmazonAffiliateTab: React.FC = () => {
                 className="input !pl-9"
               />
             </div>
-            <button type="submit" disabled={isSearching} className="btn btn-primary">
+            <button type="submit" disabled={isSearching} aria-busy={isSearching} className="btn btn-primary">
               {isSearching && <Spinner />}
               Search
             </button>
           </form>
 
           {searchError && <ErrorNote>{searchError}</ErrorNote>}
+          <p className="sr-only" role="status">
+            {!isSearching && searchResults.length > 0 ? `${searchResults.length} products found` : ''}
+          </p>
 
           {searchResults.length > 0 && (
             <ul className="divide-y divide-line border-t border-line -mx-5 -mb-5">
@@ -410,7 +433,7 @@ export const AmazonAffiliateTab: React.FC = () => {
                   </div>
                   <button onClick={() => handleImportProduct(prod)} className="btn btn-secondary btn-sm shrink-0">
                     <Plus {...ICON} />
-                    Add
+                    Add<span className="sr-only"> {prod.title}</span>
                   </button>
                 </li>
               ))}
@@ -424,7 +447,7 @@ export const AmazonAffiliateTab: React.FC = () => {
         <section>
           <SectionTitle title="Your products" meta={products.length || undefined} />
           {loading ? (
-            <div className="card flex items-center justify-center gap-2 py-12 text-fg-3">
+            <div className="card flex items-center justify-center gap-2 py-12 text-fg-3" role="status">
               <Spinner />
               Loading products
             </div>
@@ -454,9 +477,9 @@ export const AmazonAffiliateTab: React.FC = () => {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center gap-2 meta min-w-0">
-                      <span className={`dot ${available ? 'bg-positive' : 'bg-warning'}`} />
+                      <span className={`dot ${available ? 'bg-positive' : 'bg-warning'}`} aria-hidden="true" />
                       <span className="truncate">{prod.availability || 'Unknown'}</span>
-                      <span>·</span>
+                      <span aria-hidden="true">·</span>
                       <span className="shrink-0">{prod.asin}</span>
                     </div>
                     <div className="meta mt-1 truncate">Price as of {prod.price_timestamp}</div>
@@ -469,6 +492,7 @@ export const AmazonAffiliateTab: React.FC = () => {
                         className="inline-flex items-center gap-1 text-[13px] text-accent-ink hover:underline shrink-0"
                       >
                         Open on Amazon
+                        <span className="sr-only">: {prod.title} (opens in a new tab)</span>
                         <ExternalLink {...ICON} />
                       </a>
                     </div>
@@ -482,17 +506,16 @@ export const AmazonAffiliateTab: React.FC = () => {
 
       {/* CSV earnings import */}
       {showCsvModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="panel w-full max-w-lg p-6" role="dialog" aria-modal="true" aria-labelledby="csv-title">
+        <Dialog onClose={() => setShowCsvModal(false)} labelledBy="csv-title" className="panel w-full max-w-lg p-6" backdropClassName="bg-black/30">
             <div className="flex items-center justify-between mb-2">
-              <h3 id="csv-title" className="text-[15px] font-medium text-fg">
+              <h2 id="csv-title" className="text-[15px] font-medium text-fg">
                 Import earnings
-              </h3>
+              </h2>
               <button onClick={() => setShowCsvModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
                 <X {...ICON} />
               </button>
             </div>
-            <p className="text-[13px] text-fg-2 mb-4">
+            <p id="csv-help" className="text-[13px] text-fg-2 mb-4">
               Paste rows from your Associates earnings report. Columns: date, ASIN, product title, items ordered, items
               shipped, revenue, commission.
             </p>
@@ -500,7 +523,7 @@ export const AmazonAffiliateTab: React.FC = () => {
             <form onSubmit={handleCsvImport} className="space-y-4">
               {csvError && <ErrorNote>{csvError}</ErrorNote>}
               {importCount !== null && (
-                <div className="rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2">
+                <div role="status" className="rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2">
                   <Check {...ICON} className="shrink-0" />
                   Imported {importCount} rows
                 </div>
@@ -511,6 +534,7 @@ export const AmazonAffiliateTab: React.FC = () => {
                 value={csvText}
                 onChange={(e) => setCsvText(e.target.value)}
                 aria-label="Earnings CSV"
+                aria-describedby="csv-help"
                 placeholder={`Date,ASIN,Product Title,Items Ordered,Items Shipped,Revenue,Commission\n2026-11-12,B0D3G78JKL,Motorola Edge 50 Fusion,4,4,91996.0,2299.9`}
                 className="input font-mono !text-[12px]"
               />
@@ -524,8 +548,7 @@ export const AmazonAffiliateTab: React.FC = () => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

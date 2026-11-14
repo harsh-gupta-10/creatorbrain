@@ -1,21 +1,13 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import type { BioBlock, BioPage } from '../../shared/types';
 
-export const bioRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-  };
-}>();
+export const bioRoutes = new Hono<AppEnv>();
 
 // Get bio page and blocks for authenticated creator
 bioRoutes.get('/me', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const data = await dbClient.getBioPageWithBlocks(creator.handle);
@@ -25,9 +17,7 @@ bioRoutes.get('/me', async (c) => {
 
 // Update bio page metadata & styling
 bioRoutes.put('/page', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const { theme, custom_title, custom_bio, accent_color, bg_color, is_published } =
     await c.req.json();
@@ -65,9 +55,7 @@ bioRoutes.put('/page', async (c) => {
 
 // Save all bio blocks (reordering, editing, adding)
 bioRoutes.put('/blocks', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const { blocks } = await c.req.json<{ blocks: BioBlock[] }>();
   const dbClient = new DBClient(c.env.DB);

@@ -151,3 +151,146 @@ export async function fetchYouTubeChannel(input: string): Promise<FetchedChannel
     videos,
   };
 }
+
+// ------------------------------------------------------------------
+// Full channel listing with the YouTube Data API (when YOUTUBE_API_KEY is set)
+// ------------------------------------------------------------------
+
+export interface DataApiVideo extends FetchedVideo {
+  durationSeconds: number;
+  tags: string[];
+  comments: number;
+}
+
+export function parseIsoDuration(iso: string): number {
+  const m = iso.match(/P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!m) return 0;
+  const [, d, h, min, s] = m.map((v) => Number(v || 0));
+  return d * 86400 + h * 3600 + min * 60 + s;
+}
+
+/** Up to `max` most recent uploads with duration, tags and engagement. Uses 3 API calls (~3 quota units) */
+export async function fetchChannelWithDataApi(input: string, apiKey: string, max = 50): Promise<FetchedChannel & { videos: DataApiVideo[] }> {
+  const { channelId, pageUrl } = normalizeYouTubeInput(input);
+  const base = 'https://www.googleapis.com/youtube/v3';
+  const handle = pageUrl.match(/\/(@[\w.-]+)/)?.[1];
+  const lookup = channelId ? `id=${channelId}` : handle ? `forHandle=${encodeURIComponent(handle)}` : '';
+  if (!lookup) throw new Error('We could not read that YouTube channel. Use the @handle or channel URL');
+
+  const get = async (path: string) => {
+    const res = await fetch(`${base}/${path}`, { headers: { 'X-Goog-Api-Key': apiKey } });
+    const data = (await res.json()) as any;
+    if (!res.ok) throw new Error(data?.error?.message || `YouTube Data API returned ${res.status}`);
+    return data;
+  };
+
+  const ch = (await get(`channels?part=snippet,statistics,contentDetails&${lookup}`)).items?.[0];
+  if (!ch) throw new Error('We could not find that YouTube channel. Check the handle or paste the channel URL');
+  const uploads = ch.contentDetails.relatedPlaylists.uploads;
+  const items = (await get(`playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`)).items || [];
+  const ids = items.map((i: any) => i.contentDetails.videoId).join(',');
+  const vids = ids ? (await get(`videos?part=snippet,contentDetails,statistics&id=${ids}`)).items || [] : [];
+
+  return {
+    channelId: ch.id,
+    title: ch.snippet.title,
+    url: `https://www.youtube.com/channel/${ch.id}`,
+    avatarUrl: ch.snippet.thumbnails?.high?.url || ch.snippet.thumbnails?.default?.url,
+    subscribers: ch.statistics?.hiddenSubscriberCount ? undefined : Number(ch.statistics?.subscriberCount || 0),
+    videos: vids.map((v: any) => ({
+      id: v.id,
+      title: v.snippet.title,
+      description: v.snippet.description || '',
+      url: `https://www.youtube.com/watch?v=${v.id}`,
+      thumbnailUrl: (v.snippet.thumbnails?.maxres || v.snippet.thumbnails?.high || v.snippet.thumbnails?.medium)?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+      views: Number(v.statistics?.viewCount || 0),
+      likes: Number(v.statistics?.likeCount || 0),
+      comments: Number(v.statistics?.commentCount || 0),
+      publishedAt: v.snippet.publishedAt,
+      durationSeconds: parseIsoDuration(v.contentDetails?.duration || ''),
+      tags: (v.snippet.tags || []).slice(0, 30),
+    })),
+  };
+}
+
+// ------------------------------------------------------------------
+// Per-video details and transcript (keyless)
+// ------------------------------------------------------------------
+
+export interface TranscriptSegment {
+  start: number; // seconds
+  text: string;
+}
+
+export interface VideoDetails {
+  durationSeconds: number;
+  keywords: string[];
+  description: string;
+  views: number;
+  captionUrl?: string;
+  captionKind?: 'manual' | 'auto';
+  captionLanguage?: string;
+}
+
+/** Reads duration, keywords and caption tracks from YouTube's player endpoint */
+export async function fetchVideoDetails(videoId: string, preferLang = 'en'): Promise<VideoDetails> {
+  const res = await fetch('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'User-Agent': 'com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip',
+    },
+    body: JSON.stringify({
+      context: { client: { clientName: 'ANDROID', clientVersion: '20.10.38', androidSdkVersion: 34, hl: preferLang } },
+      videoId,
+    }),
+  });
+  if (!res.ok) throw new Error(`YouTube player returned ${res.status}`);
+  const data = (await res.json()) as any;
+  const vd = data.videoDetails || {};
+  const tracks: any[] = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const pick =
+    tracks.find((t) => t.languageCode?.startsWith(preferLang) && t.kind !== 'asr') ||
+    tracks.find((t) => t.languageCode?.startsWith(preferLang)) ||
+    tracks.find((t) => t.kind !== 'asr') ||
+    tracks[0];
+  return {
+    durationSeconds: Number(vd.lengthSeconds || 0),
+    keywords: (vd.keywords || []).slice(0, 30),
+    description: vd.shortDescription || '',
+    views: Number(vd.viewCount || 0),
+    captionUrl: pick?.baseUrl,
+    captionKind: pick ? (pick.kind === 'asr' ? 'auto' : 'manual') : undefined,
+    captionLanguage: pick?.languageCode,
+  };
+}
+
+/** Parses YouTube timedtext (srv3 `<p t="ms">` or classic `<text start="s">`) into segments */
+export function parseTimedText(xml: string): TranscriptSegment[] {
+  const segs: TranscriptSegment[] = [];
+  const clean = (t: string) => decodeEntities(t.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+  for (const m of xml.matchAll(/<p t="(\d+)"[^>]*>([\s\S]*?)<\/p>/g)) {
+    const text = clean(m[2]);
+    if (text) segs.push({ start: Number(m[1]) / 1000, text });
+  }
+  if (segs.length) return segs;
+  for (const m of xml.matchAll(/<text start="([\d.]+)"[^>]*>([\s\S]*?)<\/text>/g)) {
+    const text = clean(m[2]);
+    if (text) segs.push({ start: Number(m[1]), text });
+  }
+  return segs;
+}
+
+export async function fetchTranscript(captionUrl: string): Promise<TranscriptSegment[]> {
+  const res = await fetch(captionUrl, { headers: { 'User-Agent': UA } });
+  if (!res.ok) return [];
+  return parseTimedText(await res.text());
+}
+
+export function formatTimestamp(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}

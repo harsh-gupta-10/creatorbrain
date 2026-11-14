@@ -16,6 +16,14 @@
   "ai": {
     "binding": "AI"
   },
+  // 10 sign-in or sign-up attempts per IP per minute
+  "ratelimits": [
+    {
+      "name": "AUTH_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 10, "period": 60 }
+    }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
@@ -35,7 +43,7 @@
     "ANTHROPIC_MODEL": "claude-sonnet-5-5",
     "ANTHROPIC_FAST_MODEL": "claude-haiku-5-5",
     "OPENAI_MODEL": "gpt-4o-mini",
-    "AMAZON_DEFAULT_MARKETPLACE": "amazon.in"
+    "GEMINI_MODEL": "gemini-2.5-flash"
   },
   "observability": {
     "enabled": true,

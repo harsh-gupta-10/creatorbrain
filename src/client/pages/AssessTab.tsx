@@ -103,8 +103,9 @@ export const AssessTab: React.FC = () => {
       />
 
       {loading && quizzes.length === 0 ? (
-        <div className="card h-40 flex items-center justify-center text-fg-3">
+        <div className="card h-40 flex items-center justify-center text-fg-3" role="status">
           <Spinner />
+          <span className="sr-only">Loading quizzes</span>
         </div>
       ) : quizzes.length === 0 ? (
         <div className="space-y-4">
@@ -139,7 +140,7 @@ export const AssessTab: React.FC = () => {
                     >
                       <span className="w-5 shrink-0 flex justify-end">
                         {isDone ? (
-                          <Check {...ICON} className="text-positive" aria-label="Completed" />
+                          <Check {...ICON} className="text-positive" aria-hidden={false} role="img" aria-label="Completed" />
                         ) : (
                           <span className="meta">{idx + 1}</span>
                         )}
@@ -168,11 +169,15 @@ export const AssessTab: React.FC = () => {
                   </div>
 
                   {submissionResult ? (
-                    <div className="text-right shrink-0">
+                    <div className="text-right shrink-0" role="status">
                       <div className="text-[13px] text-fg-3">Score</div>
                       <div className="text-[24px] leading-8 font-medium num text-fg">
                         {submissionResult.score}
-                        <span className="text-fg-3">/{submissionResult.total}</span>
+                        <span className="text-fg-3">
+                          <span className="sr-only"> out of </span>
+                          <span aria-hidden="true">/</span>
+                          {submissionResult.total}
+                        </span>
                       </div>
                       {submissionResult.gapImproved && (
                         <div className="text-[12px] text-positive">Gap closed in your Brain</div>
@@ -183,7 +188,11 @@ export const AssessTab: React.FC = () => {
                       <div className="text-[13px] text-fg-3">Score</div>
                       <div className="text-[24px] leading-8 font-medium num text-fg">
                         {selectedQuiz.score ?? 0}
-                        <span className="text-fg-3">/{parsedQuestions.length}</span>
+                        <span className="text-fg-3">
+                          <span className="sr-only"> out of </span>
+                          <span aria-hidden="true">/</span>
+                          {parsedQuestions.length}
+                        </span>
                       </div>
                     </div>
                   ) : null}
@@ -199,7 +208,10 @@ export const AssessTab: React.FC = () => {
                       <li key={q.id || qIdx}>
                         <fieldset>
                           <legend className="flex gap-3 text-fg">
-                            <span className="meta w-5 shrink-0 pt-0.5">{qIdx + 1}</span>
+                            <span className="meta w-5 shrink-0 pt-0.5">
+                              <span className="sr-only">Question </span>
+                              {qIdx + 1}
+                            </span>
                             <span>{q.question}</span>
                           </legend>
 
@@ -243,10 +255,10 @@ export const AssessTab: React.FC = () => {
                                     {opt}
                                   </span>
                                   {hasSubmitted && isOptionCorrect && (
-                                    <Check {...ICON} className="text-positive shrink-0" aria-label="Correct answer" />
+                                    <Check {...ICON} className="text-positive shrink-0" aria-hidden={false} role="img" aria-label={isOptionSelected ? 'Your answer, correct' : 'Correct answer'} />
                                   )}
                                   {hasSubmitted && isOptionSelected && !isCorrect && (
-                                    <X {...ICON} className="text-negative shrink-0" aria-label="Your answer" />
+                                    <X {...ICON} className="text-negative shrink-0" aria-hidden={false} role="img" aria-label="Your answer, incorrect" />
                                   )}
                                 </button>
                               );
@@ -270,13 +282,14 @@ export const AssessTab: React.FC = () => {
 
                 {selectedQuiz.status !== 'completed' && !submissionResult && (
                   <div className="mt-6 pt-4 border-t border-line flex items-center justify-between gap-4">
-                    <span className="meta">
+                    <span className="meta" aria-live="polite">
                       {answeredCount} of {parsedQuestions.length} answered
                     </span>
                     <button
                       type="button"
                       onClick={handleSubmitQuiz}
                       disabled={isSubmitting}
+                      aria-busy={isSubmitting}
                       className="btn btn-primary"
                     >
                       {isSubmitting && <Spinner />}

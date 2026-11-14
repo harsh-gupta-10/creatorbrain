@@ -12,7 +12,6 @@ import type {
   BioPage,
   BioBlock,
   ProviderSettings,
-  EncryptedCredentials,
   EarningsReport,
 } from '../../shared/types';
 
@@ -456,35 +455,6 @@ export class DBClient {
         settings.daily_budget_usd ?? 5.0,
         new Date().toISOString(),
         new Date().toISOString()
-      )
-      .run();
-  }
-
-  async getEncryptedCredentials(creatorId: string): Promise<EncryptedCredentials | null> {
-    return await this.db
-      .prepare('SELECT * FROM credentials_encrypted WHERE creator_id = ?')
-      .bind(creatorId)
-      .first<EncryptedCredentials>();
-  }
-
-  async saveEncryptedCredentials(creds: EncryptedCredentials): Promise<void> {
-    await this.db
-      .prepare(
-        `INSERT OR REPLACE INTO credentials_encrypted (
-          id, creator_id, amazon_access_key_enc, amazon_secret_key_enc,
-          amazon_partner_tag, amazon_marketplace, iv, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        creds.id,
-        creds.creator_id,
-        creds.amazon_access_key_enc || null,
-        creds.amazon_secret_key_enc || null,
-        creds.amazon_partner_tag || null,
-        creds.amazon_marketplace || 'amazon.in',
-        creds.iv || null,
-        creds.created_at,
-        creds.updated_at
       )
       .run();
   }

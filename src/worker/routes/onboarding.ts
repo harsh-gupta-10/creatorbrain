@@ -1,21 +1,12 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
 import { z } from 'zod';
-import { getSession } from './auth';
+import type { AppEnv } from '../env';
+import { saveAmazonCredentials, MARKETPLACES, PARTNER_TAG_RE } from '../amazon/credentials';
 import { AIRouter } from '../ai/router';
-import { runStudyStep, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
+import { runStudyStep, stepVideo, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
 import type { AnalysisJob } from '../../shared/types';
 
-type Bindings = {
-  DB: D1Database;
-  KV: KVNamespace;
-  ANTHROPIC_API_KEY?: string;
-  OPENAI_API_KEY?: string;
-  GEMINI_API_KEY?: string;
-  AI?: any;
-};
-
-export const onboardingRoutes = new Hono<{ Bindings: Bindings }>();
+export const onboardingRoutes = new Hono<AppEnv>();
 
 const ProfileSchema = z
   .object({
@@ -29,7 +20,7 @@ const ProfileSchema = z
       .object({
         enabled: z.boolean(),
         partnerTag: z.string().trim().max(40).optional().default(''),
-        marketplace: z.string().trim().max(30).optional().default('amazon.com'),
+        marketplace: z.enum(MARKETPLACES).default('amazon.com'),
       })
       .default({ enabled: false, partnerTag: '', marketplace: 'amazon.com' }),
     otherIncome: z.array(z.string().max(40)).max(8).default([]),
@@ -38,19 +29,12 @@ const ProfileSchema = z
   .refine((v) => v.youtube.length > 0 || v.instagramCaptions.filter(Boolean).length > 0, {
     message: 'Add your YouTube channel or paste at least one Instagram caption so we have something to study',
   })
-  .refine((v) => !v.amazon.enabled || /^[\w-]{3,40}$/.test(v.amazon.partnerTag), {
+  .refine((v) => !v.amazon.enabled || PARTNER_TAG_RE.test(v.amazon.partnerTag), {
     message: 'Enter your Amazon Associates tracking ID, like yourname-20',
   });
 
-async function requireCreator(c: any) {
-  const session = await getSession(c.env.DB, getCookie(c, 'cb_session'));
-  return session;
-}
-
 onboardingRoutes.post('/profile', async (c) => {
-  const { creator, isSample } = await requireCreator(c);
-  if (!creator) return c.json({ error: 'Sign in to continue' }, 401);
-  if (isSample) return c.json({ error: 'The sample workspace is read-only' }, 403);
+  const creator = c.get('creator');
 
   const parsed = ProfileSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
@@ -59,12 +43,8 @@ onboardingRoutes.post('/profile', async (c) => {
   const db = c.env.DB;
   const ts = new Date().toISOString();
   const platform = p.youtube && (p.instagram || p.instagramCaptions.length) ? 'both' : p.youtube ? 'youtube' : 'instagram';
-  const monetization = {
-    amazon: p.amazon.enabled,
-    partnerTag: p.amazon.enabled ? p.amazon.partnerTag : '',
-    marketplace: p.amazon.marketplace,
-    other: p.otherIncome,
-  };
+  // The tracking ID is stored encrypted in credentials_encrypted, not in this JSON
+  const monetization = { amazon: p.amazon.enabled, marketplace: p.amazon.marketplace, other: p.otherIncome };
 
   const stmts: D1PreparedStatement[] = [
     db
@@ -87,28 +67,16 @@ onboardingRoutes.post('/profile', async (c) => {
       ),
   ];
 
-  if (p.amazon.enabled) {
-    stmts.push(
-      db
-        .prepare(
-          `INSERT INTO credentials_encrypted (id, creator_id, amazon_partner_tag, amazon_marketplace, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)
-           ON CONFLICT (creator_id) DO UPDATE SET amazon_partner_tag = excluded.amazon_partner_tag,
-             amazon_marketplace = excluded.amazon_marketplace, updated_at = excluded.updated_at`
-        )
-        .bind(`cred_${creator.id}`, creator.id, p.amazon.partnerTag, p.amazon.marketplace, ts, ts)
-    );
-  }
-
   await db.batch(stmts);
+  if (p.amazon.enabled) {
+    await saveAmazonCredentials(db, c.env, creator.id, { partnerTag: p.amazon.partnerTag, marketplace: p.amazon.marketplace });
+  }
   return c.json({ success: true });
 });
 
 // Start a study job; the client then calls /study/step until it completes
 onboardingRoutes.post('/study/start', async (c) => {
-  const { creator, isSample } = await requireCreator(c);
-  if (!creator) return c.json({ error: 'Sign in to continue' }, 401);
-  if (isSample) return c.json({ error: 'The sample workspace is read-only' }, 403);
+  const creator = c.get('creator');
 
   const jobId = `job_${crypto.randomUUID()}`;
   const ts = new Date().toISOString();
@@ -116,15 +84,14 @@ onboardingRoutes.post('/study/start', async (c) => {
     `INSERT INTO analysis_jobs (id, creator_id, channel_url, status, current_step, progress_percent, created_at, updated_at)
      VALUES (?, ?, ?, 'running', 'fetch', 0, ?, ?)`
   )
-    .bind(jobId, creator.id, (creator as any).youtube_input || (creator as any).instagram_handle || '', ts, ts)
+    .bind(jobId, creator.id, creator.youtube_input || creator.instagram_handle || '', ts, ts)
     .run();
 
   return c.json({ success: true, jobId, steps: STUDY_STEPS.map((s) => ({ id: s, label: STEP_LABELS[s] })) });
 });
 
 onboardingRoutes.post('/study/step', async (c) => {
-  const { creator } = await requireCreator(c);
-  if (!creator) return c.json({ error: 'Sign in to continue' }, 401);
+  const creator = c.get('creator');
 
   const { jobId } = await c.req.json().catch(() => ({ jobId: '' }));
   const db = c.env.DB;
@@ -140,13 +107,32 @@ onboardingRoutes.post('/study/step', async (c) => {
   if (index < 0) return c.json({ error: 'Study is in an unknown state' }, 409);
 
   try {
-    const summary = await runStudyStep({ step, creatorId: creator.id, db, router: new AIRouter(c.env) });
-    const next = STUDY_STEPS[index + 1];
+    const router = new AIRouter(c.env);
     const results = JSON.parse(job.result_json || '{}');
-    results[step] = summary;
+    let next: string | undefined = STUDY_STEPS[index + 1];
+
+    if (step === 'video') {
+      // One video per request; stay on this step while videos remain within this run's budget
+      const progress = results.videoProgress || { done: 0, failed: 0, last: '' };
+      const r = await stepVideo(db, c.env, router, creator.id, progress.done);
+      if (r.analyzedTitle) {
+        progress.done += 1;
+        if (r.failed) progress.failed += 1;
+        progress.last = r.analyzedTitle;
+      }
+      results.videoProgress = progress;
+      results.video = progress.done
+        ? `Studied ${progress.done} video${progress.done === 1 ? '' : 's'} in depth${progress.failed ? `, ${progress.failed} could not be read` : ''}`
+        : 'No new videos to study';
+      if (r.more) next = 'video';
+    } else {
+      results[step] = await runStudyStep({ step, creatorId: creator.id, db, env: c.env, router });
+    }
+
+    const stepIndex = next ? STUDY_STEPS.indexOf(next as (typeof STUDY_STEPS)[number]) : STUDY_STEPS.length;
     await db
       .prepare('UPDATE analysis_jobs SET status = ?, current_step = ?, progress_percent = ?, result_json = ?, updated_at = ? WHERE id = ?')
-      .bind(next ? 'running' : 'completed', next || 'done', Math.round(((index + 1) / STUDY_STEPS.length) * 100), JSON.stringify(results), new Date().toISOString(), jobId)
+      .bind(next ? 'running' : 'completed', next || 'done', Math.round((stepIndex / STUDY_STEPS.length) * 100), JSON.stringify(results), new Date().toISOString(), jobId)
       .run();
   } catch (err: any) {
     console.error('[Study step failed]', step, err);
@@ -161,8 +147,7 @@ onboardingRoutes.post('/study/step', async (c) => {
 });
 
 onboardingRoutes.get('/job/:id', async (c) => {
-  const { creator } = await requireCreator(c);
-  if (!creator) return c.json({ error: 'Sign in to continue' }, 401);
+  const creator = c.get('creator');
   const job = await c.env.DB.prepare('SELECT * FROM analysis_jobs WHERE id = ? AND creator_id = ?')
     .bind(c.req.param('id'), creator.id)
     .first<AnalysisJob>();
@@ -172,8 +157,7 @@ onboardingRoutes.get('/job/:id', async (c) => {
 
 // Recent studied content and simple stats for the dashboard
 onboardingRoutes.get('/content', async (c) => {
-  const { creator } = await requireCreator(c);
-  if (!creator) return c.json({ error: 'Sign in to continue' }, 401);
+  const creator = c.get('creator');
   const { results } = await c.env.DB.prepare(
     `SELECT id, platform, external_id, title, description, url, thumbnail_url, views, likes, published_at
      FROM content_items WHERE creator_id = ? ORDER BY published_at DESC LIMIT 15`
@@ -191,6 +175,6 @@ onboardingRoutes.get('/content', async (c) => {
       uploadsPerMonth: stats.uploadsPerMonth,
       topWords: stats.topWords,
     },
-    lastStudiedAt: (creator as any).last_studied_at || null,
+    lastStudiedAt: creator.last_studied_at || null,
   });
 });

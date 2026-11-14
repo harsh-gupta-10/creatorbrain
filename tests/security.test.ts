@@ -1,0 +1,91 @@
+import { describe, it, expect } from 'vitest';
+import { encryptSecret, decryptSecret, isEncrypted, resolveMasterSecret, MissingEncryptionKeyError } from '../src/worker/amazon/crypto';
+import { signPaapiRequest, AmazonCreatorsClient } from '../src/worker/amazon/client';
+
+const SECRET = 'a'.repeat(48);
+
+describe('Per-creator credential encryption', () => {
+  it('round-trips a secret', async () => {
+    const sealed = await encryptSecret('AKIAEXAMPLEKEY12345', SECRET, 'creator_1:access_key');
+    expect(isEncrypted(sealed)).toBe(true);
+    expect(sealed).not.toContain('AKIAEXAMPLEKEY12345');
+    expect(await decryptSecret(sealed, SECRET, 'creator_1:access_key')).toBe('AKIAEXAMPLEKEY12345');
+  });
+
+  it('uses a fresh IV every time', async () => {
+    const a = await encryptSecret('same-value', SECRET, 'c:f');
+    const b = await encryptSecret('same-value', SECRET, 'c:f');
+    expect(a).not.toBe(b);
+    expect(a.split(':')[1]).not.toBe(b.split(':')[1]);
+  });
+
+  it("refuses to decrypt another creator's ciphertext", async () => {
+    const sealed = await encryptSecret('mytag-20', SECRET, 'creator_1:partner_tag');
+    await expect(decryptSecret(sealed, SECRET, 'creator_2:partner_tag')).rejects.toThrow();
+  });
+
+  it('refuses the wrong master key', async () => {
+    const sealed = await encryptSecret('mytag-20', SECRET, 'c:f');
+    await expect(decryptSecret(sealed, 'b'.repeat(48), 'c:f')).rejects.toThrow();
+  });
+
+  it('detects tampering', async () => {
+    const sealed = await encryptSecret('mytag-20', SECRET, 'c:f');
+    const [v, iv, ct] = sealed.split(':');
+    const flipped = ct.slice(0, -2) + (ct.slice(-2) === 'AA' ? 'AB' : 'AA');
+    await expect(decryptSecret(`${v}:${iv}:${flipped}`, SECRET, 'c:f')).rejects.toThrow();
+  });
+
+  it('requires ENCRYPTION_KEY outside development', () => {
+    expect(() => resolveMasterSecret({ ENVIRONMENT: 'production' })).toThrow(MissingEncryptionKeyError);
+    expect(() => resolveMasterSecret({ ENVIRONMENT: 'production', ENCRYPTION_KEY: 'short' })).toThrow(MissingEncryptionKeyError);
+    expect(resolveMasterSecret({ ENVIRONMENT: 'production', ENCRYPTION_KEY: SECRET })).toBe(SECRET);
+    expect(resolveMasterSecret({ ENVIRONMENT: 'development' })).toBeTruthy();
+  });
+});
+
+describe('Amazon client', () => {
+  it('signs PA-API requests with SigV4', async () => {
+    const headers = await signPaapiRequest({
+      accessKey: 'AKIDEXAMPLE',
+      secretKey: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY',
+      host: 'webservices.amazon.com',
+      region: 'us-east-1',
+      path: '/paapi5/searchitems',
+      target: 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems',
+      body: '{"Keywords":"mic"}',
+      now: new Date('2026-11-14T10:00:00Z'),
+    });
+    expect(headers['x-amz-date']).toBe('20261114T100000Z');
+    expect(headers.Authorization).toMatch(
+      /^AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE\/20261114\/us-east-1\/ProductAdvertisingAPI\/aws4_request, SignedHeaders=content-encoding;content-type;host;x-amz-date;x-amz-target, Signature=[0-9a-f]{64}$/
+    );
+    // Deterministic for the same inputs
+    const again = await signPaapiRequest({
+      accessKey: 'AKIDEXAMPLE',
+      secretKey: 'wJalrXUtnFEMI/K7MDENG+bPxRfiCYEXAMPLEKEY',
+      host: 'webservices.amazon.com',
+      region: 'us-east-1',
+      path: '/paapi5/searchitems',
+      target: 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems',
+      body: '{"Keywords":"mic"}',
+      now: new Date('2026-11-14T10:00:00Z'),
+    });
+    expect(again.Authorization).toBe(headers.Authorization);
+  });
+
+  it("tags links with the creator's own tracking ID only", () => {
+    const tagged = new AmazonCreatorsClient({ partnerTag: 'maya-20', marketplace: 'amazon.com' });
+    expect(tagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe('https://www.amazon.com/dp/B000000000?tag=maya-20');
+    const untagged = new AmazonCreatorsClient();
+    expect(untagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe('https://www.amazon.com/dp/B000000000');
+  });
+
+  it('marks sample catalog results as not live', async () => {
+    const client = new AmazonCreatorsClient({ partnerTag: 'maya-20' });
+    expect(client.isMock()).toBe(true);
+    const results = await client.searchItems('phone', 'creator_1');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.every((r) => r.is_mock === 1)).toBe(true);
+  });
+});

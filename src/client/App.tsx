@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard,
   MessageSquare,
@@ -8,6 +8,7 @@ import {
   Link,
   ShoppingBag,
   Network,
+  Library,
   GraduationCap,
   ClipboardCheck,
   Bot,
@@ -20,7 +21,7 @@ import {
 import { api } from './lib/api';
 import { navigate, usePath, linkProps } from './lib/router';
 import type { Creator } from '../shared/types';
-import { Logo, Spinner, ICON } from './components/ui';
+import { Logo, Spinner, ICON, SkipLink } from './components/ui';
 
 import { OverviewTab } from './pages/OverviewTab';
 import { CopilotTab } from './pages/CopilotTab';
@@ -38,6 +39,7 @@ import { OnboardingPage } from './pages/OnboardingPage';
 import { PublicBioPage } from './pages/PublicBioPage';
 import { MarketingLandingPage } from './pages/MarketingLandingPage';
 import { AuthPage } from './pages/AuthPage';
+import { LibraryTab } from './pages/LibraryTab';
 
 type TabId =
   | 'overview'
@@ -47,6 +49,7 @@ type TabId =
   | 'bio'
   | 'links'
   | 'amazon'
+  | 'library'
   | 'brain'
   | 'learn'
   | 'assess'
@@ -68,6 +71,7 @@ const TABS: TabItem[] = [
   { id: 'bio', label: 'Link in bio', icon: Link2, group: 'Earn' },
   { id: 'links', label: 'Short links', icon: Link, group: 'Earn' },
   { id: 'amazon', label: 'Amazon', icon: ShoppingBag, group: 'Earn' },
+  { id: 'library', label: 'Library', icon: Library, group: 'Brain' },
   { id: 'brain', label: 'Brain', icon: Network, group: 'Brain' },
   { id: 'learn', label: 'Lessons', icon: GraduationCap, group: 'Brain' },
   { id: 'assess', label: 'Assessments', icon: ClipboardCheck, group: 'Brain' },
@@ -160,10 +164,12 @@ const Redirect: React.FC<{ to: string }> = ({ to }) => {
 };
 
 const FullPageLoader: React.FC = () => (
-  <div className="min-h-screen flex items-center justify-center text-fg-3">
+  <div className="min-h-screen flex items-center justify-center text-fg-3" role="status">
     <Spinner size={20} />
+    <span className="sr-only">Loading</span>
   </div>
 );
+
 
 function parseMonetization(creator: Creator | null): { amazon?: boolean } {
   try {
@@ -180,6 +186,8 @@ const AppShell: React.FC<{
   onSignOut: () => void;
 }> = ({ activeTab, creator, isSample, onSignOut }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const firstRender = useRef(true);
   const usesAmazon = isSample || parseMonetization(creator).amazon === true;
   const visibleTabs = TABS.filter((t) => t.id !== 'amazon' || usesAmazon || activeTab === 'amazon');
   const current = [...TABS, { id: 'settings', label: 'Settings' } as TabItem].find((t) => t.id === activeTab);
@@ -188,6 +196,25 @@ const AppShell: React.FC<{
     document.title = `${current?.label || 'Dashboard'} · CreatorBrain`;
     setMenuOpen(false);
   }, [current?.label]);
+
+  // Move focus to the new view on client-side navigation so screen readers announce it
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    mainRef.current?.focus({ preventScroll: true });
+  }, [activeTab]);
+
+  // Close the mobile menu with Escape
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   const goTab = (id: TabId) => navigate(id === 'overview' ? '/app' : `/app/${id}`);
   const onNavigateTab = (id: string) => goTab(id as TabId);
@@ -219,10 +246,13 @@ const AppShell: React.FC<{
 
   return (
     <div className="min-h-screen bg-page text-fg md:flex">
+      <SkipLink />
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-[248px] bg-surface border-r border-line flex flex-col transition-transform duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 ${
-          menuOpen ? 'translate-x-0' : '-translate-x-full'
+        id="app-sidebar"
+        aria-label="Sidebar"
+        className={`fixed inset-y-0 left-0 z-40 w-[248px] bg-surface border-r border-line flex flex-col transition-[transform,visibility] duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 md:visible ${
+          menuOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'
         }`}
       >
         <div className="h-14 px-4 flex items-center justify-between border-b border-line">
@@ -236,8 +266,8 @@ const AppShell: React.FC<{
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Workspace">
           {groups.map((group) => (
-            <div key={group}>
-              <div className="px-2 pt-6 pb-2 text-[12px] text-fg-3">{group}</div>
+            <div key={group} role="group" aria-labelledby={`nav-group-${group}`}>
+              <div id={`nav-group-${group}`} className="px-2 pt-6 pb-2 text-[12px] text-fg-3">{group}</div>
               <div className="flex flex-col gap-[2px]">
                 {visibleTabs
                   .filter((t) => t.group === group)
@@ -259,6 +289,7 @@ const AppShell: React.FC<{
           >
             <ExternalLink {...ICON} className="text-fg-3" />
             <span className="truncate">Public page</span>
+            <span className="sr-only">(opens in a new tab)</span>
           </a>
           <div className="mt-2 flex items-center gap-3 px-2 py-2">
             {creator.avatar_url ? (
@@ -283,18 +314,27 @@ const AppShell: React.FC<{
         <button
           className="fixed inset-0 z-30 bg-black/20 md:hidden"
           aria-label="Close menu"
+          tabIndex={-1}
           onClick={() => setMenuOpen(false)}
         />
       )}
 
-      {/* Main */}
-      <main className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col">
         <header className="md:hidden sticky top-0 z-20 h-14 px-4 flex items-center gap-3 bg-surface border-b border-line">
-          <button className="btn btn-ghost btn-sm px-2" onClick={() => setMenuOpen(true)} aria-label="Open menu">
+          <button
+            className="btn btn-ghost btn-sm px-2"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={menuOpen}
+            aria-controls="app-sidebar"
+          >
             <Menu {...ICON} />
           </button>
           <span className="font-medium">{current?.label}</span>
         </header>
+
+      {/* Main */}
+      <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 min-w-0 flex flex-col outline-none">
 
         {isSample && (
           <div className="border-b border-line bg-surface">
@@ -317,6 +357,7 @@ const AppShell: React.FC<{
           {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
           {activeTab === 'links' && <ShortLinksTab />}
           {activeTab === 'amazon' && <AmazonAffiliateTab />}
+          {activeTab === 'library' && <LibraryTab />}
           {activeTab === 'brain' && <BrainTab />}
           {activeTab === 'learn' && <LearnTab />}
           {activeTab === 'assess' && <AssessTab />}
@@ -324,6 +365,7 @@ const AppShell: React.FC<{
           {activeTab === 'settings' && <SettingsTab />}
         </div>
       </main>
+      </div>
     </div>
   );
 };

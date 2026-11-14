@@ -84,7 +84,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
     setRestudying(true);
     try {
       const { jobId } = await api.onboarding.startStudy();
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 40; i++) {
         const { job } = await api.onboarding.runStep(jobId);
         if (job.status === 'failed') throw new Error(job.error_message || 'The study stopped');
         if (job.status !== 'running') break;
@@ -108,8 +108,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
 
   if (loading) {
     return (
-      <div className="py-24 flex justify-center text-fg-3">
+      <div className="py-24 flex justify-center text-fg-3" role="status">
         <Spinner size={20} />
+        <span className="sr-only">Loading dashboard</span>
       </div>
     );
   }
@@ -127,7 +128,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
         actions={
           <>
             {!isSample && (
-              <button className="btn btn-secondary" onClick={restudy} disabled={restudying}>
+              <button className="btn btn-secondary" onClick={restudy} disabled={restudying} aria-busy={restudying}>
                 {restudying ? <Spinner size={14} /> : <RotateCw {...ICON} />}
                 {restudying ? 'Studying' : 'Study again'}
               </button>
@@ -203,7 +204,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
               {insights.map((n) => (
                 <li key={n.id} className="py-3 border-t border-line first:border-t-0 first:pt-1">
                   <div className="flex items-center gap-2">
-                    <span className={`dot ${n.type === 'Strength' ? 'bg-positive' : 'bg-negative'}`} />
+                    <span className={`dot ${n.type === 'Strength' ? 'bg-positive' : 'bg-negative'}`} aria-hidden="true" />
                     <span className="text-[12px] text-fg-3">{n.type === 'Strength' ? 'Strength' : 'To work on'}</span>
                     <Meter value={n.confidence ?? 0.7} className="ml-auto" />
                   </div>
@@ -228,10 +229,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[12px] text-fg-3 border-b border-line">
-                  <th className="font-normal px-5 py-2">Title</th>
-                  <th className="font-normal px-5 py-2 w-24">Published</th>
-                  <th className="font-normal px-5 py-2 w-24 text-right">Views</th>
-                  <th className="font-normal px-5 py-2 w-32 text-right">Vs median</th>
+                  <th scope="col" className="font-normal px-5 py-2">Title</th>
+                  <th scope="col" className="font-normal px-5 py-2 w-24">Published</th>
+                  <th scope="col" className="font-normal px-5 py-2 w-24 text-right">Views</th>
+                  <th scope="col" className="font-normal px-5 py-2 w-32 text-right">Vs median</th>
                 </tr>
               </thead>
               <tbody>
@@ -260,6 +261,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                             </span>
                           )}
                           <span className="truncate text-fg group-hover:text-accent-ink transition-colors">{item.title}</span>
+                          {item.url && <span className="sr-only">(opens in a new tab)</span>}
                         </a>
                       </td>
                       <td className="px-5 py-3 meta">{formatDate(item.published_at)}</td>
@@ -337,11 +339,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                       <span className="font-mono text-[13px] truncate">/s/{l.slug}</span>
                       <span className="text-[13px] text-fg-2 truncate flex-1">{l.title || l.destination_domain}</span>
                       <span className="meta">{formatCount(l.total_clicks)}</span>
-                      <a href={`/s/${l.slug}`} target="_blank" rel="noreferrer" className="text-fg-3 hover:text-fg" aria-label="Open link">
-                        <ExternalLink size={14} strokeWidth={1.5} />
+                      <a href={`/s/${l.slug}`} target="_blank" rel="noreferrer" className="text-fg-3 hover:text-fg" aria-label={`Open /s/${l.slug} in a new tab`}>
+                        <ExternalLink size={14} strokeWidth={1.5} aria-hidden="true" />
                       </a>
                     </div>
-                    <div className="mt-2 h-[3px] rounded-full bg-raised overflow-hidden">
+                    <div className="mt-2 h-[3px] rounded-full bg-raised overflow-hidden" aria-hidden="true">
                       <div className="h-full bg-fg-3/60 rounded-full" style={{ width: `${((l.total_clicks || 0) / max) * 100}%` }} />
                     </div>
                   </li>
@@ -386,7 +388,14 @@ const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items,
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="Views per upload">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full h-auto"
+        role="img"
+        aria-label={`Bar chart of views for your last ${data.length} uploads, oldest to newest${
+          median > 0 ? `, against a median of ${formatCount(median)}` : ''
+        }. Latest upload: ${formatCount(data[data.length - 1]?.views)} views. Full data in the table that follows.`}
+      >
         {ticks.map((t) => (
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="rgb(23 23 23 / 0.06)" />
@@ -434,7 +443,7 @@ const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items,
           </div>
         </div>
       )}
-      <div className="mt-2 flex items-center gap-4 text-[12px] text-fg-3">
+      <div className="mt-2 flex items-center gap-4 text-[12px] text-fg-3" aria-hidden="true">
         <span className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-[2px] bg-accent" /> Latest upload
         </span>
@@ -442,6 +451,25 @@ const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items,
           <span className="w-3 border-t border-dashed border-fg-3" /> Median
         </span>
       </div>
+      <table className="sr-only">
+        <caption>Views per upload, oldest to newest</caption>
+        <thead>
+          <tr>
+            <th scope="col">Upload</th>
+            <th scope="col">Published</th>
+            <th scope="col">Views</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((d) => (
+            <tr key={d.id}>
+              <th scope="row">{d.title}</th>
+              <td>{formatDate(d.published_at)}</td>
+              <td>{d.views.toLocaleString('en-US')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };

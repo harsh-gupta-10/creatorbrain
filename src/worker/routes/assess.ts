@@ -1,21 +1,13 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { runAssessorQuizScoring } from '../agents/definitions/tutorAndCurriculum';
 import type { Quiz } from '../../shared/types';
 
-export const assessRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-  };
-}>();
+export const assessRoutes = new Hono<AppEnv>();
 
 assessRoutes.get('/quizzes', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const quizzes = await dbClient.getQuizzes(creator.id);
@@ -24,9 +16,7 @@ assessRoutes.get('/quizzes', async (c) => {
 });
 
 assessRoutes.post('/quizzes/:id/submit', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const quizId = c.req.param('id');
   const { answers } = await c.req.json<{ answers: Record<string, number> }>();

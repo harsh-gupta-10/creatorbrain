@@ -1,24 +1,13 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import { creatorDna } from '../lib/dna';
+import type { AppEnv } from '../env';
 import { AIRouter } from '../ai/router';
-import { ToolGeneratorSchema, CreatorDNASchema } from '../../shared/types';
+import { ToolGeneratorSchema } from '../../shared/types';
 
-export const toolsRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    ANTHROPIC_API_KEY?: string;
-    OPENAI_API_KEY?: string;
-    GEMINI_API_KEY?: string;
-    AI?: any;
-  };
-}>();
+export const toolsRoutes = new Hono<AppEnv>();
 
 toolsRoutes.post('/generate', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const body = await c.req.json();
   const parsed = ToolGeneratorSchema.safeParse(body);
@@ -29,37 +18,7 @@ toolsRoutes.post('/generate', async (c) => {
   const { toolType, topic, targetProduct, platform } = parsed.data;
   const router = new AIRouter(c.env);
 
-  let dna = {
-    voice: {
-      pace: 'Fast & conversational',
-      tone: 'Candid, engineering-grounded',
-      catchphrases: ['Let us pop the hood', 'Real talk', 'Is it paisa vasool?'],
-      language_mix: 'Hinglish (70% English / 30% Hindi idioms)',
-      hook_formula: 'Action-first teardown in first 4s',
-    },
-    visual: {
-      thumbnail_palette: ['#FF0055', '#00F0FF', '#111827', '#F59E0B'],
-      composition: 'Hero on left, expressive reaction on right',
-      text_overlay_words: 3,
-    },
-    packaging: {
-      title_avg_length: 48,
-      title_patterns: ['[Product]: Don\'t Buy Until You See This!'],
-      disclosure_position: 'Top 3 lines',
-    },
-    audience: {
-      primary_demographic: '18-34 tech enthusiasts',
-      buying_intent: 'High VFM focus',
-    },
-  };
-
-  if (creator.dna_summary) {
-    try {
-      dna = CreatorDNASchema.parse(JSON.parse(creator.dna_summary));
-    } catch {
-      // fallback
-    }
-  }
+  const dna = creatorDna(creator);
 
   const systemPrompt = `You are the CreatorBrain DNA-Powered Tool Generator.
 You generate content specifically aligned with this creator's DNA:

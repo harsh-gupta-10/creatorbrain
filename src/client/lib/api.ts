@@ -97,7 +97,66 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface LibraryItem {
+  id: string;
+  platform: 'youtube' | 'instagram';
+  external_id: string;
+  title: string;
+  url?: string;
+  thumbnail_url?: string;
+  views: number;
+  likes: number;
+  comments?: number;
+  duration_seconds?: number;
+  published_at?: string;
+  analysis_status: 'pending' | 'done' | 'failed';
+  analyzed_by?: string;
+  analyzed_at?: string;
+  transcript_source?: string;
+  hook_type?: string;
+  packaging_score?: number;
+  topics_json?: string;
+}
+
+export interface VideoAnalysis {
+  summary: string;
+  hook: { text: string; type: string; strength: number; note: string };
+  structure: { at: string; label: string }[];
+  topics: string[];
+  tone: string;
+  pacing: string;
+  calls_to_action: string[];
+  products_mentioned: string[];
+  catchphrases: string[];
+  title: { pattern: string; note: string };
+  thumbnail: { text_overlay: string; faces: string; emotion: string; colors: string[]; composition: string; note: string };
+  what_worked: string[];
+  to_improve: string[];
+  packaging_score: number;
+}
+
+export interface LibraryItemDetail extends LibraryItem {
+  description?: string;
+  transcript: { start: number; text: string }[];
+  tags: string[];
+  analysis: VideoAnalysis | null;
+  thumbnail_analysis: (VideoAnalysis['thumbnail'] & { vision_notes?: string }) | null;
+  analysis_error?: string;
+}
+
 export const api = {
+  content: {
+    list: (params: { status?: string; platform?: string } = {}) =>
+      fetchJson<{ items: LibraryItem[]; counts: Record<string, number> }>(
+        `/api/content?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`
+      ),
+    get: (id: string) => fetchJson<{ item: LibraryItemDetail }>(`/api/content/${encodeURIComponent(id)}`),
+    analyzeNext: (id?: string) =>
+      fetchJson<{ done: boolean; id?: string; status?: string; error?: string; remaining: number }>(
+        `/api/content/analyze-next${id ? `?id=${encodeURIComponent(id)}` : ''}`,
+        { method: 'POST' }
+      ),
+  },
   auth: {
     me: () =>
       fetchJson<{ authenticated: boolean; isDemo: boolean; isSample: boolean; creator: Creator | null }>('/api/auth/me'),
@@ -211,7 +270,7 @@ export const api = {
         availableProviders: { claude: boolean; openai: boolean; gemini: boolean; workersAi: boolean };
         providerSettings: ProviderSettings;
         currentDailyUsageUsd: number;
-        amazonConfig: { hasCredentials: boolean; partnerTag: string; marketplace: string };
+        amazonConfig: { hasCredentials: boolean; partnerTag: string; marketplace: string; accessKeyHint?: string };
         creator: Creator;
         monetization: Monetization;
         goals: string[];

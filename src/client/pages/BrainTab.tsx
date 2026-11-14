@@ -76,10 +76,12 @@ export const BrainTab: React.FC = () => {
 
       <div className="space-y-8">
         {/* Graph: the one rich visual on this screen */}
-        <section className="panel overflow-hidden">
+        <section className="panel overflow-hidden" aria-labelledby="brain-graph-heading">
+          <h2 id="brain-graph-heading" className="sr-only">Knowledge graph</h2>
           {loading && graphData.nodes.length === 0 ? (
-            <div className="h-[520px] flex items-center justify-center text-fg-3">
+            <div className="h-[520px] flex items-center justify-center text-fg-3" role="status">
               <Spinner size={16} />
+              <span className="sr-only">Loading the Brain</span>
             </div>
           ) : isEmpty ? (
             <EmptyState
@@ -135,6 +137,8 @@ export const BrainTab: React.FC = () => {
                         className="w-5 h-5 rounded-[4px] border border-line-strong"
                         style={{ background: color }}
                         title={color}
+                        role="img"
+                        aria-label={`Colour ${color}`}
                       />
                     ))}
                   </div>
@@ -181,7 +185,7 @@ export const BrainTab: React.FC = () => {
                   {COUNT_ROWS.map((row) => (
                     <div key={row.key} className="flex items-center justify-between px-4 h-10">
                       <span className="flex items-center gap-2 text-fg-2">
-                        <span className="dot" style={{ background: row.color }} />
+                        <span className="dot" aria-hidden="true" style={{ background: row.color }} />
                         {row.label}
                       </span>
                       <span className="num text-fg">{nodeCounts[row.key] || 0}</span>
@@ -219,7 +223,7 @@ export const BrainTab: React.FC = () => {
                   {learnings.map((l) => (
                     <li key={l.id} className="p-4 space-y-1">
                       <div className="flex items-baseline justify-between gap-4">
-                        <h4 className="font-medium text-fg">{l.title}</h4>
+                        <h3 className="font-medium text-fg">{l.title}</h3>
                         <span className="meta shrink-0">
                           {l.source_agent}
                           {formatDate(l.created_at) && ` · ${formatDate(l.created_at)}`}

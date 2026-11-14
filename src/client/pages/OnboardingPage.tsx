@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, Circle, ArrowLeft, ArrowRight, RotateCw, SquarePlay, Camera } from 'lucide-react';
 import { api, type OnboardingProfile, type StudyJob } from '../lib/api';
-import { Logo, Spinner, ErrorNote, ICON } from '../components/ui';
+import { Logo, Spinner, ErrorNote, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
 interface Props {
@@ -14,7 +14,7 @@ const STEPS: { id: Step; label: string; hint: string }[] = [
   { id: 'channel', label: 'Your channel', hint: 'Where you publish' },
   { id: 'earn', label: 'How you earn', hint: 'Affiliate and other income' },
   { id: 'goals', label: 'Goals', hint: 'What to focus on' },
-  { id: 'study', label: 'Channel study', hint: 'About a minute' },
+  { id: 'study', label: 'Channel study', hint: 'One to two minutes' },
 ];
 
 const INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
@@ -53,6 +53,8 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
   const [step, setStep] = useState<Step>(creator.onboarding_status === 'study' ? 'study' : 'channel');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const firstStep = useRef(true);
 
   const [profile, setProfile] = useState<OnboardingProfile>({
     niche: creator.niche || '',
@@ -80,6 +82,15 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
   }, []);
 
   const stepIndex = STEPS.findIndex((s) => s.id === step);
+
+  // Each step replaces the page content: move focus to the top so the new heading is read
+  useEffect(() => {
+    if (firstStep.current) {
+      firstStep.current = false;
+      return;
+    }
+    mainRef.current?.focus();
+  }, [step]);
 
   const next = async () => {
     setError('');
@@ -116,6 +127,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
 
   return (
     <div className="min-h-screen bg-page">
+      <SkipLink />
       <header className="h-16 px-6 md:px-8 flex items-center justify-between border-b border-line bg-surface">
         <Logo />
         <span className="meta">
@@ -123,15 +135,21 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
         </span>
       </header>
 
-      <div className="max-w-[1040px] mx-auto px-4 md:px-8 py-10 md:py-16 grid gap-10 md:grid-cols-[220px_1fr]">
+      <main
+        id="main"
+        ref={mainRef}
+        tabIndex={-1}
+        className="outline-none max-w-[1040px] mx-auto px-4 md:px-8 py-10 md:py-16 grid gap-10 md:grid-cols-[220px_1fr]"
+      >
         {/* Step rail */}
         <ol className="hidden md:flex flex-col gap-1" aria-label="Setup steps">
           {STEPS.map((s, i) => {
             const done = i < stepIndex;
             const active = i === stepIndex;
             return (
-              <li key={s.id} className="flex items-start gap-3 py-2">
+              <li key={s.id} className="flex items-start gap-3 py-2" aria-current={active ? 'step' : undefined}>
                 <span
+                  aria-hidden="true"
                   className={`mt-[2px] w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-mono ${
                     done ? 'bg-fg text-white' : active ? 'bg-accent text-white' : 'bg-raised text-fg-3'
                   }`}
@@ -141,6 +159,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                 <span>
                   <span className={`block text-[14px] ${active ? 'text-fg font-medium' : done ? 'text-fg' : 'text-fg-3'}`}>
                     {s.label}
+                    <span className="sr-only">{done ? ' (done)' : active ? ' (current step)' : ''}</span>
                   </span>
                   <span className="block text-[12px] text-fg-3">{s.hint}</span>
                 </span>
@@ -166,13 +185,14 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                     <SquarePlay {...ICON} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
                     <input
                       id="yt"
+                      aria-describedby="yt-hint"
                       className="input pl-9"
                       placeholder="@yourchannel or channel URL"
                       value={profile.youtube}
                       onChange={(e) => set('youtube', e.target.value)}
                     />
                   </div>
-                  <p className="field-hint">We study your latest 15 uploads from the public feed</p>
+                  <p id="yt-hint" className="field-hint">We study your latest 15 uploads from the public feed</p>
                 </div>
 
                 <div>
@@ -197,12 +217,13 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                   </label>
                   <textarea
                     id="captions"
+                    aria-describedby="captions-hint"
                     className="input min-h-[112px]"
                     placeholder="Paste 3 to 10 captions, with a blank line between each"
                     value={captionsText}
                     onChange={(e) => setCaptionsText(e.target.value)}
                   />
-                  <p className="field-hint">Instagram has no public feed, so pasted captions are how we learn your Reels voice</p>
+                  <p id="captions-hint" className="field-hint">Instagram has no public feed, so pasted captions are how we learn your Reels voice</p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -289,12 +310,13 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                     </label>
                     <input
                       id="tag"
+                      aria-describedby="tag-hint"
                       className="input font-mono"
                       placeholder="yourname-20"
                       value={profile.amazon.partnerTag}
                       onChange={(e) => set('amazon', { ...profile.amazon, partnerTag: e.target.value.trim() })}
                     />
-                    <p className="field-hint">Found in Associates Central under Manage tracking IDs</p>
+                    <p id="tag-hint" className="field-hint">Found in Associates Central under Manage tracking IDs</p>
                   </div>
                   <div>
                     <label htmlFor="market" className="field-label">
@@ -330,8 +352,10 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
           {step === 'goals' && (
             <div className="rise-in">
               <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">What should we focus on</h1>
-              <p className="mt-2 text-fg-2">Pick up to three. Lessons and suggestions lean toward these</p>
-              <div className="mt-8 grid gap-2 sm:grid-cols-2">
+              <p id="goals-hint" className="mt-2 text-fg-2">Pick up to three. Lessons and suggestions lean toward these</p>
+              <fieldset className="mt-8" aria-describedby="goals-hint">
+              <legend className="sr-only">Goals</legend>
+              <div className="grid gap-2 sm:grid-cols-2">
                 {GOALS.map((g) => (
                   <Choice
                     key={g}
@@ -345,6 +369,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                   </Choice>
                 ))}
               </div>
+              </fieldset>
             </div>
           )}
 
@@ -375,17 +400,19 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
             </>
           )}
         </section>
-      </div>
+      </main>
     </div>
   );
 };
 
 const STUDY_LABELS: Record<string, string> = {
-  fetch: 'Reading your latest uploads',
-  analyze: 'Learning your voice, packaging and audience',
+  fetch: 'Reading your uploads',
+  video: 'Studying each video: transcript, thumbnail, hook and structure',
+  synthesize: 'Learning your voice, packaging and audience',
   plan: 'Building your Brain, lessons and baseline quiz',
 };
-const ORDER = ['fetch', 'analyze', 'plan'];
+const ORDER = ['fetch', 'video', 'synthesize', 'plan'];
+const MAX_STEP_CALLS = 40;
 
 const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onDone, onEdit }) => {
   const [job, setJob] = useState<StudyJob | null>(null);
@@ -398,7 +425,7 @@ const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onD
       const { jobId } = await api.onboarding.startStudy();
       let current: StudyJob | null = null;
       // Each call runs one short step on the server
-      for (let i = 0; i < ORDER.length + 1; i++) {
+      for (let i = 0; i < MAX_STEP_CALLS; i++) {
         const res = await api.onboarding.runStep(jobId);
         current = res.job;
         setJob(current);
@@ -416,7 +443,7 @@ const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onD
     run();
   }, []);
 
-  const results: Record<string, string> = (() => {
+  const results: Record<string, any> = (() => {
     try {
       return JSON.parse(job?.result_json || '{}');
     } catch {
@@ -434,23 +461,36 @@ const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onD
       <p className="mt-2 text-fg-2">
         {done
           ? 'Here is what we did. Your dashboard shows what we learned and where to start'
-          : 'This usually takes under a minute. Keep this tab open'}
+          : 'Each video takes a few seconds. Keep this tab open; anything left over is studied later automatically'}
       </p>
 
-      <ol className="mt-8 card divide-y divide-line">
+      <p className="sr-only" role="status">
+        {done ? 'Study complete' : error ? 'The study stopped' : job ? STUDY_LABELS[ORDER[currentIndex]] || '' : 'Starting the study'}
+      </p>
+      <ol className="mt-8 card divide-y divide-line" aria-label="Study progress">
         {ORDER.map((id, i) => {
           const state = i < currentIndex ? 'done' : i === currentIndex && !error ? 'active' : error && i === currentIndex ? 'failed' : 'todo';
           return (
             <li key={id} className="flex items-start gap-3 px-4 py-4">
-              <span className="mt-[2px] w-4 h-4 flex items-center justify-center">
+              <span className="mt-[2px] w-4 h-4 flex items-center justify-center" aria-hidden="true">
                 {state === 'done' && <Check {...ICON} className="text-positive" />}
                 {state === 'active' && <Spinner size={16} className="text-accent" />}
                 {state === 'failed' && <Circle {...ICON} className="text-negative" />}
                 {state === 'todo' && <Circle {...ICON} className="text-fg-3" />}
               </span>
               <span className="min-w-0">
-                <span className={`block ${state === 'todo' ? 'text-fg-3' : 'text-fg'}`}>{STUDY_LABELS[id]}</span>
-                {results[id] && <span className="block mt-[2px] text-[13px] text-fg-2">{results[id]}</span>}
+                <span className={`block ${state === 'todo' ? 'text-fg-3' : 'text-fg'}`}>
+                  {STUDY_LABELS[id]}
+                  <span className="sr-only">
+                    {state === 'done' ? ' (done)' : state === 'active' ? ' (in progress)' : state === 'failed' ? ' (failed)' : ' (not started)'}
+                  </span>
+                </span>
+                {typeof results[id] === 'string' && <span className="block mt-[2px] text-[13px] text-fg-2">{results[id]}</span>}
+                {id === 'video' && state === 'active' && results.videoProgress?.last && (
+                  <span className="block mt-[2px] text-[13px] text-fg-3 truncate">
+                    Last studied: {results.videoProgress.last}
+                  </span>
+                )}
               </span>
             </li>
           );

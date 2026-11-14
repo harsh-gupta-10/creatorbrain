@@ -1,16 +1,10 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { CreateShortLinkSchema } from '../../shared/types';
 import type { ShortLink, LinkClick } from '../../shared/types';
 
-export const linkRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-  };
-}>();
+export const linkRoutes = new Hono<AppEnv>();
 
 // SSRF Safety: Block internal IPs and loopbacks
 function isSafeUrl(urlStr: string): boolean {
@@ -47,9 +41,7 @@ function isSafeUrl(urlStr: string): boolean {
 
 // Get all short links for creator
 linkRoutes.get('/', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const links = await dbClient.getShortLinks(creator.id);
@@ -58,9 +50,7 @@ linkRoutes.get('/', async (c) => {
 
 // Create new short link
 linkRoutes.post('/create', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const body = await c.req.json();
   const parsed = CreateShortLinkSchema.safeParse(body);
@@ -131,9 +121,7 @@ linkRoutes.post('/create', async (c) => {
 
 // Get single link analytics & clicks
 linkRoutes.get('/:id', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const linkId = c.req.param('id');
   const link = await c.env.DB

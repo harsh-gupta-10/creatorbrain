@@ -80,8 +80,9 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
   if (loading) {
     return (
       <Shell>
-        <div className="self-center" style={{ color: PAGE.fg2 }}>
+        <div className="self-center" style={{ color: PAGE.fg2 }} role="status">
           <Spinner size={20} />
+          <span className="sr-only">Loading</span>
         </div>
       </Shell>
     );
@@ -90,7 +91,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
   if (error || !bioPage) {
     return (
       <Shell>
-        <div className="self-center text-center max-w-sm">
+        <main className="self-center text-center max-w-sm">
           <h1 className="text-[20px] leading-7 font-medium">
             {handle ? <span className="font-mono">@{handle}</span> : 'This page'} is not here
           </h1>
@@ -104,7 +105,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
           >
             Go to CreatorBrain
           </a>
-        </div>
+        </main>
       </Shell>
     );
   }
@@ -122,11 +123,12 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
         {/* Profile */}
         <header className="flex flex-col items-center text-center">
           {creator?.avatar_url ? (
-            <img src={creator.avatar_url} alt={name} className="w-20 h-20 rounded-full object-cover" />
+            <img src={creator.avatar_url} alt="" className="w-20 h-20 rounded-full object-cover" />
           ) : (
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-[28px] font-medium"
               style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
+              aria-hidden="true"
             >
               {name.slice(0, 1)}
             </div>
@@ -160,8 +162,11 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                   }`}
                   style={{ background: PAGE.raised }}
                 >
-                  <span className="truncate">{block.title}</span>
-                  <ArrowUpRight size={16} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} />
+                  <span className="truncate">
+                    {block.title}
+                    <span className="sr-only"> (opens in a new tab)</span>
+                  </span>
+                  <ArrowUpRight size={16} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} aria-hidden="true" />
                 </a>
               );
             }
@@ -177,7 +182,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                   {prod?.image_url && (
                     <img
                       src={prod.image_url}
-                      alt={prod.title}
+                      alt=""
                       className="w-16 h-16 object-contain rounded-[8px] bg-white p-1 shrink-0"
                     />
                   )}
@@ -201,6 +206,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                       style={{ background: accent, color: inkOn(accent) }}
                     >
                       Buy
+                      <span className="sr-only"> {block.title || prod?.title} (opens in a new tab)</span>
                     </a>
                   )}
                 </div>
@@ -223,6 +229,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                       style={{ border: `1px solid ${PAGE.line}`, color: PAGE.fg2 }}
                     >
                       {platform}
+                      <span className="sr-only"> (opens in a new tab)</span>
                     </a>
                   ))}
                 </div>
@@ -239,7 +246,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
             }
 
             if (block.type === 'divider') {
-              return <hr key={block.id} className="my-2 border-0 h-px" style={{ background: PAGE.line }} />;
+              return <hr key={block.id} aria-hidden="true" className="my-2 border-0 h-px" style={{ background: PAGE.line }} />;
             }
 
             return null;

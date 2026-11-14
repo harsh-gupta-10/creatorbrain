@@ -18,19 +18,21 @@
   --color-sunken: #efeff1;
   --color-line: rgb(23 23 23 / 0.08);
   --color-line-strong: rgb(23 23 23 / 0.14);
+  /* Form control borders meet the 3:1 non-text contrast minimum */
+  --color-control: #8a8a8a;
 
   --color-fg: #171717;
   --color-fg-2: #525252;
-  --color-fg-3: #737373;
+  --color-fg-3: #6b6b6b; /* 4.8:1 on raised, 5.3:1 on white (WCAG AA) */
 
   --color-accent: #2f5bea;
   --color-accent-hover: #264fd6;
   --color-accent-ink: #2349c4;
   --color-accent-soft: #eef2fe;
 
-  --color-positive: #16a34a;
+  --color-positive: #15803d; /* text-safe green: 5:1 on white */
   --color-positive-soft: #ecfdf3;
-  --color-negative: #dc2626;
+  --color-negative: #c81e1e; /* text-safe red: 5.3:1 on negative-soft */
   --color-negative-soft: #fef2f2;
   --color-warning: #b45309;
   --color-warning-soft: #fffbeb;
@@ -178,7 +180,7 @@
     padding: 0 12px;
     border-radius: 8px;
     background: var(--color-surface);
-    border: 1px solid var(--color-line-strong);
+    border: 1px solid var(--color-control);
     color: var(--color-fg);
     font-size: 14px;
     transition:
@@ -198,6 +200,26 @@
     outline: none;
     border-color: var(--color-accent);
     box-shadow: 0 0 0 3px rgb(47 91 234 / 0.15);
+  }
+
+  /* Skip link: hidden until focused, then pinned top-left above everything */
+  .skip-link {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    z-index: 100;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-fg);
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+    transform: translateY(-200%);
+  }
+  .skip-link:focus,
+  .skip-link:focus-visible {
+    transform: none;
   }
 
   /* Quiet meta: counts, timestamps, ids */
@@ -311,5 +333,15 @@
   .rise-in,
   .spin {
     animation: none;
+  }
+  /* Drawer slides, toggles, chevrons and button presses: keep state changes, drop the motion */
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:active:not(:disabled) {
+    transform: none;
   }
 }

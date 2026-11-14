@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
-import { getSessionCreator } from './auth';
+import { creatorDna } from '../lib/dna';
+import { amazonClientFor } from '../amazon/credentials';
+import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { AIRouter } from '../ai/router';
 import {
@@ -9,25 +10,14 @@ import {
   runComplianceChecker,
 } from '../agents/definitions/studioAndResearch';
 import { AmazonCreatorsClient } from '../amazon/client';
-import { CreatorDNASchema, StudioChatSchema } from '../../shared/types';
+import { StudioChatSchema } from '../../shared/types';
 import type { Project, ProjectAsset, Product, ShortLink } from '../../shared/types';
 
-export const studioRoutes = new Hono<{
-  Bindings: {
-    DB: D1Database;
-    KV: KVNamespace;
-    ANTHROPIC_API_KEY?: string;
-    OPENAI_API_KEY?: string;
-    GEMINI_API_KEY?: string;
-    AI?: any;
-  };
-}>();
+export const studioRoutes = new Hono<AppEnv>();
 
 // Get all projects for creator
 studioRoutes.get('/projects', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
   const projects = await dbClient.getProjects(creator.id);
@@ -36,9 +26,7 @@ studioRoutes.get('/projects', async (c) => {
 
 // Create new project
 studioRoutes.post('/projects', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const { title, brief, status } = await c.req.json();
   const dbClient = new DBClient(c.env.DB);
@@ -61,9 +49,7 @@ studioRoutes.post('/projects', async (c) => {
 
 // Get single project with all assets
 studioRoutes.get('/projects/:id', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const projectId = c.req.param('id');
   const dbClient = new DBClient(c.env.DB);
@@ -76,9 +62,7 @@ studioRoutes.get('/projects/:id', async (c) => {
 
 // Update project status / title
 studioRoutes.patch('/projects/:id', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const projectId = c.req.param('id');
   const body = await c.req.json();
@@ -92,9 +76,7 @@ studioRoutes.patch('/projects/:id', async (c) => {
 
 // Direct edit asset content
 studioRoutes.put('/assets/:id', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const assetId = c.req.param('id');
   const { content, title } = await c.req.json();
@@ -138,9 +120,7 @@ studioRoutes.put('/assets/:id', async (c) => {
  * Product Researcher + Studio Agent + Link Agent + Compliance Checker
  */
 studioRoutes.post('/chat', async (c) => {
-  const sessionId = getCookie(c, 'cb_session');
-  const creator = await getSessionCreator(c.env.DB, sessionId);
-  if (!creator) return c.json({ error: 'Unauthorized' }, 401);
+  const creator = c.get('creator');
 
   const body = await c.req.json();
   const parsed = StudioChatSchema.safeParse(body);
@@ -151,42 +131,13 @@ studioRoutes.post('/chat', async (c) => {
   const { projectId, message, productAsin } = parsed.data;
   const dbClient = new DBClient(c.env.DB);
   const router = new AIRouter(c.env);
+  const amazon = await amazonClientFor(c.env.DB, c.env, creator.id);
 
   const { project } = await dbClient.getProjectWithAssets(creator.id, projectId);
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   // Parse Creator DNA
-  let dna = {
-    voice: {
-      pace: 'High-velocity & conversational',
-      tone: 'Candid, engineering-grounded',
-      catchphrases: ['Let us pop the hood', 'Real talk', 'Is it paisa vasool?'],
-      language_mix: 'Hinglish (70% English / 30% Hindi colloquial idioms)',
-      hook_formula: 'Action-first teardown in first 4s',
-    },
-    visual: {
-      thumbnail_palette: ['#FF0055', '#00F0FF', '#111827', '#F59E0B'],
-      composition: 'Hero product on left, creator face on right',
-      text_overlay_words: 3,
-    },
-    packaging: {
-      title_avg_length: 48,
-      title_patterns: ['[Product]: Don\'t Buy Until You See This!'],
-      disclosure_position: 'Top 3 lines of description',
-    },
-    audience: {
-      primary_demographic: '18-34 tech enthusiasts & makers',
-      buying_intent: 'High VFM focus',
-    },
-  };
-
-  if (creator.dna_summary) {
-    try {
-      dna = CreatorDNASchema.parse(JSON.parse(creator.dna_summary));
-    } catch {
-      // Use fallback
-    }
-  }
+  const dna = creatorDna(creator);
 
   // Step 1: Resolve Product with Product Researcher
   let product: Product | null = null;
@@ -202,7 +153,7 @@ studioRoutes.post('/chat', async (c) => {
     message.toLowerCase().includes('phone') ||
     message.toLowerCase().includes('headphone')
   ) {
-    product = await runProductResearcher(message, creator.id, router, c.env.DB);
+    product = await runProductResearcher(message, creator.id, router, c.env.DB, amazon);
   }
 
   // Save product to library if found
@@ -215,6 +166,7 @@ studioRoutes.post('/chat', async (c) => {
 
   // Step 2: Content Studio Agent generates or refines all assets
   const generated = await runContentStudioAgent({
+    amazon,
     creatorId: creator.id,
     projectId,
     brief: `${project.brief} - Refinement: ${message}`,

@@ -77,8 +77,8 @@ export interface OnboardingJob {
 // GRAPH NODES & EDGES
 // ==========================================
 
-export type NodeType = 'Style' | 'Strength' | 'Gap' | 'Audience' | 'Concept' | 'Topic';
-export type EdgeRelation = 'STRONG_AT' | 'NEEDS_WORK' | 'LEARNED_FROM' | 'RELATES_TO';
+export type NodeType = 'Style' | 'Strength' | 'Gap' | 'Audience' | 'Concept' | 'Topic' | 'Video';
+export type EdgeRelation = 'STRONG_AT' | 'NEEDS_WORK' | 'LEARNED_FROM' | 'RELATES_TO' | 'COVERS' | 'EVIDENCE_FOR';
 
 export interface GraphNode {
   id: string;
@@ -398,14 +398,6 @@ export const StudioChatSchema = z.object({
   projectId: z.string(),
   message: z.string().min(1),
   productAsin: z.string().optional(),
-});
-
-export const OnboardingSchema = z.object({
-  platform: z.enum(['youtube', 'instagram']),
-  urlOrHandle: z.string().min(2),
-  consent: z.literal(true, {
-    message: 'Consent is required to analyze channel data',
-  }),
 });
 
 export const ToolGeneratorSchema = z.object({

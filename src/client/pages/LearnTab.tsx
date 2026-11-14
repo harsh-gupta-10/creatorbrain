@@ -164,7 +164,7 @@ export const LearnTab: React.FC = () => {
             return (
               <div key={idx} className="flex items-start gap-3">
                 <span className="w-4 shrink-0 flex justify-end pt-2">
-                  <span className="dot bg-fg-3" />
+                  <span className="dot bg-fg-3" aria-hidden="true" />
                 </span>
                 <span className="flex-1">{parseInlineText(trimmed.replace(/^[-*]\s+/, ''))}</span>
               </div>
@@ -204,6 +204,7 @@ export const LearnTab: React.FC = () => {
                 aria-valuemax={100}
                 aria-valuenow={progressPercent}
                 aria-label="Course progress"
+                aria-valuetext={`${completedCount} of ${lessons.length} lessons done`}
               >
                 <div className="h-full bg-fg rounded-full" style={{ width: `${progressPercent}%` }} />
               </div>
@@ -219,8 +220,9 @@ export const LearnTab: React.FC = () => {
       )}
 
       {loading && lessons.length === 0 ? (
-        <div className="card h-40 flex items-center justify-center text-fg-3">
+        <div className="card h-40 flex items-center justify-center text-fg-3" role="status">
           <Spinner />
+          <span className="sr-only">Loading lessons</span>
         </div>
       ) : lessons.length === 0 ? (
         <div className="card">
@@ -252,7 +254,7 @@ export const LearnTab: React.FC = () => {
                       >
                         <span className="w-5 shrink-0 flex justify-end">
                           {isCompleted ? (
-                            <Check {...ICON} className="text-positive" aria-label="Completed" />
+                            <Check {...ICON} className="text-positive" aria-hidden={false} role="img" aria-label="Completed" />
                           ) : (
                             <span className="meta">{idx + 1}</span>
                           )}
@@ -290,6 +292,7 @@ export const LearnTab: React.FC = () => {
                       type="button"
                       onClick={() => handleCompleteLesson(selectedLesson.id)}
                       disabled={completing}
+                      aria-busy={completing}
                       className="btn btn-primary btn-sm shrink-0"
                     >
                       {completing ? <Spinner /> : <Check {...ICON} />}
@@ -304,13 +307,13 @@ export const LearnTab: React.FC = () => {
           </div>
 
           {/* Tutor */}
-          <section className="lg:col-span-5 card h-[620px] flex flex-col overflow-hidden">
+          <section className="lg:col-span-5 card h-[620px] flex flex-col overflow-hidden" aria-labelledby="tutor-title">
             <div className="px-4 h-12 border-b border-line flex items-center justify-between">
-              <span className="font-medium text-fg">Tutor</span>
+              <h2 id="tutor-title" className="font-medium text-fg">Tutor</h2>
               <span className="meta">Uses your Brain</span>
             </div>
 
-            <div className="px-4 py-3 border-b border-line flex items-center gap-2 overflow-x-auto">
+            <div className="px-4 py-3 border-b border-line flex items-center gap-2 overflow-x-auto" role="group" aria-label="Suggested questions">
               {['How do I keep viewers past the first minute', 'Amazon disclosure rules', 'Review my hooks'].map(
                 (chip) => (
                   <button
@@ -326,7 +329,14 @@ export const LearnTab: React.FC = () => {
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div
+              className="flex-1 overflow-y-auto p-4 space-y-4"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              aria-label="Tutor conversation"
+              tabIndex={0}
+            >
               {tutorMessages.map((msg, i) => (
                 <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
                   <div
@@ -334,13 +344,14 @@ export const LearnTab: React.FC = () => {
                       msg.role === 'user' ? 'bg-fg text-white' : 'bg-raised text-fg'
                     }`}
                   >
+                    <span className="sr-only">{msg.role === 'user' ? 'You said: ' : 'Tutor: '}</span>
                     {msg.text}
                   </div>
                   <span className="meta mt-1 px-1">{msg.time}</span>
                 </div>
               ))}
               {isTutorThinking && (
-                <div className="flex items-center gap-2 text-[13px] text-fg-3">
+                <div className="flex items-center gap-2 text-[13px] text-fg-3" role="status">
                   <Spinner /> Thinking
                 </div>
               )}

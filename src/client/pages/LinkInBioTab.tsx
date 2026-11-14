@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Creator, BioPage, BioBlock, BioBlockType } from '../../shared/types';
-import { ICON, PageHeader, SectionTitle, EmptyState, ErrorNote, Spinner, formatCount } from '../components/ui';
+import { ICON, PageHeader, SectionTitle, EmptyState, ErrorNote, Spinner, Dialog, formatCount } from '../components/ui';
 
 interface LinkInBioTabProps {
   creator?: Creator | null;
@@ -94,6 +94,9 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
     <div
       className="h-full overflow-y-auto px-5 pt-12 pb-6 flex flex-col items-center"
       style={{ background: PAGE.bg, color: PAGE.fg }}
+      role="region"
+      aria-label="Preview of your public page"
+      tabIndex={0}
     >
       {creator?.avatar_url ? (
         <img src={creator.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
@@ -187,7 +190,7 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
               }}
             >
               <span className="truncate">{b.title || 'Link'}</span>
-              <ArrowUpRight size={14} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} />
+              <ArrowUpRight size={14} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} aria-hidden="true" />
             </div>
           );
         })}
@@ -323,15 +326,20 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
             </button>
             <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary">
               Open page
+              <span className="sr-only">(opens in a new tab)</span>
               <ExternalLink {...ICON} className="text-fg-3" />
             </a>
-            <button onClick={handleSaveChanges} disabled={!bioPage || saving} className="btn btn-primary">
+            <button onClick={handleSaveChanges} disabled={!bioPage || saving} aria-busy={saving} className="btn btn-primary">
               {saving ? <Spinner /> : savedSuccess ? <Check {...ICON} /> : <Save {...ICON} />}
               {savedSuccess ? 'Saved' : 'Save changes'}
             </button>
           </>
         }
       />
+
+      <p className="sr-only" role="status">
+        {savedSuccess ? 'Changes saved' : ''}
+      </p>
 
       {error && (
         <div className="mb-6">
@@ -374,8 +382,8 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                 </div>
               </div>
 
-              <div>
-                <div className="field-label">Accent</div>
+              <div role="group" aria-labelledby="bio-accent-label" aria-describedby="bio-accent-hint">
+                <div id="bio-accent-label" className="field-label">Accent</div>
                 <div className="flex flex-wrap gap-2">
                   {ACCENTS.map((th) => {
                     const selected = bioPage?.theme === th.id;
@@ -398,6 +406,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                         <span
                           className="w-5 h-5 rounded-[4px] flex items-center justify-center"
                           style={{ background: PAGE.bg }}
+                          aria-hidden="true"
                         >
                           <span className="w-2 h-2 rounded-full" style={{ background: th.accent }} />
                         </span>
@@ -406,7 +415,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                     );
                   })}
                 </div>
-                <p className="field-hint">Used for your first link and the buy button. The page itself stays dark</p>
+                <p id="bio-accent-hint" className="field-hint">Used for your first link and the buy button. The page itself stays dark</p>
               </div>
             </div>
           </section>
@@ -424,7 +433,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
             />
             <div className="card overflow-hidden">
               {loading ? (
-                <div className="flex items-center justify-center gap-2 py-12 text-fg-3">
+                <div className="flex items-center justify-center gap-2 py-12 text-fg-3" role="status">
                   <Spinner />
                   Loading blocks
                 </div>
@@ -436,9 +445,11 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                 />
               ) : (
                 <ul className="divide-y divide-line">
-                  {blocks.map((block, idx) => (
+                  {blocks.map((block, idx) => {
+                    const blockName = block.title || block.product?.title || blockTypeLabel[block.type];
+                    return (
                     <li key={block.id || idx} className="flex items-center gap-3 px-4 py-3">
-                      <span className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0">
+                      <span className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0" aria-hidden="true">
                         {blockIcon(block.type)}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -458,7 +469,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                           onClick={() => handleMoveBlock(idx, 'up')}
                           disabled={idx === 0}
                           className="btn btn-ghost btn-sm !px-2"
-                          aria-label="Move block up"
+                          aria-label={`Move ${blockName} up`}
                         >
                           <ArrowUp {...ICON} />
                         </button>
@@ -466,20 +477,21 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                           onClick={() => handleMoveBlock(idx, 'down')}
                           disabled={idx === blocks.length - 1}
                           className="btn btn-ghost btn-sm !px-2"
-                          aria-label="Move block down"
+                          aria-label={`Move ${blockName} down`}
                         >
                           <ArrowDown {...ICON} />
                         </button>
                         <button
                           onClick={() => handleDeleteBlock(idx)}
                           className="btn btn-ghost btn-sm !px-2 hover:!text-negative"
-                          aria-label="Delete block"
+                          aria-label={`Delete ${blockName}`}
                         >
                           <Trash2 {...ICON} />
                         </button>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -491,7 +503,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
         <div className="lg:col-span-5 lg:sticky lg:top-6 flex flex-col items-center">
           <div className="w-[320px] h-[640px] rounded-[44px] p-2 bg-[#1c1d20] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_12px_32px_rgb(0_0_0/0.10)]">
             <div className="relative w-full h-full rounded-[36px] overflow-hidden">
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10" />
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10" aria-hidden="true" />
               <PhonePreview creator={creator} bioPage={bioPage} blocks={blocks} />
             </div>
           </div>
@@ -501,12 +513,11 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
 
       {/* Add block */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="panel w-full max-w-md p-6" role="dialog" aria-modal="true" aria-labelledby="add-block-title">
+        <Dialog onClose={() => setShowAddModal(false)} labelledBy="add-block-title" className="panel w-full max-w-md p-6" backdropClassName="bg-black/30">
             <div className="flex items-center justify-between mb-4">
-              <h3 id="add-block-title" className="text-[15px] font-medium text-fg">
+              <h2 id="add-block-title" className="text-[15px] font-medium text-fg">
                 Add block
-              </h3>
+              </h2>
               <button onClick={() => setShowAddModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
                 <X {...ICON} />
               </button>
@@ -568,18 +579,16 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Dialog>
       )}
 
       {/* QR code */}
       {showQrModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-          <div className="panel w-full max-w-sm p-6" role="dialog" aria-modal="true" aria-labelledby="qr-title">
+        <Dialog onClose={() => setShowQrModal(false)} labelledBy="qr-title" className="panel w-full max-w-sm p-6" backdropClassName="bg-black/30">
             <div className="flex items-center justify-between mb-4">
-              <h3 id="qr-title" className="text-[15px] font-medium text-fg">
+              <h2 id="qr-title" className="text-[15px] font-medium text-fg">
                 QR code
-              </h3>
+              </h2>
               <button onClick={() => setShowQrModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
                 <X {...ICON} />
               </button>
@@ -598,11 +607,10 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
               <div className="input flex items-center font-mono text-[13px] text-fg-2 truncate">{fullUrl}</div>
               <button onClick={handleCopyUrl} className="btn btn-secondary shrink-0">
                 {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}
-                {copied ? 'Copied' : 'Copy'}
+                <span role="status">{copied ? 'Copied' : 'Copy'}</span>
               </button>
             </div>
-          </div>
-        </div>
+        </Dialog>
       )}
     </div>
   );

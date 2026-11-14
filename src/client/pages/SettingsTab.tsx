@@ -26,12 +26,16 @@ const SettingsSection: React.FC<{ title: string; description?: React.ReactNode; 
   </section>
 );
 
-const SavedNote: React.FC<{ show: boolean; text?: string }> = ({ show, text = 'Saved' }) =>
-  show ? (
-    <span className="inline-flex items-center gap-1 text-[13px] text-positive" role="status">
-      <Check {...ICON} /> {text}
-    </span>
-  ) : null;
+// The live region stays mounted so screen readers announce the text when it appears
+const SavedNote: React.FC<{ show: boolean; text?: string }> = ({ show, text = 'Saved' }) => (
+  <span className="inline-flex items-center gap-1 text-[13px] text-positive" role="status">
+    {show && (
+      <>
+        <Check {...ICON} /> {text}
+      </>
+    )}
+  </span>
+);
 
 export const SettingsTab: React.FC = () => {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -185,8 +189,9 @@ export const SettingsTab: React.FC = () => {
     return (
       <div>
         <PageHeader title="Settings" />
-        <div className="card h-40 flex items-center justify-center text-fg-3">
+        <div className="card h-40 flex items-center justify-center text-fg-3" role="status">
           <Spinner />
+          <span className="sr-only">Loading settings</span>
         </div>
       </div>
     );
@@ -246,6 +251,7 @@ export const SettingsTab: React.FC = () => {
                   className="inline-flex items-center gap-1 font-mono text-[13px] text-accent-ink hover:underline"
                 >
                   /@{creator.handle}
+                  <span className="sr-only">(opens in a new tab)</span>
                   <ArrowUpRight {...ICON} />
                 </a>
               </dd>
@@ -270,16 +276,17 @@ export const SettingsTab: React.FC = () => {
                 <div id="amazon-toggle-label" className="font-medium text-fg">
                   Amazon Associates
                 </div>
-                <p className="mt-1 text-[13px] text-fg-2">Add your tracking ID to product links in scripts and descriptions</p>
+                <p id="amazon-toggle-desc" className="mt-1 text-[13px] text-fg-2">Add your tracking ID to product links in scripts and descriptions</p>
               </div>
               <button
                 type="button"
                 role="switch"
                 aria-checked={amazonOn}
                 aria-labelledby="amazon-toggle-label"
+                aria-describedby="amazon-toggle-desc"
                 onClick={() => setAmazonOn((v) => !v)}
                 className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  amazonOn ? 'bg-accent' : 'bg-line-strong'
+                  amazonOn ? 'bg-accent' : 'bg-[#8a8a8a]'
                 }`}
               >
                 <span
@@ -347,7 +354,7 @@ export const SettingsTab: React.FC = () => {
           {errors.monetization && <ErrorNote>{errors.monetization}</ErrorNote>}
 
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={savingMon} className="btn btn-primary btn-sm">
+            <button type="submit" disabled={savingMon} aria-busy={savingMon} className="btn btn-primary btn-sm">
               {savingMon && <Spinner />}
               Save monetization
             </button>
@@ -362,7 +369,7 @@ export const SettingsTab: React.FC = () => {
           <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
             {providerRows.map((p) => (
               <li key={p.name} className="flex items-center gap-2 text-[13px]">
-                <span className={`dot ${p.on ? 'bg-positive' : 'bg-fg-3'}`} />
+                <span className={`dot ${p.on ? 'bg-positive' : 'bg-fg-3'}`} aria-hidden="true" />
                 <span className="text-fg">{p.name}</span>
                 <span className="meta ml-auto">{p.on ? p.onLabel : p.offLabel}</span>
               </li>
@@ -422,11 +429,13 @@ export const SettingsTab: React.FC = () => {
                 max="10.0"
                 step="0.25"
                 value={dailyBudgetUsd}
+                aria-valuetext={`${'$'}${dailyBudgetUsd.toFixed(2)} per day`}
+                aria-describedby="ai-budget-usage"
                 onChange={(e) => setDailyBudgetUsd(parseFloat(e.target.value))}
                 className="w-full accent-accent cursor-pointer"
               />
               <div className="mt-1 flex justify-between">
-                <span className="meta">Spent today ${(data?.currentDailyUsageUsd || 0).toFixed(2)}</span>
+                <span id="ai-budget-usage" className="meta">Spent today ${(data?.currentDailyUsageUsd || 0).toFixed(2)}</span>
                 <span className="meta">Max $10.00</span>
               </div>
             </div>
@@ -435,7 +444,7 @@ export const SettingsTab: React.FC = () => {
           {errors.ai && <ErrorNote>{errors.ai}</ErrorNote>}
 
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={savingAi} className="btn btn-primary btn-sm">
+            <button type="submit" disabled={savingAi} aria-busy={savingAi} className="btn btn-primary btn-sm">
               {savingAi && <Spinner />}
               Save AI settings
             </button>
@@ -451,7 +460,7 @@ export const SettingsTab: React.FC = () => {
       >
         <form onSubmit={handleSaveAmazon} className="card p-5 space-y-4">
           <div className="flex items-center gap-2 text-[13px]">
-            <span className={`dot ${data?.amazonConfig.hasCredentials ? 'bg-positive' : 'bg-fg-3'}`} />
+            <span className={`dot ${data?.amazonConfig.hasCredentials ? 'bg-positive' : 'bg-fg-3'}`} aria-hidden="true" />
             <span className="text-fg-2">
               {data?.amazonConfig.hasCredentials ? 'Keys stored, encrypted' : 'No keys stored, using the sample catalog'}
             </span>
@@ -523,7 +532,7 @@ export const SettingsTab: React.FC = () => {
           {errors.amazon && <ErrorNote>{errors.amazon}</ErrorNote>}
 
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={savingAmazon} className="btn btn-secondary btn-sm">
+            <button type="submit" disabled={savingAmazon} aria-busy={savingAmazon} className="btn btn-secondary btn-sm">
               {savingAmazon && <Spinner />}
               Save keys
             </button>
@@ -546,6 +555,7 @@ export const SettingsTab: React.FC = () => {
             type="button"
             onClick={handleDeleteData}
             disabled={deleting}
+            aria-busy={deleting}
             className="btn btn-secondary btn-sm text-negative"
           >
             {deleting && <Spinner />}

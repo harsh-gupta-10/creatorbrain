@@ -82,11 +82,6 @@ export async function getSession(db: D1Database, sessionId?: string): Promise<Se
   return { creator, isSample: session.creator_id === SAMPLE_CREATOR_ID };
 }
 
-// Kept for the existing routes: resolves the signed-in creator or null
-export async function getSessionCreator(db: D1Database, sessionId?: string): Promise<Creator | null> {
-  return (await getSession(db, sessionId)).creator;
-}
-
 async function startSession(c: Context, creatorId: string): Promise<void> {
   const sessionId = randomToken();
   const now = new Date();

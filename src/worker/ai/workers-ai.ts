@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import type { AIMessage, AIProvider, AIGenerateOptions, WorkersAIBinding } from './types';
 
+export const FAST_MODEL = '@cf/meta/llama-3.1-8b-instruct-fast';
+export const VISION_MODEL = '@cf/llava-hf/llava-1.5-7b-hf';
+
 export class WorkersAIProvider implements AIProvider {
   name = 'workers-ai';
   private aiBinding?: WorkersAIBinding;
@@ -16,7 +19,8 @@ export class WorkersAIProvider implements AIProvider {
       throw new Error('Workers AI binding (env.AI) is not configured.');
     }
 
-    const model = options?.model || this.defaultModel;
+    // Only Workers AI model ids apply here; `fast` picks the small model for per-item work
+    const model = options?.model?.startsWith('@cf/') ? options.model : options?.fast ? FAST_MODEL : this.defaultModel;
     const response = await this.aiBinding.run(model, {
       messages: messages.map((m) => ({ role: m.role, content: m.content })),
       max_tokens: options?.maxTokens || 1024,
@@ -45,5 +49,12 @@ export class WorkersAIProvider implements AIProvider {
     if (start < 0 || end <= start) throw new Error('Workers AI returned no JSON object');
     const parsed = JSON.parse(raw.slice(start, end + 1));
     return schema.parse(parsed);
+  }
+
+  /** Describes an image with a small vision model. Returns plain text */
+  async describeImage(bytes: Uint8Array, prompt: string): Promise<string> {
+    if (!this.aiBinding) throw new Error('Workers AI binding (env.AI) is not configured.');
+    const res = await this.aiBinding.run(VISION_MODEL, { image: Array.from(bytes), prompt, max_tokens: 256 });
+    return String(res?.description || res?.response || '').trim();
   }
 }

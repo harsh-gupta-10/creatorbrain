@@ -1,21 +1,33 @@
 // Channel study: reads a creator's real published content and turns it into
 // Creator DNA, Brain graph nodes, a short lesson plan and a baseline quiz.
-// Runs as three short steps so each request stays inside the Workers free tier.
+//
+//   fetch      list uploads (YouTube Data API when configured, public feed otherwise)
+//   video      deep-study one video per call: transcript, thumbnail, structure (repeats)
+//   synthesize channel-level voice, strengths and gaps from every per-video breakdown
+//   plan       lessons and a baseline quiz from the gaps
+//
+// Each step is its own short request, so a study never hits Workers free tier limits.
 
 import { z } from 'zod';
 import type { AIRouter } from '../../ai/router';
 import type { CreatorDNA } from '../../../shared/types';
 import { CreatorDNASchema } from '../../../shared/types';
-import { fetchYouTubeChannel } from '../../content/youtube';
+import { fetchYouTubeChannel, fetchChannelWithDataApi, type DataApiVideo, type FetchedVideo } from '../../content/youtube';
+import { analyzeContentItem, pendingItems, type VideoAnalysis } from '../../content/analyze';
+import type { Env } from '../../env';
 
-export type StudyStep = 'fetch' | 'analyze' | 'plan';
-export const STUDY_STEPS: StudyStep[] = ['fetch', 'analyze', 'plan'];
+export type StudyStep = 'fetch' | 'video' | 'synthesize' | 'plan';
+export const STUDY_STEPS: StudyStep[] = ['fetch', 'video', 'synthesize', 'plan'];
 
 export const STEP_LABELS: Record<StudyStep, string> = {
-  fetch: 'Reading your latest uploads',
-  analyze: 'Learning your voice, packaging and audience',
+  fetch: 'Reading your uploads',
+  video: 'Studying each video: transcript, thumbnail, hook and structure',
+  synthesize: 'Learning your voice, packaging and audience',
   plan: 'Building your Brain, lessons and baseline quiz',
 };
+
+/** Videos deep-studied during one study run; the daily job and the Library pick up the rest */
+export const DEEP_PER_STUDY = 12;
 
 interface CreatorRow {
   id: string;
@@ -36,6 +48,7 @@ interface ContentRow {
   views: number;
   likes: number;
   published_at: string | null;
+  analysis_json?: string | null;
 }
 
 const now = () => new Date().toISOString();
@@ -50,7 +63,7 @@ async function loadCreator(db: D1Database, creatorId: string): Promise<CreatorRo
 async function loadContent(db: D1Database, creatorId: string, limit = 15): Promise<ContentRow[]> {
   const { results } = await db
     .prepare(
-      'SELECT id, platform, title, description, views, likes, published_at FROM content_items WHERE creator_id = ? ORDER BY published_at DESC LIMIT ?'
+      'SELECT id, platform, title, description, views, likes, published_at, analysis_json FROM content_items WHERE creator_id = ? ORDER BY published_at DESC LIMIT ?'
     )
     .bind(creatorId, limit)
     .all<ContentRow>();
@@ -61,20 +74,51 @@ async function loadContent(db: D1Database, creatorId: string, limit = 15): Promi
 // Step 1: fetch
 // ------------------------------------------------------------------
 
-export async function refreshYouTubeContent(db: D1Database, creatorId: string, input: string): Promise<number> {
-  const channel = await fetchYouTubeChannel(input);
+export async function refreshYouTubeContent(
+  db: D1Database,
+  creatorId: string,
+  input: string,
+  env?: Pick<Env, 'YOUTUBE_API_KEY'>
+): Promise<number> {
+  const channel = env?.YOUTUBE_API_KEY
+    ? await fetchChannelWithDataApi(input, env.YOUTUBE_API_KEY).catch((err) => {
+        console.warn('[study] Data API failed, using public feed', err);
+        return fetchYouTubeChannel(input);
+      })
+    : await fetchYouTubeChannel(input);
   const ts = now();
 
-  const stmts = channel.videos.map((v) =>
+  const stmts = channel.videos.map((v: FetchedVideo & Partial<DataApiVideo>) =>
     db
       .prepare(
-        `INSERT INTO content_items (id, creator_id, platform, external_id, title, description, url, thumbnail_url, views, likes, published_at, created_at, updated_at)
-         VALUES (?, ?, 'youtube', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO content_items (id, creator_id, platform, external_id, title, description, url, thumbnail_url, views, likes,
+           comments, duration_seconds, tags_json, published_at, analysis_status, created_at, updated_at)
+         VALUES (?, ?, 'youtube', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
          ON CONFLICT (creator_id, platform, external_id) DO UPDATE SET
-           title = excluded.title, description = excluded.description, views = excluded.views,
-           likes = excluded.likes, thumbnail_url = excluded.thumbnail_url, updated_at = excluded.updated_at`
+           title = excluded.title, views = excluded.views, likes = excluded.likes,
+           comments = COALESCE(excluded.comments, comments), thumbnail_url = excluded.thumbnail_url,
+           duration_seconds = COALESCE(excluded.duration_seconds, duration_seconds),
+           tags_json = COALESCE(excluded.tags_json, tags_json),
+           description = CASE WHEN length(excluded.description) > length(COALESCE(description, '')) THEN excluded.description ELSE description END,
+           updated_at = excluded.updated_at`
       )
-      .bind(uid('ci'), creatorId, v.id, v.title, v.description.slice(0, 2000), v.url, v.thumbnailUrl, v.views, v.likes, v.publishedAt, ts, ts)
+      .bind(
+        uid('ci'),
+        creatorId,
+        v.id,
+        v.title,
+        v.description.slice(0, 5000),
+        v.url,
+        v.thumbnailUrl,
+        v.views,
+        v.likes,
+        v.comments ?? null,
+        v.durationSeconds ?? null,
+        v.tags ? JSON.stringify(v.tags) : null,
+        v.publishedAt,
+        ts,
+        ts
+      )
   );
 
   stmts.push(
@@ -91,16 +135,16 @@ export async function refreshYouTubeContent(db: D1Database, creatorId: string, i
   return channel.videos.length;
 }
 
-async function stepFetch(db: D1Database, creator: CreatorRow): Promise<string> {
+async function stepFetch(db: D1Database, env: Env, creator: CreatorRow): Promise<string> {
   let count = 0;
   if (creator.youtube_input) {
-    count += await refreshYouTubeContent(db, creator.id, creator.youtube_input);
+    count += await refreshYouTubeContent(db, creator.id, creator.youtube_input, env);
   }
   const existing = await loadContent(db, creator.id, 50);
   if (existing.length === 0) {
     throw new Error('We found no published content to study. Add a YouTube channel or paste a few Instagram captions');
   }
-  return count > 0 ? `Read ${count} recent YouTube uploads` : `Using ${existing.length} pieces of content you added`;
+  return count > 0 ? `Found ${count} YouTube uploads` : `Using ${existing.length} pieces of content you added`;
 }
 
 // ------------------------------------------------------------------
@@ -289,8 +333,53 @@ function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   }
 }
 
-async function stepAnalyze(db: D1Database, router: AIRouter, creator: CreatorRow): Promise<string> {
-  const items = await loadContent(db, creator.id, 15);
+// ------------------------------------------------------------------
+// Step 2: video (one deep study per call)
+// ------------------------------------------------------------------
+
+export async function stepVideo(
+  db: D1Database,
+  env: Env,
+  router: AIRouter,
+  creatorId: string,
+  done: number
+): Promise<{ analyzedTitle?: string; more: boolean; failed: boolean }> {
+  if (done >= DEEP_PER_STUDY) return { more: false, failed: false };
+  const [next] = await pendingItems(db, creatorId, 1);
+  if (!next) return { more: false, failed: false };
+  const result = await analyzeContentItem(db, env, router, next);
+  const row = await db.prepare('SELECT title FROM content_items WHERE id = ?').bind(next).first<{ title: string }>();
+  const remaining = await pendingItems(db, creatorId, 1);
+  return { analyzedTitle: row?.title, more: remaining.length > 0 && done + 1 < DEEP_PER_STUDY, failed: result.status === 'failed' };
+}
+
+function parseAnalysis(raw?: string | null): VideoAnalysis | null {
+  try {
+    return raw ? (JSON.parse(raw) as VideoAnalysis) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Counts how often each value appears across per-video breakdowns */
+function tally(values: string[], max = 6): string[] {
+  const m = new Map<string, { label: string; n: number }>();
+  for (const v of values) {
+    const key = v.trim().toLowerCase();
+    if (!key || key === 'none') continue;
+    const e = m.get(key) || { label: v.trim(), n: 0 };
+    e.n++;
+    m.set(key, e);
+  }
+  return [...m.values()].sort((a, b) => b.n - a.n).slice(0, max).map((e) => e.label);
+}
+
+// ------------------------------------------------------------------
+// Step 3: synthesize
+// ------------------------------------------------------------------
+
+async function stepSynthesize(db: D1Database, router: AIRouter, creator: CreatorRow): Promise<string> {
+  const items = await loadContent(db, creator.id, 30);
   const stats = computeStats(items);
   const monetization = parseJson<Monetization>(creator.monetization_json, {});
   const goals = parseJson<string[]>(creator.goals_json, []);
@@ -301,12 +390,25 @@ async function stepAnalyze(db: D1Database, router: AIRouter, creator: CreatorRow
   let study: Study | null = null;
   let usedAI = false;
 
+  const analyses = items.map((i) => ({ item: i, a: parseAnalysis(i.analysis_json) })).filter((x) => x.a) as {
+    item: ContentRow;
+    a: VideoAnalysis;
+  }[];
+  const studied = analyses.length;
+
   if (hasAI) {
     const list = items
-      .map(
-        (i, n) =>
-          `${n + 1}. [${i.platform}] "${i.title}" · ${i.views.toLocaleString('en-US')} views · ${i.published_at?.slice(0, 10) || ''}\n   ${(i.description || '').replace(/\s+/g, ' ').slice(0, 220)}`
-      )
+      .slice(0, 20)
+      .map((i, n) => {
+        const a = parseAnalysis(i.analysis_json);
+        const head = `${n + 1}. [${i.platform}] "${i.title}" · ${i.views.toLocaleString('en-US')} views · ${i.published_at?.slice(0, 10) || ''}`;
+        if (!a) return `${head}\n   ${(i.description || '').replace(/\s+/g, ' ').slice(0, 200)}`;
+        return `${head}
+   hook (${a.hook.type}): "${a.hook.text.slice(0, 160)}"
+   tone: ${a.tone} · pacing: ${a.pacing} · topics: ${a.topics.join(', ')}
+   thumbnail: text "${a.thumbnail.text_overlay}", face ${a.thumbnail.faces}, ${a.thumbnail.composition}
+   worked: ${a.what_worked.join('; ')} · improve: ${a.to_improve.join('; ')}`;
+      })
       .join('\n');
 
     try {
@@ -326,7 +428,7 @@ Goals: ${goals.join(', ') || 'unspecified'}
 Monetization: ${monetization.amazon ? `Amazon Associates (${monetization.marketplace || 'amazon.com'})` : 'no Amazon'}${monetization.other?.length ? `, ${monetization.other.join(', ')}` : ''}
 Median views: ${stats.medianViews}. Average title length: ${stats.avgTitleLength}. Uploads per month: ${stats.uploadsPerMonth}.
 
-Recent content:
+Recent content, with per-video breakdowns from transcripts and thumbnails:
 ${list}
 
 Return JSON with this exact shape:
@@ -350,17 +452,45 @@ Give 2 to 3 strengths and 2 to 3 gaps.`,
 
   if (!study) study = heuristicStudy(creator, stats, monetization);
 
+  // Fill voice and visual traits straight from the per-video breakdowns
+  if (studied) {
+    const d = study.dna;
+    const catchphrases = tally(analyses.flatMap((x) => x.a.catchphrases), 5);
+    const hooks = tally(analyses.map((x) => x.a.hook.type), 2);
+    const overlays = analyses.map((x) => x.a.thumbnail.text_overlay).filter((t) => t && !/^none$/i.test(t));
+    study.dna = {
+      ...d,
+      voice: {
+        ...d.voice,
+        catchphrases: d.voice.catchphrases.length ? d.voice.catchphrases : catchphrases,
+        pace: /not measured/i.test(d.voice.pace) ? tally(analyses.map((x) => x.a.pacing), 1)[0] || d.voice.pace : d.voice.pace,
+        tone: /titles only/i.test(d.voice.tone) ? tally(analyses.map((x) => x.a.tone), 1)[0] || d.voice.tone : d.voice.tone,
+        hook_formula: hooks.length ? `Mostly ${hooks.join(' and ')} openings` : d.voice.hook_formula,
+      },
+      visual: {
+        ...d.visual,
+        thumbnail_palette: d.visual.thumbnail_palette.length ? d.visual.thumbnail_palette : tally(analyses.flatMap((x) => x.a.thumbnail.colors), 4),
+        composition: /not analyzed/i.test(d.visual.composition) ? tally(analyses.map((x) => x.a.thumbnail.composition), 1)[0] || d.visual.composition : d.visual.composition,
+        text_overlay_words: overlays.length
+          ? Math.round(overlays.reduce((n, t) => n + t.split(/\s+/).length, 0) / overlays.length)
+          : d.visual.text_overlay_words,
+      },
+    };
+    if (!study.topics.length) study.topics = tally(analyses.flatMap((x) => x.a.topics), 6);
+  }
+
   const dna: CreatorDNA = CreatorDNASchema.parse(study.dna);
-  await writeBrain(db, creator.id, dna, study, items, stats);
+  await writeBrain(db, creator.id, dna, study, items, stats, analyses);
 
   await db
     .prepare('UPDATE creators SET dna_summary = ?, niche = COALESCE(NULLIF(niche, \'\'), ?), updated_at = ? WHERE id = ?')
     .bind(JSON.stringify(dna), study.topics[0] || '', now(), creator.id)
     .run();
 
+  const depth = studied ? `, ${studied} in depth` : '';
   return usedAI
-    ? `Studied ${items.length} pieces of content with AI`
-    : `Studied ${items.length} pieces of content from title and view statistics`;
+    ? `Learned from ${items.length} pieces of content${depth}`
+    : `Learned from ${items.length} pieces of content${depth}, using title and view statistics`;
 }
 
 async function writeBrain(
@@ -369,13 +499,14 @@ async function writeBrain(
   dna: CreatorDNA,
   study: Study,
   items: ContentRow[],
-  stats: Stats
+  stats: Stats,
+  analyses: { item: ContentRow; a: VideoAnalysis }[] = []
 ): Promise<void> {
   const ts = now();
   const evidence = JSON.stringify(items.slice(0, 10).map((i) => i.id));
   const bestEvidence = JSON.stringify(stats.best.map((i) => i.id));
 
-  type N = { id: string; type: string; label: string; description: string; confidence: number; evidence: string };
+  type N = { id: string; type: string; label: string; description: string; confidence: number; evidence: string; itemId?: string };
   const nodes: N[] = [
     { id: uid('node'), type: 'Style', label: dna.voice.tone, description: `Pace: ${dna.voice.pace}`, confidence: 0.8, evidence },
     { id: uid('node'), type: 'Style', label: dna.voice.hook_formula, description: 'How your openings and titles hook viewers', confidence: 0.75, evidence },
@@ -396,16 +527,51 @@ async function writeBrain(
     ...nodes.filter((n) => n.type === 'Topic').map((t) => ({ source: t.id, target: audience.id, relation: 'RELATES_TO', weight: 0.6 })),
   ];
 
+  // Each deep-studied video becomes a node linked to the topics it covers and, for
+  // top performers, to the strengths it is evidence for
+  const topicNodes = nodes.filter((n) => n.type === 'Topic');
+  const bestIds = new Set(stats.best.map((b) => b.id));
+  for (const { item, a } of analyses.slice(0, 15)) {
+    const vid: N = {
+      id: uid('node'),
+      type: 'Video',
+      label: item.title,
+      description: a.summary || a.hook.text,
+      confidence: a.packaging_score,
+      evidence: JSON.stringify([item.id]),
+      itemId: item.id,
+    };
+    nodes.push(vid);
+    const haystack = `${item.title} ${a.topics.join(' ')}`.toLowerCase();
+    for (const t of topicNodes) {
+      if (haystack.includes(t.label.toLowerCase())) edges.push({ source: vid.id, target: t.id, relation: 'COVERS', weight: 0.7 });
+    }
+    if (bestIds.has(item.id)) {
+      for (const st of strengths) edges.push({ source: vid.id, target: st.id, relation: 'EVIDENCE_FOR', weight: 0.8 });
+    }
+  }
+
   const stmts: D1PreparedStatement[] = [
     db.prepare('DELETE FROM edges WHERE creator_id = ?').bind(creatorId),
     db.prepare('DELETE FROM nodes WHERE creator_id = ?').bind(creatorId),
     ...nodes.map((n) =>
       db
         .prepare(
-          `INSERT INTO nodes (id, creator_id, type, label, description, confidence, evidence_video_ids, meta, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?, ?)`
+          `INSERT INTO nodes (id, creator_id, type, label, description, confidence, evidence_video_ids, meta, content_item_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, '{}', ?, ?, ?)`
         )
-        .bind(n.id, creatorId, n.type, (n.label.charAt(0).toUpperCase() + n.label.slice(1)).slice(0, 160), n.description.slice(0, 400), n.confidence, n.evidence, ts, ts)
+        .bind(
+          n.id,
+          creatorId,
+          n.type,
+          (n.label.charAt(0).toUpperCase() + n.label.slice(1)).slice(0, 160),
+          n.description.slice(0, 400),
+          n.confidence,
+          n.evidence,
+          n.itemId ?? null,
+          ts,
+          ts
+        )
     ),
     ...edges.map((e) =>
       db
@@ -417,7 +583,7 @@ async function writeBrain(
       .bind(
         uid('learn'),
         creatorId,
-        `Studied ${stats.count} recent uploads`,
+        analyses.length ? `Studied ${analyses.length} videos in depth` : `Studied ${stats.count} recent uploads`,
         `Median ${stats.medianViews.toLocaleString('en-US')} views, titles average ${stats.avgTitleLength} characters, about ${stats.uploadsPerMonth} uploads a month`,
         ts
       ),
@@ -554,17 +720,18 @@ async function stepPlan(db: D1Database, creator: CreatorRow): Promise<string> {
 // ------------------------------------------------------------------
 
 export async function runStudyStep(options: {
-  step: StudyStep;
+  step: Exclude<StudyStep, 'video'>;
   creatorId: string;
   db: D1Database;
+  env: Env;
   router: AIRouter;
 }): Promise<string> {
   const creator = await loadCreator(options.db, options.creatorId);
   switch (options.step) {
     case 'fetch':
-      return stepFetch(options.db, creator);
-    case 'analyze':
-      return stepAnalyze(options.db, options.router, creator);
+      return stepFetch(options.db, options.env, creator);
+    case 'synthesize':
+      return stepSynthesize(options.db, options.router, creator);
     case 'plan':
       return stepPlan(options.db, creator);
   }

@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth';
 import { onboardingRoutes } from './routes/onboarding';
 import { studioRoutes } from './routes/studio';
@@ -13,54 +12,26 @@ import { toolsRoutes } from './routes/tools';
 import { agentsRoutes } from './routes/agents';
 import { settingsRoutes } from './routes/settings';
 import { copilotRoutes } from './routes/copilot';
+import { contentRoutes } from './routes/content';
+import { analyzeContentItem, pendingItems } from './content/analyze';
+import { AIRouter } from './ai/router';
 import { DBClient } from './db/queries';
-import { getCookie } from 'hono/cookie';
-import { getSession } from './routes/auth';
 import { refreshYouTubeContent } from './agents/definitions/onboardingPipeline';
 import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAndCurriculum';
+import type { AppEnv, Env } from './env';
+import { authRateLimit, requireCreator, sameOriginWrites, securityHeaders } from './middleware';
 
-export interface Env {
-  DB: D1Database;
-  KV: KVNamespace;
-  ASSETS?: Fetcher;
-  ANTHROPIC_API_KEY?: string;
-  ANTHROPIC_MODEL?: string;
-  ANTHROPIC_FAST_MODEL?: string;
-  OPENAI_API_KEY?: string;
-  OPENAI_MODEL?: string;
-  GEMINI_API_KEY?: string;
-  AI?: any;
-  ENCRYPTION_KEY?: string;
-}
+export type { Env };
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<AppEnv>();
 
-// Enable CORS for API routes
-app.use(
-  '/api/*',
-  cors({
-    origin: (origin) => origin || '*',
-    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    credentials: true,
-  })
-);
+// The SPA and the API share one origin, so no CORS headers are sent.
+app.use('*', securityHeaders);
+app.use('/api/*', sameOriginWrites);
+app.use('/api/auth/*', authRateLimit);
+app.use('/api/*', requireCreator);
 
-// The sample workspace is read-only: block writes outside auth
-app.use('/api/*', async (c, next) => {
-  const method = c.req.method;
-  if (method === 'GET' || method === 'OPTIONS' || c.req.path.startsWith('/api/auth/') || c.req.path.startsWith('/api/bio/click')) {
-    return next();
-  }
-  const sessionId = getCookie(c, 'cb_session');
-  if (sessionId) {
-    const { isSample } = await getSession(c.env.DB, sessionId);
-    if (isSample) {
-      return c.json({ error: 'This is the sample workspace. Create an account to make changes', sample: true }, 403);
-    }
-  }
-  return next();
-});
+app.get('/api/health', (c) => c.json({ ok: true }));
 
 // Mount API route groups
 app.route('/api/auth', authRoutes);
@@ -76,6 +47,7 @@ app.route('/api/tools', toolsRoutes);
 app.route('/api/agents', agentsRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/copilot', copilotRoutes);
+app.route('/api/content', contentRoutes);
 
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)
@@ -143,9 +115,9 @@ app.get('/s/:slug', async (c) => {
 // PUBLIC LINK-IN-BIO PAGE (/@:handle)
 // ==========================================
 const handleBioPage = async (c: any) => {
-  const rawHandle = c.req.param('handle') || c.req.path.replace(/^\/(?:@|%40)/, '');
-  if (!rawHandle) return c.text('Not found', 404);
-  const handle = decodeURIComponent(rawHandle).toLowerCase();
+  // The route param is already percent-decoded by Hono, so it starts with a literal '@'
+  const handle = String(c.req.param('handle') || '').replace(/^@/, '').toLowerCase();
+  if (!handle) return c.text('Not found', 404);
   const dbClient = new DBClient(c.env.DB);
   const { creator, bioPage, blocks } = await dbClient.getBioPageWithBlocks(handle);
 
@@ -261,6 +233,15 @@ const handleBioPage = async (c: any) => {
   const bioText = esc(bioPage.custom_bio || creator.bio || '');
   const safeName = esc(displayName);
   const safeHandle = esc(creator.handle);
+  const origin = new URL(c.req.url).origin;
+  const pageUrl = `${origin}/@${encodeURIComponent(creator.handle)}`;
+  // og:image must be absolute; same http(s)-only rule and escaping as the rest of the page
+  const ogImage = (() => {
+    const u = String(creator.avatar_url ?? '').trim();
+    if (/^https?:\/\//i.test(u)) return esc(u);
+    if (u.startsWith('/') && !u.startsWith('//')) return esc(origin + u);
+    return '';
+  })();
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -270,6 +251,12 @@ const handleBioPage = async (c: any) => {
   <meta name="theme-color" content="#111214">
   <title>${safeName} (@${safeHandle})</title>
   <meta name="description" content="${bioText}">
+  <meta property="og:type" content="profile">
+  <meta property="og:title" content="${safeName} (@${safeHandle})">
+  <meta property="og:description" content="${bioText}">
+  <meta property="og:url" content="${esc(pageUrl)}">
+  ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ''}
+  <meta name="twitter:card" content="summary">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet">
@@ -388,8 +375,10 @@ const handleBioPage = async (c: any) => {
   return c.html(html);
 };
 
-app.get('/@:handle', handleBioPage);
-app.get('/%40:handle', handleBioPage);
+// Hono only treats ':name' as a param at the start of a path segment, so '/@:handle'
+// would be a literal path. Match the whole segment with a regex instead; it covers both
+// '/@handle' and '/%40handle' (run_worker_first sends both of these to the worker).
+app.get('/:handle{(?:@|%40)[^/]+}', handleBioPage);
 
 // ==========================================
 // STATIC ASSETS / SPA FALLBACK
@@ -406,28 +395,37 @@ app.get('*', async (c) => {
 // ==========================================
 export default {
   fetch: app.fetch,
+  /**
+   * Daily: refresh each creator's uploads, deep-study a few waiting videos, then let the
+   * orchestrator and memory curator update their Brain. Bounded so one invocation stays
+   * under the free tier's 50 external subrequests.
+   */
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-    // Daily: refresh uploads for creators studied more than a day ago, then let the
-    // orchestrator and memory curator update their Brain. Batched to stay inside free tier limits.
     const cutoff = new Date(Date.now() - 20 * 3600 * 1000).toISOString();
     const { results } = await env.DB.prepare(
       `SELECT id, youtube_input FROM creators
        WHERE onboarding_status = 'ready' AND youtube_input IS NOT NULL AND (last_studied_at IS NULL OR last_studied_at < ?)
-       ORDER BY last_studied_at LIMIT 25`
+       ORDER BY last_studied_at LIMIT 5`
     )
       .bind(cutoff)
       .all<{ id: string; youtube_input: string }>();
 
-    const work = (results || []).map(async (row) => {
-      try {
-        const count = await refreshYouTubeContent(env.DB, row.id, row.youtube_input);
-        await env.DB.prepare('UPDATE creators SET last_studied_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
-        await Promise.all([runOrchestrator(row.id, env.DB), runMemoryCurator(row.id, env.DB)]);
-        console.log(`[Cron] Refreshed ${count} uploads for ${row.id}`);
-      } catch (err) {
-        console.error(`[Cron] Refresh failed for ${row.id}`, err);
+    const router = new AIRouter(env);
+    const work = async () => {
+      for (const row of results || []) {
+        try {
+          const count = await refreshYouTubeContent(env.DB, row.id, row.youtube_input, env);
+          for (const id of await pendingItems(env.DB, row.id, 2)) {
+            await analyzeContentItem(env.DB, env, router, id);
+          }
+          await env.DB.prepare('UPDATE creators SET last_studied_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
+          await Promise.all([runOrchestrator(row.id, env.DB), runMemoryCurator(row.id, env.DB)]);
+          console.log(`[Cron] Refreshed ${count} uploads for ${row.id}`);
+        } catch (err) {
+          console.error(`[Cron] Refresh failed for ${row.id}`, err);
+        }
       }
-    });
-    ctx.waitUntil(Promise.all(work));
+    };
+    ctx.waitUntil(work());
   },
 };

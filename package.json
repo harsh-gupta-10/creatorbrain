@@ -1,26 +1,31 @@
 {
   "name": "creatorbrain",
   "version": "1.0.0",
-  "description": "Agentic Creator OS for PromptWars X AgentX 2.0 Hackathon",
+  "description": "CreatorBrain: an assistant that studies a creator's YouTube and Instagram content and drafts in their voice",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "worker:dev": "wrangler dev",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "E2E=1 vitest run",
+    "check": "tsc --noEmit && vitest run && npm run build",
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply creatorbrain-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply creatorbrain-db --remote",
+    "dev:worker": "wrangler dev"
   },
   "keywords": [
     "creator-economy",
-    "agentic-ai",
+    "assistant",
     "cloudflare-workers",
     "hono",
-    "react19",
+    "react",
     "d1",
-    "amazon-creators-api"
+    "workers-ai"
   ],
-  "author": "CreatorBrain Team",
+  "author": "Harsh Gupta",
   "license": "MIT",
   "dependencies": {
     "hono": "^4.13.18",
