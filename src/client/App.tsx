@@ -40,6 +40,7 @@ import { PublicBioPage } from './pages/PublicBioPage';
 import { MarketingLandingPage } from './pages/MarketingLandingPage';
 import { AuthPage } from './pages/AuthPage';
 import { LibraryTab } from './pages/LibraryTab';
+import { StudyBanner } from './components/StudyBanner';
 
 type TabId =
   | 'overview'
@@ -126,9 +127,10 @@ export const App: React.FC = () => {
     if (!session.creator) {
       return <Redirect to='/login' />;
     }
-    const status = session.creator.onboarding_status || 'ready';
+    // Only the setup questions gate the app; the channel study itself runs inside the app
+    const needsSetup = session.creator.onboarding_status === 'profile' && !session.isSample;
     if (path === '/onboarding') {
-      if (status === 'ready' || session.isSample) {
+      if (!needsSetup) {
         return <Redirect to='/app' />;
       }
       return <OnboardingPage creator={session.creator} onComplete={async () => {
@@ -136,7 +138,7 @@ export const App: React.FC = () => {
         navigate('/app', { replace: true });
       }} />;
     }
-    if (status !== 'ready' && !session.isSample) {
+    if (needsSetup) {
       return <Redirect to='/onboarding' />;
     }
     const tabId = (path.split('/')[2] || 'overview') as TabId;
@@ -146,6 +148,7 @@ export const App: React.FC = () => {
         activeTab={activeTab}
         creator={session.creator}
         isSample={session.isSample}
+        onSessionChanged={refreshSession}
         onSignOut={async () => {
           await api.auth.logout().catch(() => {});
           setSession({ loading: false, creator: null, isSample: false });
@@ -183,8 +186,9 @@ const AppShell: React.FC<{
   activeTab: TabId;
   creator: Creator;
   isSample: boolean;
+  onSessionChanged: () => void;
   onSignOut: () => void;
-}> = ({ activeTab, creator, isSample, onSignOut }) => {
+}> = ({ activeTab, creator, isSample, onSessionChanged, onSignOut }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
@@ -348,6 +352,8 @@ const AppShell: React.FC<{
             </div>
           </div>
         )}
+
+        {!isSample && <StudyBanner youtubeInput={creator.youtube_input} onChannelChanged={onSessionChanged} />}
 
         <div key={activeTab} className="rise-in flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
           {activeTab === 'overview' && <OverviewTab creator={creator} onNavigateTab={onNavigateTab} isSample={isSample} />}

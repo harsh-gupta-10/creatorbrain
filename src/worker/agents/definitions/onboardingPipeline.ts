@@ -12,7 +12,7 @@ import { z } from 'zod';
 import type { AIRouter } from '../../ai/router';
 import type { CreatorDNA } from '../../../shared/types';
 import { CreatorDNASchema } from '../../../shared/types';
-import { fetchYouTubeChannel, fetchChannelWithDataApi, type DataApiVideo, type FetchedVideo } from '../../content/youtube';
+import { fetchYouTubeChannel, fetchChannelWithDataApi, ChannelNotFoundError, type DataApiVideo, type FetchedVideo } from '../../content/youtube';
 import { analyzeContentItem, pendingItems, type VideoAnalysis } from '../../content/analyze';
 import type { Env } from '../../env';
 
@@ -82,6 +82,7 @@ export async function refreshYouTubeContent(
 ): Promise<number> {
   const channel = env?.YOUTUBE_API_KEY
     ? await fetchChannelWithDataApi(input, env.YOUTUBE_API_KEY).catch((err) => {
+        if (err instanceof ChannelNotFoundError) throw err;
         console.warn('[study] Data API failed, using public feed', err);
         return fetchYouTubeChannel(input);
       })
@@ -135,16 +136,42 @@ export async function refreshYouTubeContent(
   return channel.videos.length;
 }
 
-async function stepFetch(db: D1Database, env: Env, creator: CreatorRow): Promise<string> {
+export interface FetchResult {
+  summary: string;
+  /** Set when the YouTube channel could not be found but other content (captions) can still be studied */
+  channelError?: string;
+  /** Videos this run will deep-study */
+  toStudy: number;
+}
+
+export async function stepFetch(db: D1Database, env: Env, creatorId: string): Promise<FetchResult> {
+  const creator = await loadCreator(db, creatorId);
   let count = 0;
+  let channelError: string | undefined;
   if (creator.youtube_input) {
-    count += await refreshYouTubeContent(db, creator.id, creator.youtube_input, env);
+    try {
+      count = await refreshYouTubeContent(db, creator.id, creator.youtube_input, env);
+    } catch (err) {
+      if (!(err instanceof ChannelNotFoundError)) throw err;
+      channelError = err.message;
+    }
   }
   const existing = await loadContent(db, creator.id, 50);
   if (existing.length === 0) {
+    // Nothing else to study: surface the channel problem so the creator can fix the link
+    if (channelError) throw new ChannelNotFoundError(creator.youtube_input || '');
     throw new Error('We found no published content to study. Add a YouTube channel or paste a few Instagram captions');
   }
-  return count > 0 ? `Found ${count} YouTube uploads` : `Using ${existing.length} pieces of content you added`;
+  const pending = await pendingItems(db, creator.id, DEEP_PER_STUDY);
+  return {
+    summary: channelError
+      ? `Studying the ${existing.length} captions you added`
+      : count > 0
+        ? `Found ${count} YouTube uploads`
+        : `Using ${existing.length} pieces of content you added`,
+    channelError,
+    toStudy: pending.length,
+  };
 }
 
 // ------------------------------------------------------------------
@@ -720,7 +747,7 @@ async function stepPlan(db: D1Database, creator: CreatorRow): Promise<string> {
 // ------------------------------------------------------------------
 
 export async function runStudyStep(options: {
-  step: Exclude<StudyStep, 'video'>;
+  step: Exclude<StudyStep, 'video' | 'fetch'>;
   creatorId: string;
   db: D1Database;
   env: Env;
@@ -728,8 +755,6 @@ export async function runStudyStep(options: {
 }): Promise<string> {
   const creator = await loadCreator(options.db, options.creatorId);
   switch (options.step) {
-    case 'fetch':
-      return stepFetch(options.db, options.env, creator);
     case 'synthesize':
       return stepSynthesize(options.db, options.router, creator);
     case 'plan':

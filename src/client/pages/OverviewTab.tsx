@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, RotateCw, ExternalLink, SquarePlay, Camera, FolderKanban } from 'lucide-react';
 import { api, type ContentItem } from '../lib/api';
+import { requestStudy, useStudyRefresh } from '../components/StudyBanner';
 import type { Creator, Project, ShortLink, Lesson, GraphData, Learning } from '../../shared/types';
 import {
   PageHeader,
@@ -49,7 +50,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
   const [learnings, setLearnings] = useState<Learning[]>([]);
-  const [restudying, setRestudying] = useState(false);
   const [error, setError] = useState('');
 
   const load = async () => {
@@ -79,23 +79,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
     load();
   }, []);
 
-  const restudy = async () => {
+  // The study runs in the app-wide banner; this page refreshes as it progresses
+  const restudy = () => {
     setError('');
-    setRestudying(true);
-    try {
-      const { jobId } = await api.onboarding.startStudy();
-      for (let i = 0; i < 40; i++) {
-        const { job } = await api.onboarding.runStep(jobId);
-        if (job.status === 'failed') throw new Error(job.error_message || 'The study stopped');
-        if (job.status !== 'running') break;
-      }
-      await load();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'The study stopped');
-    } finally {
-      setRestudying(false);
-    }
+    requestStudy();
   };
+  useStudyRefresh(load);
 
   const totalClicks = links.reduce((a, l) => a + (l.total_clicks || 0), 0);
   const completed = lessons.filter((l) => l.completed).length;
@@ -128,9 +117,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
         actions={
           <>
             {!isSample && (
-              <button className="btn btn-secondary" onClick={restudy} disabled={restudying} aria-busy={restudying}>
-                {restudying ? <Spinner size={14} /> : <RotateCw {...ICON} />}
-                {restudying ? 'Studying' : 'Study again'}
+              <button className="btn btn-secondary" onClick={restudy}>
+                <RotateCw {...ICON} />
+                Study again
               </button>
             )}
             <button className="btn btn-primary" onClick={() => onNavigateTab('studio')}>

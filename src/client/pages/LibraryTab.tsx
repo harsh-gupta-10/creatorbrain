@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Play, Search, ExternalLink, Square, SquarePlay, Camera, RotateCw, Check, AlertCircle, Clock } from 'lucide-react';
+import { useStudyRefresh } from '../components/StudyBanner';
 import { api, type LibraryItem, type LibraryItemDetail } from '../lib/api';
 import {
   PageHeader,
@@ -64,6 +65,7 @@ export const LibraryTab: React.FC = () => {
     }
   };
 
+  useStudyRefresh(() => load());
   useEffect(() => {
     load();
     return () => {

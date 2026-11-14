@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { AppEnv } from '../env';
 import { saveAmazonCredentials, MARKETPLACES, PARTNER_TAG_RE } from '../amazon/credentials';
 import { AIRouter } from '../ai/router';
-import { runStudyStep, stepVideo, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
+import { runStudyStep, stepVideo, stepFetch, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
+import { ChannelNotFoundError } from '../content/youtube';
 import type { AnalysisJob } from '../../shared/types';
 
 export const onboardingRoutes = new Hono<AppEnv>();
@@ -50,7 +51,7 @@ onboardingRoutes.post('/profile', async (c) => {
     db
       .prepare(
         `UPDATE creators SET niche = ?, content_language = ?, upload_cadence = ?, youtube_input = ?, instagram_handle = ?,
-           platform = ?, goals_json = ?, monetization_json = ?, onboarding_status = 'study', updated_at = ?
+           platform = ?, goals_json = ?, monetization_json = ?, onboarding_status = 'ready', updated_at = ?
          WHERE id = ?`
       )
       .bind(p.niche, p.language, p.cadence, p.youtube || null, p.instagram.replace(/^@/, '') || null, platform, JSON.stringify(p.goals), JSON.stringify(monetization), ts, creator.id),
@@ -74,9 +75,16 @@ onboardingRoutes.post('/profile', async (c) => {
   return c.json({ success: true });
 });
 
-// Start a study job; the client then calls /study/step until it completes
+// Start a study job; the client then calls /study/step until it completes.
+// A study already in progress is returned instead of starting a second one.
 onboardingRoutes.post('/study/start', async (c) => {
   const creator = c.get('creator');
+  const running = await c.env.DB.prepare(
+    "SELECT id FROM analysis_jobs WHERE creator_id = ? AND status = 'running' AND updated_at > ? ORDER BY created_at DESC LIMIT 1"
+  )
+    .bind(creator.id, new Date(Date.now() - 10 * 60 * 1000).toISOString())
+    .first<{ id: string }>();
+  if (running) return c.json({ success: true, jobId: running.id, steps: STUDY_STEPS.map((s) => ({ id: s, label: STEP_LABELS[s] })) });
 
   const jobId = `job_${crypto.randomUUID()}`;
   const ts = new Date().toISOString();
@@ -106,6 +114,14 @@ onboardingRoutes.post('/study/step', async (c) => {
   const index = STUDY_STEPS.indexOf(step);
   if (index < 0) return c.json({ error: 'Study is in an unknown state' }, 409);
 
+  // Claim the step so two open tabs never run the same step twice
+  const claimedAt = new Date().toISOString();
+  const claim = await db
+    .prepare('UPDATE analysis_jobs SET updated_at = ? WHERE id = ? AND updated_at = ? AND status = ?')
+    .bind(claimedAt, jobId, job.updated_at, 'running')
+    .run();
+  if (!claim.meta.changes) return c.json({ job, busy: true });
+
   try {
     const router = new AIRouter(c.env);
     const results = JSON.parse(job.result_json || '{}');
@@ -125,6 +141,12 @@ onboardingRoutes.post('/study/step', async (c) => {
         ? `Studied ${progress.done} video${progress.done === 1 ? '' : 's'} in depth${progress.failed ? `, ${progress.failed} could not be read` : ''}`
         : 'No new videos to study';
       if (r.more) next = 'video';
+    } else if (step === 'fetch') {
+      const f = await stepFetch(db, c.env, creator.id);
+      results.fetch = f.summary;
+      results.videoProgress = { done: 0, failed: 0, last: '', total: f.toStudy };
+      if (f.channelError) results.channelError = f.channelError;
+      if (!f.toStudy) next = 'synthesize';
     } else {
       results[step] = await runStudyStep({ step, creatorId: creator.id, db, env: c.env, router });
     }
@@ -136,14 +158,44 @@ onboardingRoutes.post('/study/step', async (c) => {
       .run();
   } catch (err: any) {
     console.error('[Study step failed]', step, err);
+    const results = JSON.parse(job.result_json || '{}');
+    if (err instanceof ChannelNotFoundError) results.errorCode = 'channel_not_found';
     await db
-      .prepare("UPDATE analysis_jobs SET status = 'failed', error_message = ?, updated_at = ? WHERE id = ?")
-      .bind(String(err?.message || 'Study failed'), new Date().toISOString(), jobId)
+      .prepare("UPDATE analysis_jobs SET status = 'failed', error_message = ?, result_json = ?, updated_at = ? WHERE id = ?")
+      .bind(String(err?.message || 'Study failed'), JSON.stringify(results), new Date().toISOString(), jobId)
       .run();
   }
 
   const updated = await db.prepare('SELECT * FROM analysis_jobs WHERE id = ?').bind(jobId).first<AnalysisJob>();
   return c.json({ job: updated });
+});
+
+// The latest study from the last day, so the app can resume or report it after a reload
+onboardingRoutes.get('/study/active', async (c) => {
+  const creator = c.get('creator');
+  const job = await c.env.DB.prepare(
+    'SELECT * FROM analysis_jobs WHERE creator_id = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1'
+  )
+    .bind(creator.id, new Date(Date.now() - 24 * 3600 * 1000).toISOString())
+    .first<AnalysisJob>();
+  return c.json({ job: job || null });
+});
+
+const ChannelSchema = z.object({
+  youtube: z.string().trim().min(2, 'Paste your channel link, like https://www.youtube.com/@yourhandle').max(200),
+});
+
+// Fix the YouTube link after a study could not find the channel
+onboardingRoutes.put('/channel', async (c) => {
+  const creator = c.get('creator');
+  const parsed = ChannelSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the link' }, 400);
+  await c.env.DB.prepare(
+    "UPDATE creators SET youtube_input = ?, youtube_channel_id = NULL, platform = CASE WHEN instagram_handle IS NOT NULL THEN 'both' ELSE 'youtube' END, updated_at = ? WHERE id = ?"
+  )
+    .bind(parsed.data.youtube, new Date().toISOString(), creator.id)
+    .run();
+  return c.json({ success: true });
 });
 
 onboardingRoutes.get('/job/:id', async (c) => {

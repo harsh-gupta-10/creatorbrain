@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, Circle, ArrowLeft, ArrowRight, RotateCw, SquarePlay, Camera } from 'lucide-react';
-import { api, type OnboardingProfile, type StudyJob } from '../lib/api';
+import { Check, ArrowLeft, ArrowRight, SquarePlay, Camera } from 'lucide-react';
+import { api, type OnboardingProfile } from '../lib/api';
 import { Logo, Spinner, ErrorNote, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
@@ -9,12 +9,11 @@ interface Props {
   onComplete: () => void;
 }
 
-type Step = 'channel' | 'earn' | 'goals' | 'study';
+type Step = 'channel' | 'earn' | 'goals';
 const STEPS: { id: Step; label: string; hint: string }[] = [
   { id: 'channel', label: 'Your channel', hint: 'Where you publish' },
   { id: 'earn', label: 'How you earn', hint: 'Affiliate and other income' },
   { id: 'goals', label: 'Goals', hint: 'What to focus on' },
-  { id: 'study', label: 'Channel study', hint: 'One to two minutes' },
 ];
 
 const INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
@@ -50,7 +49,7 @@ const Choice: React.FC<{
 );
 
 export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
-  const [step, setStep] = useState<Step>(creator.onboarding_status === 'study' ? 'study' : 'channel');
+  const [step, setStep] = useState<Step>('channel');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
@@ -116,7 +115,9 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
       setSaving(true);
       try {
         await api.onboarding.saveProfile(profile);
-        setStep('study');
+        // The study runs inside the app with a progress bar, so go there right away
+        await api.onboarding.startStudy().catch(() => {});
+        onComplete();
       } catch (err: unknown) {
         setError(err instanceof Error ? err.message : 'Could not save your answers');
       } finally {
@@ -187,12 +188,12 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       id="yt"
                       aria-describedby="yt-hint"
                       className="input pl-9"
-                      placeholder="@yourchannel or channel URL"
+                      placeholder="https://www.youtube.com/@yourhandle"
                       value={profile.youtube}
                       onChange={(e) => set('youtube', e.target.value)}
                     />
                   </div>
-                  <p id="yt-hint" className="field-hint">We study your latest 15 uploads from the public feed</p>
+                  <p id="yt-hint" className="field-hint">Paste your channel link, like https://www.youtube.com/@yourhandle, or just the @handle. If we cannot find it, you can fix it later inside the app</p>
                 </div>
 
                 <div>
@@ -373,9 +374,8 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
             </div>
           )}
 
-          {step === 'study' && <StudyRunner onDone={onComplete} onEdit={() => setStep('channel')} />}
 
-          {step !== 'study' && (
+          {(
             <>
               {error && (
                 <div className="mt-6">
@@ -401,125 +401,6 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
           )}
         </section>
       </main>
-    </div>
-  );
-};
-
-const STUDY_LABELS: Record<string, string> = {
-  fetch: 'Reading your uploads',
-  video: 'Studying each video: transcript, thumbnail, hook and structure',
-  synthesize: 'Learning your voice, packaging and audience',
-  plan: 'Building your Brain, lessons and baseline quiz',
-};
-const ORDER = ['fetch', 'video', 'synthesize', 'plan'];
-const MAX_STEP_CALLS = 40;
-
-const StudyRunner: React.FC<{ onDone: () => void; onEdit: () => void }> = ({ onDone, onEdit }) => {
-  const [job, setJob] = useState<StudyJob | null>(null);
-  const [error, setError] = useState('');
-  const started = useRef(false);
-
-  const run = async () => {
-    setError('');
-    try {
-      const { jobId } = await api.onboarding.startStudy();
-      let current: StudyJob | null = null;
-      // Each call runs one short step on the server
-      for (let i = 0; i < MAX_STEP_CALLS; i++) {
-        const res = await api.onboarding.runStep(jobId);
-        current = res.job;
-        setJob(current);
-        if (current.status !== 'running') break;
-      }
-      if (current?.status === 'failed') setError(current.error_message || 'The study stopped');
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'The study stopped');
-    }
-  };
-
-  useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    run();
-  }, []);
-
-  const results: Record<string, any> = (() => {
-    try {
-      return JSON.parse(job?.result_json || '{}');
-    } catch {
-      return {};
-    }
-  })();
-  const currentIndex = job ? (job.status === 'completed' ? ORDER.length : ORDER.indexOf(job.current_step)) : 0;
-  const done = job?.status === 'completed';
-
-  return (
-    <div className="rise-in">
-      <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
-        {done ? 'Your Brain is ready' : 'Studying your channel'}
-      </h1>
-      <p className="mt-2 text-fg-2">
-        {done
-          ? 'Here is what we did. Your dashboard shows what we learned and where to start'
-          : 'Each video takes a few seconds. Keep this tab open; anything left over is studied later automatically'}
-      </p>
-
-      <p className="sr-only" role="status">
-        {done ? 'Study complete' : error ? 'The study stopped' : job ? STUDY_LABELS[ORDER[currentIndex]] || '' : 'Starting the study'}
-      </p>
-      <ol className="mt-8 card divide-y divide-line" aria-label="Study progress">
-        {ORDER.map((id, i) => {
-          const state = i < currentIndex ? 'done' : i === currentIndex && !error ? 'active' : error && i === currentIndex ? 'failed' : 'todo';
-          return (
-            <li key={id} className="flex items-start gap-3 px-4 py-4">
-              <span className="mt-[2px] w-4 h-4 flex items-center justify-center" aria-hidden="true">
-                {state === 'done' && <Check {...ICON} className="text-positive" />}
-                {state === 'active' && <Spinner size={16} className="text-accent" />}
-                {state === 'failed' && <Circle {...ICON} className="text-negative" />}
-                {state === 'todo' && <Circle {...ICON} className="text-fg-3" />}
-              </span>
-              <span className="min-w-0">
-                <span className={`block ${state === 'todo' ? 'text-fg-3' : 'text-fg'}`}>
-                  {STUDY_LABELS[id]}
-                  <span className="sr-only">
-                    {state === 'done' ? ' (done)' : state === 'active' ? ' (in progress)' : state === 'failed' ? ' (failed)' : ' (not started)'}
-                  </span>
-                </span>
-                {typeof results[id] === 'string' && <span className="block mt-[2px] text-[13px] text-fg-2">{results[id]}</span>}
-                {id === 'video' && state === 'active' && results.videoProgress?.last && (
-                  <span className="block mt-[2px] text-[13px] text-fg-3 truncate">
-                    Last studied: {results.videoProgress.last}
-                  </span>
-                )}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-
-      {error && (
-        <div className="mt-6 flex flex-col gap-4">
-          <ErrorNote>{error}</ErrorNote>
-          <div className="flex gap-2">
-            <button className="btn btn-primary" onClick={run}>
-              <RotateCw {...ICON} />
-              Try again
-            </button>
-            <button className="btn btn-secondary" onClick={onEdit}>
-              Edit channel details
-            </button>
-          </div>
-        </div>
-      )}
-
-      {done && (
-        <div className="mt-10 border-t border-line pt-6 flex justify-end">
-          <button className="btn btn-primary" onClick={onDone}>
-            Open dashboard
-            <ArrowRight {...ICON} />
-          </button>
-        </div>
-      )}
     </div>
   );
 };

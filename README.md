@@ -47,7 +47,7 @@ CreatorBrain treats the creator's own back catalogue as the source of truth.
 ```
 Browser (React SPA)                      Cloudflare Worker (Hono)
 ───────────────────                      ───────────────────────────────────────────
-Signup ─► Onboarding ─► Study runner ──► /api/onboarding/study/step  (one step per request)
+Signup ─► Onboarding ─► App + study bar ─► /api/onboarding/study/step  (one step per request)
                                           fetch       YouTube Data API, or public RSS feed
                                           video ×N    captions ─► transcript (D1)
                                                       thumbnail ─► vision model
@@ -59,6 +59,8 @@ Studio · Copilot · Tools    ◄──────────── AI router:
 Link in bio · Short links   ◄──────────── /@handle (server rendered), /s/:slug (KV + D1)
                                          Cron (daily): refresh uploads, study new videos
 ```
+
+**The study runs inside the app.** After the setup questions, the creator lands on the dashboard right away. A progress bar at the top of every page shows the current step ("Studying your videos · 4 of 12"), and the dashboard, Library and Brain fill in live as each video is studied. If the YouTube channel can't be found, the creator still gets into the app, and the banner shows what was entered, the expected link format (`https://www.youtube.com/@yourhandle`) and a field to fix it and study again. Reloading or switching tabs resumes the same study, and a server-side claim stops two tabs from running the same step twice.
 
 **Why one step per request:** the Workers free tier caps CPU time and subrequests per invocation. Each request does one bounded unit of work (one video, or one synthesis), so a 50-video channel never hits a limit. The browser drives the loop during onboarding, and the cron job and the Library's "Study waiting" button pick up the rest.
 

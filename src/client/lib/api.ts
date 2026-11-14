@@ -40,6 +40,8 @@ export interface OnboardingProfile {
 
 export interface StudyJob {
   id: string;
+  created_at?: string;
+  channel_url?: string;
   status: 'running' | 'completed' | 'failed';
   current_step: string;
   progress_percent: number;
@@ -177,8 +179,11 @@ export const api = {
         method: 'POST',
       }),
     runStep: (jobId: string) =>
-      fetchJson<{ job: StudyJob }>('/api/onboarding/study/step', { method: 'POST', body: JSON.stringify({ jobId }) }),
+      fetchJson<{ job: StudyJob; busy?: boolean }>('/api/onboarding/study/step', { method: 'POST', body: JSON.stringify({ jobId }) }),
     getJob: (jobId: string) => fetchJson<{ job: StudyJob }>(`/api/onboarding/job/${jobId}`),
+    activeStudy: () => fetchJson<{ job: StudyJob | null }>('/api/onboarding/study/active'),
+    updateChannel: (youtube: string) =>
+      fetchJson<{ success: boolean }>('/api/onboarding/channel', { method: 'PUT', body: JSON.stringify({ youtube }) }),
     getContent: () =>
       fetchJson<{
         items: ContentItem[];

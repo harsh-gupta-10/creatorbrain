@@ -25,6 +25,14 @@ export interface FetchedChannel {
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
 
+/** The handle or link does not point at a YouTube channel we can read */
+export class ChannelNotFoundError extends Error {
+  readonly code = 'channel_not_found';
+  constructor(input: string) {
+    super(`We couldn't find a YouTube channel at "${input.slice(0, 120)}"`);
+  }
+}
+
 export function normalizeYouTubeInput(input: string): { channelId?: string; pageUrl: string } {
   const raw = input.trim();
   const idMatch = raw.match(/(UC[\w-]{22})/);
@@ -124,9 +132,7 @@ async function resolveChannel(input: string): Promise<{ channelId: string; avata
     html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/)?.[1] ||
     html.match(/"externalId":"(UC[\w-]{22})"/)?.[1];
 
-  if (!id) {
-    throw new Error('We could not find that YouTube channel. Check the handle or paste the channel URL');
-  }
+  if (!id) throw new ChannelNotFoundError(input);
 
   const avatarUrl = html.match(/<meta property="og:image" content="([^"]+)"/)?.[1];
   const subsText = html.match(/"metadataParts":\[\{"text":\{"content":"([\d.,]+[KMB]?) subscribers"/i)?.[1];
@@ -138,6 +144,7 @@ export async function fetchYouTubeChannel(input: string): Promise<FetchedChannel
   const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
     headers: { 'User-Agent': UA },
   });
+  if (res.status === 404) throw new ChannelNotFoundError(input);
   if (!res.ok) {
     throw new Error(`YouTube did not return the uploads feed (status ${res.status}). Try again in a minute`);
   }
@@ -175,7 +182,7 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
   const base = 'https://www.googleapis.com/youtube/v3';
   const handle = pageUrl.match(/\/(@[\w.-]+)/)?.[1];
   const lookup = channelId ? `id=${channelId}` : handle ? `forHandle=${encodeURIComponent(handle)}` : '';
-  if (!lookup) throw new Error('We could not read that YouTube channel. Use the @handle or channel URL');
+  if (!lookup) throw new ChannelNotFoundError(input);
 
   const get = async (path: string) => {
     const res = await fetch(`${base}/${path}`, { headers: { 'X-Goog-Api-Key': apiKey } });
@@ -185,7 +192,7 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
   };
 
   const ch = (await get(`channels?part=snippet,statistics,contentDetails&${lookup}`)).items?.[0];
-  if (!ch) throw new Error('We could not find that YouTube channel. Check the handle or paste the channel URL');
+  if (!ch) throw new ChannelNotFoundError(input);
   const uploads = ch.contentDetails.relatedPlaylists.uploads;
   const items = (await get(`playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`)).items || [];
   const ids = items.map((i: any) => i.contentDetails.videoId).join(',');

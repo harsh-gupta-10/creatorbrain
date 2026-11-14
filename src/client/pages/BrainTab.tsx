@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Brain as BrainIcon, RotateCw } from 'lucide-react';
+import { useStudyRefresh } from '../components/StudyBanner';
 import { api } from '../lib/api';
 import { BrainGraph } from '../components/BrainGraph';
 import { EmptyState, ErrorNote, ICON, Meter, PageHeader, SectionTitle, Spinner, formatDate } from '../components/ui';
@@ -24,6 +25,7 @@ export const BrainTab: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  useStudyRefresh(() => loadBrainData());
   useEffect(() => {
     loadBrainData();
   }, []);

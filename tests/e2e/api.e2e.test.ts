@@ -200,6 +200,29 @@ describe('Onboarding', () => {
   });
 });
 
+describe('Study in the app', () => {
+  it('opens the app right after setup and lets the creator fix the channel link', async () => {
+    const api = client();
+    await signup(api);
+    await api('/api/onboarding/profile', { method: 'POST', json: { niche: 'Cooking', instagramCaptions: ['Weeknight dal'] } });
+    const me = (await (await api('/api/auth/me')).json()) as any;
+    expect(me.creator.onboarding_status).toBe('ready');
+
+    const first = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as any;
+    const second = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as any;
+    expect(second.jobId).toBe(first.jobId); // no duplicate studies
+
+    const active = (await (await api('/api/onboarding/study/active')).json()) as any;
+    expect(active.job.id).toBe(first.jobId);
+    expect(active.job.status).toBe('running');
+
+    expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: '' } })).status).toBe(400);
+    expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: 'https://www.youtube.com/@someone' } })).status).toBe(200);
+    const after = (await (await api('/api/auth/me')).json()) as any;
+    expect(after.creator.youtube_input).toBe('https://www.youtube.com/@someone');
+  });
+});
+
 describe('Amazon credentials', () => {
   it('stores keys encrypted and only ever returns a hint', async () => {
     const api = client();
