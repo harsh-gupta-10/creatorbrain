@@ -1,6 +1,5 @@
 # CreatorBrain: Agentic Creator OS
 
-> **PromptWars X AgentX 2.0 (Hack2Skill + Google)** — *Open Innovation Track*  
 > **Live Production URL:** [https://creatorbrain.harshgupta24716.workers.dev](https://creatorbrain.harshgupta24716.workers.dev)  
 > **Public Link-in-Bio Demo:** [https://creatorbrain.harshgupta24716.workers.dev/@izoog10](https://creatorbrain.harshgupta24716.workers.dev/@izoog10)  
 > **Free Channel Audit:** [https://creatorbrain.harshgupta24716.workers.dev/audit](https://creatorbrain.harshgupta24716.workers.dev/audit)
