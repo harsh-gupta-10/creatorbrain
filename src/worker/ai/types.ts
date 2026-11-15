@@ -14,11 +14,11 @@ export interface AIToolCall {
   arguments: Record<string, unknown>;
 }
 
-export interface AIToolDefinition {
+export interface AIToolDefinition<T = Record<string, unknown>> {
   name: string;
   description: string;
-  parameters: z.ZodObject<any>;
-  execute: (args: any, context?: Record<string, unknown>) => Promise<unknown>;
+  parameters: z.ZodObject<z.ZodRawShape>;
+  execute: (args: T, context?: Record<string, unknown>) => Promise<unknown>;
 }
 
 export interface AIGenerateOptions {

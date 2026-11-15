@@ -23,7 +23,8 @@ export async function runProductResearcher(
       parameters: z.object({
         query: z.string().describe('Search query keyword'),
       }),
-      execute: async ({ query }) => {
+      execute: async (rawArgs) => {
+        const { query } = rawArgs as { query: string };
         const results = await amazonClient.searchItems(query, creatorId);
         return {
           count: results.length,
@@ -43,7 +44,8 @@ export async function runProductResearcher(
       parameters: z.object({
         asin: z.string().describe('Amazon ASIN'),
       }),
-      execute: async ({ asin }) => {
+      execute: async (rawArgs) => {
+        const { asin } = rawArgs as { asin: string };
         const items = await amazonClient.getItems([asin], creatorId);
         return items[0] || null;
       },

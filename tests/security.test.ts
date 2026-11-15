@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { encryptSecret, decryptSecret, isEncrypted, resolveMasterSecret, MissingEncryptionKeyError } from '../src/worker/amazon/crypto';
 import { signPaapiRequest, AmazonCreatorsClient } from '../src/worker/amazon/client';
+import { isSafePublicHttpUrl, safePublicHref } from '../src/worker/lib/url-safety';
+import { parseShortLinkCache, serializeShortLinkCache, shortLinkCacheTtl } from '../src/worker/lib/short-link-cache';
 
 const SECRET = 'a'.repeat(48);
 
@@ -87,5 +89,82 @@ describe('Amazon client', () => {
     const results = await client.searchItems('phone', 'creator_1');
     expect(results.length).toBeGreaterThan(0);
     expect(results.every((r) => r.is_mock === 1)).toBe(true);
+  });
+});
+
+describe('Short-link destination safety', () => {
+  it('allows public HTTP(S) destinations and rejects unsafe schemes or credentials', () => {
+    expect(isSafePublicHttpUrl('https://www.amazon.in/dp/B0D3G78JKL')).toBe(true);
+    expect(isSafePublicHttpUrl('https://[2606:4700:4700::1111]/')).toBe(true);
+    expect(isSafePublicHttpUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafePublicHttpUrl('https://user:pass@example.com/path')).toBe(false);
+  });
+
+  it('rejects private, reserved, and loopback IPv4 destinations', () => {
+    for (const host of [
+      '0.1.2.3',
+      '10.0.0.1',
+      '100.64.0.1',
+      '127.0.0.1',
+      '169.254.169.254',
+      '172.31.255.255',
+      '192.168.1.1',
+      '198.18.0.1',
+      '203.0.113.1',
+      '224.0.0.1',
+      '2130706433',
+    ]) {
+      expect(isSafePublicHttpUrl(`http://${host}/`), host).toBe(false);
+    }
+    expect(isSafePublicHttpUrl('http://172.32.0.1/')).toBe(true);
+  });
+
+  it('rejects local and documentation IPv6 destinations', () => {
+    for (const host of ['[::]', '[::1]', '[fc00::1]', '[fd12::1]', '[fe80::1]', '[ff02::1]', '[2001:db8::1]']) {
+      expect(isSafePublicHttpUrl(`https://${host}/`), host).toBe(false);
+    }
+  });
+});
+
+describe('Creator-provided page URLs', () => {
+  it('keeps local paths on the app origin and allows external HTTP(S) links', () => {
+    expect(safePublicHref('/about?from=bio', 'https://creatorbrain.example')).toBe('/about?from=bio');
+    expect(safePublicHref('https://instagram.com/creator', 'https://creatorbrain.example')).toBe(
+      'https://instagram.com/creator'
+    );
+  });
+
+  it('rejects script, protocol-relative, and parser-confusion URLs', () => {
+    for (const value of ['javascript:alert(1)', '//evil.example/path', '/\\\\evil.example/path', 'data:text/html,hello']) {
+      expect(safePublicHref(value, 'https://creatorbrain.example'), value).toBe('#');
+    }
+  });
+});
+
+describe('Short-link edge cache', () => {
+  it('stores validated redirect metadata with expiry-aware TTLs', () => {
+    const link = {
+      id: 'link_1',
+      creator_id: 'creator_1',
+      slug: 'launch',
+      destination_url: 'https://example.com/video',
+      destination_domain: 'example.com',
+      expires_at: '2026-11-15T12:02:00.000Z',
+      total_clicks: 0,
+      created_at: '2026-11-15T12:00:00.000Z',
+    };
+    const encoded = serializeShortLinkCache(link);
+    expect(parseShortLinkCache(encoded)).toMatchObject({
+      version: 2,
+      id: 'link_1',
+      slug: 'launch',
+      creator_id: 'creator_1',
+      destination_url: 'https://example.com/video',
+      expires_at: '2026-11-15T12:02:00.000Z',
+    });
+    expect(shortLinkCacheTtl(link.expires_at, Date.parse('2026-11-15T12:00:00.000Z'))).toBe(120);
+    expect(shortLinkCacheTtl('2026-11-15T12:00:59.000Z', Date.parse('2026-11-15T12:00:00.000Z'))).toBeNull();
+    expect(shortLinkCacheTtl(undefined)).toBe(86_400);
+    expect(parseShortLinkCache('https://example.com/video')).toBeNull();
   });
 });

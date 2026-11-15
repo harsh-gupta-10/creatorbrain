@@ -84,31 +84,35 @@ export async function runAssessorQuizScoring(options: {
   score: number;
   gapNodeId?: string;
   db: D1Database;
-}): Promise<{ score: number; status: string; gapImproved: boolean }> {
+}): Promise<{ score: number; status: string; gapImproved: boolean; updated: boolean }> {
   const { creatorId, quizId, score, gapNodeId, db } = options;
   const now = new Date().toISOString();
 
   // Update quiz score in DB
-  await db
+  const res = await db
     .prepare(
-      'UPDATE quizzes SET score = ?, status = "completed", completed_at = ? WHERE id = ? AND creator_id = ?'
+      'UPDATE quizzes SET score = ?, status = "completed", completed_at = ? WHERE id = ? AND creator_id = ? AND status = "pending"'
     )
     .bind(score, now, quizId, creatorId)
     .run();
 
+  if (!res.meta.changes) {
+    return { score, status: 'completed', gapImproved: false, updated: false };
+  }
+
   let gapImproved = false;
   // If score is 4 or 5 out of 5, reduce gap severity or update node confidence
   if (score >= 4 && gapNodeId) {
-    await db
+    const gapUpdate = await db
       .prepare(
         'UPDATE nodes SET confidence = confidence * 0.7, updated_at = ? WHERE id = ? AND creator_id = ?'
       )
       .bind(now, gapNodeId, creatorId)
       .run();
-    gapImproved = true;
+    gapImproved = Boolean(gapUpdate.meta.changes);
   }
 
-  return { score, status: 'completed', gapImproved };
+  return { score, status: 'completed', gapImproved, updated: true };
 }
 
 /**

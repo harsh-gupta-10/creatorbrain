@@ -163,6 +163,10 @@ export interface QuizQuestion {
   explanation: string;
 }
 
+/** Quiz payload displayed before submission; answer key and explanation are withheld. */
+export type QuizQuestionView = Omit<QuizQuestion, 'correctIndex' | 'explanation'> &
+  Partial<Pick<QuizQuestion, 'correctIndex' | 'explanation'>>;
+
 export interface Quiz {
   id: string;
   creator_id: string;

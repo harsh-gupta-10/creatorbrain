@@ -240,7 +240,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                           {item.thumbnail_url ? (
                             <img
                               src={item.thumbnail_url}
-                              alt=""
+                              alt={`Thumbnail for ${item.title}`}
+                              width={72}
+                              height={40}
                               loading="lazy"
                               className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0"
                             />

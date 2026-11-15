@@ -174,7 +174,7 @@ export const LibraryTab: React.FC = () => {
                   }`}
                 >
                   {item.thumbnail_url ? (
-                    <img src={item.thumbnail_url} alt="" loading="lazy" className="w-[88px] h-[50px] rounded-[6px] object-cover bg-raised shrink-0" />
+                    <img src={item.thumbnail_url} alt={`Thumbnail for ${item.title}`} width={88} height={50} loading="lazy" className="w-[88px] h-[50px] rounded-[6px] object-cover bg-raised shrink-0" />
                   ) : (
                     <span className="w-[88px] h-[50px] rounded-[6px] bg-raised shrink-0 flex items-center justify-center text-fg-3">
                       {item.platform === 'instagram' ? <Camera {...ICON} /> : <SquarePlay {...ICON} />}
@@ -267,7 +267,7 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
     <article className="card overflow-hidden" aria-labelledby="detail-title">
       <div className="p-5 border-b border-line flex gap-4">
         {item.thumbnail_url && (
-          <img src={item.thumbnail_url} alt={`Thumbnail for ${item.title}`} className="w-[160px] h-[90px] rounded-[8px] object-cover bg-raised shrink-0 hidden sm:block" />
+          <img src={item.thumbnail_url} alt={`Thumbnail for ${item.title}`} width={160} height={90} className="w-[160px] h-[90px] rounded-[8px] object-cover bg-raised shrink-0 hidden sm:block" />
         )}
         <div className="min-w-0 flex-1">
           <h2 id="detail-title" className="text-[17px] leading-6 font-medium">

@@ -181,7 +181,7 @@ export async function stepFetch(db: D1Database, env: Env, creatorId: string): Pr
 
 // Models sometimes drop a section; accept a partial DNA and fill gaps from title statistics
 const StudySchema = z.object({
-  dna: z.record(z.string(), z.any()).catch({}).default({}),
+  dna: z.record(z.string(), z.unknown()).catch({}).default({}),
   topics: z.array(z.string()).max(8).default([]),
   strengths: z
     .array(z.object({ label: z.string(), description: z.string() }))
@@ -200,22 +200,37 @@ const StudySchema = z.object({
 });
 type Study = Omit<z.infer<typeof StudySchema>, 'dna'> & { dna: CreatorDNA };
 
-function mergeDna(base: CreatorDNA, ai: Record<string, any>): CreatorDNA {
-  const out: any = { ...base };
-  for (const section of ['voice', 'visual', 'packaging', 'audience'] as const) {
-    const fromAi = ai?.[section];
-    if (fromAi && typeof fromAi === 'object') {
-      const merged: any = { ...base[section] };
-      for (const [k, v] of Object.entries(fromAi)) {
-        const baseVal = (base[section] as any)[k];
-        if (v === null || v === undefined || v === '') continue;
-        if (Array.isArray(baseVal) && !Array.isArray(v)) continue;
-        if (typeof baseVal === 'number' && typeof v !== 'number') continue;
-        merged[k] = Array.isArray(v) ? v.map(String).slice(0, 8) : typeof baseVal === 'string' ? String(v) : v;
-      }
-      out[section] = merged;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function mergeDnaSection<T extends Record<string, unknown>>(base: T, candidate: unknown): T {
+  if (!isRecord(candidate)) return base;
+  const merged: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(candidate)) {
+    if (value === null || value === undefined || value === '') continue;
+    const baseValue = base[key];
+    if (Array.isArray(value)) {
+      if (baseValue !== undefined && !Array.isArray(baseValue)) continue;
+      merged[key] = value.map(String).slice(0, 8);
+    } else if (typeof baseValue === 'number') {
+      if (typeof value === 'number' && Number.isFinite(value)) merged[key] = value;
+    } else if (typeof baseValue === 'string') {
+      merged[key] = String(value);
+    } else if (baseValue === undefined) {
+      merged[key] = value;
     }
   }
+  return merged as T;
+}
+
+function mergeDna(base: CreatorDNA, ai: Record<string, unknown>): CreatorDNA {
+  const out: CreatorDNA = {
+    voice: mergeDnaSection(base.voice, ai.voice),
+    visual: mergeDnaSection(base.visual, ai.visual),
+    packaging: mergeDnaSection(base.packaging, ai.packaging),
+    audience: mergeDnaSection(base.audience, ai.audience),
+  };
   const parsed = CreatorDNASchema.safeParse(out);
   return parsed.success ? parsed.data : base;
 }

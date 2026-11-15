@@ -5,6 +5,7 @@ import { runAgent } from '../src/worker/agents/runner';
 import type { AIToolDefinition } from '../src/worker/ai/types';
 import { runComplianceChecker } from '../src/worker/agents/definitions/studioAndResearch';
 import { CreateShortLinkSchema } from '../src/shared/types';
+import { isSafePublicHttpUrl } from '../src/worker/lib/url-safety';
 
 describe('Quality Gate 1: Provider Fallback Chain', () => {
   it('falls back to mock provider gracefully when no external API keys are configured', async () => {
@@ -42,7 +43,8 @@ describe('Quality Gate 2: Agent Framework & Tool Validation Loop', () => {
         ghz: z.number().min(1.0).max(6.0),
         cores: z.number().int().positive(),
       }),
-      execute: async ({ ghz, cores }: { ghz: number; cores: number }) => {
+      execute: async (rawArgs) => {
+        const { ghz, cores } = rawArgs as { ghz: number; cores: number };
         toolExecutionCount++;
         return { score: ghz * cores * 100 };
       },
@@ -76,41 +78,19 @@ describe('Quality Gate 2: Agent Framework & Tool Validation Loop', () => {
 });
 
 describe('Quality Gate 3: Short Link Safety & SSRF Validation', () => {
-  function isSafeUrl(urlStr: string): boolean {
-    try {
-      const u = new URL(urlStr);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-      const host = u.hostname.toLowerCase();
-      if (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host === '0.0.0.0' ||
-        host.endsWith('.local') ||
-        host.endsWith('.internal') ||
-        host.startsWith('192.168.') ||
-        host.startsWith('10.') ||
-        host.startsWith('172.16.')
-      ) {
-        return false;
-      }
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   it('accepts valid public e-commerce and YouTube URLs', () => {
-    expect(isSafeUrl('https://www.amazon.in/dp/B0D3G78JKL')).toBe(true);
-    expect(isSafeUrl('https://youtube.com/watch?v=12345')).toBe(true);
+    expect(isSafePublicHttpUrl('https://www.amazon.in/dp/B0D3G78JKL')).toBe(true);
+    expect(isSafePublicHttpUrl('https://youtube.com/watch?v=12345')).toBe(true);
   });
 
   it('blocks private IPs, localhost, and non-http protocols (SSRF Prevention)', () => {
-    expect(isSafeUrl('http://localhost:8787/secret')).toBe(false);
-    expect(isSafeUrl('http://127.0.0.1/admin')).toBe(false);
-    expect(isSafeUrl('http://192.168.1.1/router')).toBe(false);
-    expect(isSafeUrl('http://10.0.0.1/internal')).toBe(false);
-    expect(isSafeUrl('javascript:alert(1)')).toBe(false);
-    expect(isSafeUrl('file:///etc/passwd')).toBe(false);
+    expect(isSafePublicHttpUrl('http://localhost:8787/secret')).toBe(false);
+    expect(isSafePublicHttpUrl('http://127.0.0.1/admin')).toBe(false);
+    expect(isSafePublicHttpUrl('http://192.168.1.1/router')).toBe(false);
+    expect(isSafePublicHttpUrl('http://10.0.0.1/internal')).toBe(false);
+    expect(isSafePublicHttpUrl('http://[::1]/admin')).toBe(false);
+    expect(isSafePublicHttpUrl('javascript:alert(1)')).toBe(false);
+    expect(isSafePublicHttpUrl('file:///etc/passwd')).toBe(false);
   });
 
   it('validates custom slugs with regex', () => {

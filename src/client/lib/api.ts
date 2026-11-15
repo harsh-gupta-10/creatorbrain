@@ -183,7 +183,7 @@ export interface SavedMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  meta?: Record<string, any> | null;
+  meta?: Record<string, unknown> | null;
   created_at: string;
 }
 

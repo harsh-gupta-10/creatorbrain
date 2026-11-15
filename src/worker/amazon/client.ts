@@ -153,13 +153,24 @@ export class AmazonCreatorsClient {
         target: 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems',
       });
       const res = await fetch(`https://${host}${path}`, { method: 'POST', headers, body });
-      const data = (await res.json().catch(() => ({}))) as any;
+      interface PaapiItem {
+        ASIN: string;
+        ItemInfo?: { Title?: { DisplayValue?: string }; Features?: { DisplayValues?: string[] } };
+        DetailPageURL?: string;
+        Images?: { Primary?: { Large?: { URL?: string } } };
+        Offers?: { Listings?: Array<{ Price?: { DisplayAmount?: string; Currency?: string }; Availability?: { Message?: string } }> };
+      }
+      interface PaapiSearchResponse {
+        Errors?: Array<{ Message?: string }>;
+        SearchResult?: { Items?: PaapiItem[] };
+      }
+      const data = (await res.json().catch(() => ({}))) as PaapiSearchResponse;
       if (!res.ok) {
         throw new Error(data?.Errors?.[0]?.Message || `Amazon returned ${res.status}`);
       }
       const now = new Date().toISOString();
       return (data.SearchResult?.Items || []).map(
-        (item: any): Product => {
+        (item: PaapiItem): Product => {
           const listing = item.Offers?.Listings?.[0];
           return {
             id: `prod_${String(item.ASIN).toLowerCase()}`,
@@ -181,8 +192,8 @@ export class AmazonCreatorsClient {
           };
         }
       );
-    } catch (err: any) {
-      this.lastError = err?.message || 'Amazon request failed';
+    } catch (err: unknown) {
+      this.lastError = err instanceof Error ? err.message : 'Amazon request failed';
       console.warn('[Amazon] live search failed, showing sample catalog:', this.lastError);
       return this.sample(creatorId, keywords);
     }

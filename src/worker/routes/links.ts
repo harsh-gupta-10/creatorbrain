@@ -3,41 +3,10 @@ import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { CreateShortLinkSchema } from '../../shared/types';
 import type { ShortLink, LinkClick } from '../../shared/types';
+import { isSafePublicHttpUrl } from '../lib/url-safety';
+import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
 
 export const linkRoutes = new Hono<AppEnv>();
-
-// SSRF Safety: Block internal IPs and loopbacks
-function isSafeUrl(urlStr: string): boolean {
-  try {
-    const u = new URL(urlStr);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') return false;
-
-    const host = u.hostname.toLowerCase();
-    if (
-      host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === '0.0.0.0' ||
-      host.endsWith('.local') ||
-      host.endsWith('.internal') ||
-      host.startsWith('192.168.') ||
-      host.startsWith('10.') ||
-      host.startsWith('172.16.') ||
-      host.startsWith('169.254.')
-    ) {
-      return false;
-    }
-
-    // Domain blocklist of known malware/phishing domains
-    const blocklist = ['phishing.com', 'malware.ru', 'scam.link', 'grabify.link'];
-    if (blocklist.some((b) => host === b || host.endsWith('.' + b))) {
-      return false;
-    }
-
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 // Get all short links for creator
 linkRoutes.get('/', async (c) => {
@@ -61,11 +30,15 @@ linkRoutes.post('/create', async (c) => {
   const { destination_url, title, utm_source, utm_medium, utm_campaign, expires_at } =
     parsed.data;
 
-  if (!isSafeUrl(destination_url)) {
+  if (!isSafePublicHttpUrl(destination_url)) {
     return c.json(
       { error: 'Invalid or prohibited destination URL. Only public http/https domains allowed.' },
       400
     );
+  }
+
+  if (expires_at && Date.parse(expires_at) <= Date.now()) {
+    return c.json({ error: 'Expiration must be a future date and time' }, 400);
   }
 
   const urlObj = new URL(destination_url);
@@ -107,9 +80,9 @@ linkRoutes.post('/create', async (c) => {
 
   await dbClient.createShortLink(newLink);
 
-  // Cache in KV for sub-millisecond edge redirects
-  if (c.env.KV) {
-    await c.env.KV.put(`link:${slug}`, finalDestination);
+  const cacheTtl = shortLinkCacheTtl(newLink.expires_at);
+  if (c.env.KV && cacheTtl) {
+    await c.env.KV.put(`link:${slug}`, serializeShortLinkCache(newLink), { expirationTtl: cacheTtl });
   }
 
   return c.json({

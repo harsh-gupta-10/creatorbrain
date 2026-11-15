@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Check, X, ClipboardCheck } from 'lucide-react';
 import { api } from '../lib/api';
 import { EmptyState, ErrorNote, ICON, PageHeader, SectionTitle, Spinner } from '../components/ui';
-import type { Quiz, QuizQuestion } from '../../shared/types';
+import type { Quiz, QuizQuestionView } from '../../shared/types';
 
-const parseQuestions = (quiz?: Quiz): QuizQuestion[] => {
+const parseQuestions = (quiz?: Quiz): QuizQuestionView[] => {
   if (!quiz) return [];
   try {
-    return JSON.parse(quiz.questions_json) as QuizQuestion[];
+    return JSON.parse(quiz.questions_json) as QuizQuestionView[];
   } catch {
     return [];
   }

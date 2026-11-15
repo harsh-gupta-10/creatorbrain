@@ -14,6 +14,7 @@ import {
 import { AmazonCreatorsClient } from '../amazon/client';
 import { StudioChatSchema } from '../../shared/types';
 import type { Project, ProjectAsset, Product, ShortLink } from '../../shared/types';
+import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
 
 export const studioRoutes = new Hono<AppEnv>();
 
@@ -208,11 +209,11 @@ studioRoutes.post('/chat', async (c) => {
     };
 
     await dbClient.createShortLink(shortLink);
-
-    // Save in KV for instant edge redirect lookup!
-    if (c.env.KV) {
-      await c.env.KV.put(`link:${shortSlug}`, taggedUrl);
+    const cacheTtl = shortLinkCacheTtl(shortLink.expires_at);
+    if (c.env.KV && cacheTtl) {
+      await c.env.KV.put(`link:${shortSlug}`, serializeShortLinkCache(shortLink), { expirationTtl: cacheTtl });
     }
+
   }
 
   // Step 4: Compliance Checker

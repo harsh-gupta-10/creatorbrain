@@ -85,13 +85,13 @@ describe('Auth', () => {
     const api = client();
     const { res } = await signup(api);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as any;
+    const body = (await res.json()) as { creator: { onboarding_status: string; password_hash?: unknown; password_salt?: unknown } };
     expect(body.creator.onboarding_status).toBe('profile');
     expect(body.creator.password_hash).toBeUndefined();
     expect(body.creator.password_salt).toBeUndefined();
     expect(res.headers.get('set-cookie')).toMatch(/HttpOnly/i);
 
-    const me = (await (await api('/api/auth/me')).json()) as any;
+    const me = (await (await api('/api/auth/me')).json()) as { authenticated: boolean; isSample: boolean };
     expect(me.authenticated).toBe(true);
     expect(me.isSample).toBe(false);
   });
@@ -158,7 +158,49 @@ describe('Sample workspace', () => {
     expect((await api('/api/onboarding/content')).status).toBe(200);
     const write = await api('/api/studio/projects', { method: 'POST', json: { title: 'x', brief: 'y' } });
     expect(write.status).toBe(403);
-    expect(((await write.json()) as any).sample).toBe(true);
+    expect(((await write.json()) as { sample: boolean }).sample).toBe(true);
+  });
+
+  it('does not reveal pending quiz answers before submission', async () => {
+    const api = client();
+    await api('/api/auth/sample', { method: 'POST' });
+    const response = await api('/api/assess/quizzes');
+    const { quizzes } = (await response.json()) as {
+      quizzes: { status: string; questions_json: string }[];
+    };
+    const pendingQuiz = quizzes.find((quiz) => quiz.status === 'pending');
+    expect(pendingQuiz).toBeTruthy();
+    const questions = JSON.parse(pendingQuiz!.questions_json) as Record<string, unknown>[];
+    expect(questions[0]).not.toHaveProperty('correctIndex');
+    expect(questions[0]).not.toHaveProperty('explanation');
+  });
+});
+
+describe('Short links', () => {
+  it('rejects private destinations and expired links, and redirects public URLs', async () => {
+    const api = client();
+    await signup(api);
+
+    for (const destination_url of ['http://172.31.0.1/admin', 'http://[::1]/admin']) {
+      const blocked = await api('/api/links/create', { method: 'POST', json: { destination_url } });
+      expect(blocked.status).toBe(400);
+    }
+
+    const expired = await api('/api/links/create', {
+      method: 'POST',
+      json: { destination_url: 'https://example.com', expires_at: '2020-01-01T00:00:00.000Z' },
+    });
+    expect(expired.status).toBe(400);
+
+    const created = await api('/api/links/create', {
+      method: 'POST',
+      json: { destination_url: 'https://example.com/creatorbrain', slug: `test-${uniq()}` },
+    });
+    expect(created.status).toBe(200);
+    const { shortLink } = (await created.json()) as { shortLink: { slug: string } };
+    const redirect = await fetch(`${base}/s/${shortLink.slug}`, { redirect: 'manual' });
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get('location')).toBe('https://example.com/creatorbrain');
   });
 });
 
@@ -194,7 +236,7 @@ describe('Onboarding', () => {
       },
     });
     expect(res.status).toBe(200);
-    const library = (await (await api('/api/content')).json()) as any;
+    const library = (await (await api('/api/content')).json()) as { items: unknown[]; counts: { pending: number } };
     expect(library.items).toHaveLength(2);
     expect(library.counts.pending).toBe(2);
   });
@@ -205,20 +247,20 @@ describe('Study in the app', () => {
     const api = client();
     await signup(api);
     await api('/api/onboarding/profile', { method: 'POST', json: { niche: 'Cooking', instagramCaptions: ['Weeknight dal'] } });
-    const me = (await (await api('/api/auth/me')).json()) as any;
+    const me = (await (await api('/api/auth/me')).json()) as { creator: { onboarding_status: string } };
     expect(me.creator.onboarding_status).toBe('ready');
 
-    const first = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as any;
-    const second = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as any;
+    const first = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as { jobId: string };
+    const second = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as { jobId: string };
     expect(second.jobId).toBe(first.jobId); // no duplicate studies
 
-    const active = (await (await api('/api/onboarding/study/active')).json()) as any;
+    const active = (await (await api('/api/onboarding/study/active')).json()) as { job: { id: string; status: string } };
     expect(active.job.id).toBe(first.jobId);
     expect(active.job.status).toBe('running');
 
     expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: '' } })).status).toBe(400);
     expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: 'https://www.youtube.com/@someone' } })).status).toBe(200);
-    const after = (await (await api('/api/auth/me')).json()) as any;
+    const after = (await (await api('/api/auth/me')).json()) as { creator: { youtube_input: string } };
     expect(after.creator.youtube_input).toBe('https://www.youtube.com/@someone');
   });
 });
@@ -233,19 +275,19 @@ describe('Brand deals', () => {
       json: { brand: 'Spice Co.', amount: 600, currency: 'USD', stage: 'posted', due_date: '2026-11-10' },
     });
     expect(created.status).toBe(201);
-    const { deal } = (await created.json()) as any;
+    const { deal } = (await created.json()) as { deal: { id: string } };
 
-    const paid = (await (await api(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'paid' } })).json()) as any;
+    const paid = (await (await api(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'paid' } })).json()) as { deal: { stage: string; paid_at: string | null } };
     expect(paid.deal.stage).toBe('paid');
     expect(paid.deal.paid_at).toBeTruthy();
 
     const other = client();
     await signup(other);
     expect((await other(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'talking' } })).status).toBe(404);
-    expect(((await (await other('/api/deals')).json()) as any).deals).toHaveLength(0);
+    expect(((await (await other('/api/deals')).json()) as { deals: unknown[] }).deals).toHaveLength(0);
 
     expect((await api(`/api/deals/${deal.id}`, { method: 'DELETE' })).status).toBe(200);
-    expect(((await (await api('/api/deals')).json()) as any).deals).toHaveLength(0);
+    expect(((await (await api('/api/deals')).json()) as { deals: unknown[] }).deals).toHaveLength(0);
   });
 });
 
@@ -255,7 +297,7 @@ describe('Writing preferences', () => {
     await signup(api);
     expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'klingon' } })).status).toBe(400);
     expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'hinglish' } })).status).toBe(200);
-    const me = (await (await api('/api/auth/me')).json()) as any;
+    const me = (await (await api('/api/auth/me')).json()) as { creator: { script_language: string } };
     expect(me.creator.script_language).toBe('hinglish');
   });
 });
@@ -265,7 +307,7 @@ describe('Saved conversations', () => {
     const api = client();
     await signup(api);
     expect((await api('/api/chats/not-a-thread')).status).toBe(400);
-    const res = (await (await api('/api/chats/copilot')).json()) as any;
+    const res = (await (await api('/api/chats/copilot')).json()) as { messages: unknown[] };
     expect(res.messages).toEqual([]);
     expect((await api('/api/chats/studio:proj_123', { method: 'DELETE' })).status).toBe(200);
   });
@@ -291,18 +333,18 @@ describe('Amazon credentials', () => {
       json: { partnerTag: 'maya-20', marketplace: 'amazon.com', accessKey: FAKE_ACCESS_KEY, secretKey: FAKE_SECRET_KEY },
     });
     expect(save.status).toBe(200);
-    const saved = (await save.json()) as any;
+    const saved = (await save.json()) as { hasCredentials: boolean; accessKeyHint: string };
     expect(saved.hasCredentials).toBe(true);
     expect(saved.accessKeyHint).toBe(`••••${FAKE_ACCESS_KEY.slice(-4)}`);
     expect(JSON.stringify(saved)).not.toContain(FAKE_ACCESS_KEY);
 
-    const settings = (await (await api('/api/settings')).json()) as any;
+    const settings = (await (await api('/api/settings')).json()) as { amazonConfig: { partnerTag: string } };
     expect(settings.amazonConfig.partnerTag).toBe('maya-20');
     expect(JSON.stringify(settings)).not.toContain(FAKE_SECRET_KEY);
 
     const link = (await (
       await api('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'https://www.amazon.com/dp/B000000001' } })
-    ).json()) as any;
+    ).json()) as { taggedUrl: string };
     expect(link.taggedUrl).toBe('https://www.amazon.com/dp/B000000001?tag=maya-20');
   });
 
@@ -319,7 +361,7 @@ describe('Amazon credentials', () => {
     await a('/api/settings/monetization', { method: 'PUT', json: { amazon: true, partnerTag: 'alpha-20', marketplace: 'amazon.com' } });
     const b = client();
     await signup(b);
-    const settings = (await (await b('/api/settings')).json()) as any;
+    const settings = (await (await b('/api/settings')).json()) as { amazonConfig: { partnerTag: string } };
     expect(settings.amazonConfig.partnerTag).toBe('');
   });
 });

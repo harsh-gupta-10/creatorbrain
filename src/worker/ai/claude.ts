@@ -13,9 +13,12 @@ export class ClaudeProvider implements AIProvider {
     this.fastModel = fastModel;
   }
 
-  private formatMessages(messages: AIMessage[]): { system?: string; messages: any[] } {
+  private formatMessages(messages: AIMessage[]): {
+    system?: string;
+    messages: Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }>;
+  } {
     let system: string | undefined = undefined;
-    const formatted: any[] = [];
+    const formatted: Array<{ role: 'user' | 'assistant'; content: string | Array<Record<string, unknown>> }> = [];
 
     for (const msg of messages) {
       if (msg.role === 'system') {
@@ -32,7 +35,7 @@ export class ClaudeProvider implements AIProvider {
           ],
         });
       } else if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
-        const contentBlocks: any[] = [];
+        const contentBlocks: Array<Record<string, unknown>> = [];
         if (msg.content) {
           contentBlocks.push({ type: 'text', text: msg.content });
         }
@@ -84,8 +87,18 @@ export class ClaudeProvider implements AIProvider {
       throw new Error(`Claude API error (${res.status}): ${errText}`);
     }
 
-    const data = (await res.json()) as any;
-    const textBlock = data.content?.find((b: any) => b.type === 'text');
+    interface ClaudeBlock {
+      type: string;
+      text?: string;
+      id?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+    }
+    interface ClaudeResponse {
+      content?: ClaudeBlock[];
+    }
+    const data = (await res.json()) as ClaudeResponse;
+    const textBlock = data.content?.find((b) => b.type === 'text');
     return textBlock?.text || '';
   }
 
@@ -109,8 +122,9 @@ export class ClaudeProvider implements AIProvider {
       const clean = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
       const parsed = JSON.parse(clean);
       return schema.parse(parsed);
-    } catch (e: any) {
-      throw new Error(`Failed to validate structured JSON from Claude: ${e.message}. Raw output: ${raw.slice(0, 300)}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Failed to validate structured JSON from Claude: ${message}`);
     }
   }
 
@@ -173,7 +187,15 @@ export class ClaudeProvider implements AIProvider {
       throw new Error(`Claude API error (${res.status}): ${errText}`);
     }
 
-    const data = (await res.json()) as any;
+    const data = (await res.json()) as {
+      content?: Array<{
+        type: string;
+        text?: string;
+        id: string;
+        name: string;
+        input?: Record<string, unknown>;
+      }>;
+    };
     let text = '';
     const toolCalls: AIToolCall[] = [];
 

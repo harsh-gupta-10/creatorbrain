@@ -245,11 +245,11 @@ ${ANALYSIS_LANGUAGE_RULE}
 Return JSON only with this shape: ${ANALYSIS_SHAPE}`,
           thumb ? { mimeType: thumb.mimeType, base64: toBase64(thumb.bytes) } : undefined
         );
-        const obj = parseJsonObject(raw) as Record<string, any>;
+        const obj = parseJsonObject(raw) as Record<string, unknown>;
         analysis = VideoAnalysisSchema.parse(obj);
         if (!segs.length && Array.isArray(obj.transcript)) {
-          segs = obj.transcript
-            .map((s: any) => ({ start: Number(s.start) || 0, text: String(s.text || '').trim() }))
+          segs = (obj.transcript as Array<Record<string, unknown>>)
+            .map((s) => ({ start: Number(s?.start) || 0, text: String(s?.text || '').trim() }))
             .filter((s: TranscriptSegment) => s.text);
           if (segs.length) transcriptSource = 'gemini';
         }
@@ -330,8 +330,8 @@ Return JSON with this shape: ${ANALYSIS_SHAPE}`,
       )
       .run();
     return { status: 'done', analyzedBy };
-  } catch (err: any) {
-    const message = String(err?.message || 'Analysis failed').slice(0, 300);
+  } catch (err: unknown) {
+    const message = String(err instanceof Error ? err.message : err || 'Analysis failed').slice(0, 300);
     await db
       .prepare("UPDATE content_items SET analysis_status = 'failed', analysis_error = ?, updated_at = ? WHERE id = ?")
       .bind(message, new Date().toISOString(), item.id)

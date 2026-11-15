@@ -45,7 +45,12 @@ export class GeminiProvider implements AIProvider {
    * optionally a thumbnail image, returning the model's JSON text.
    */
   async analyzeYouTubeVideo(videoUrl: string, prompt: string, thumbnail?: { mimeType: string; base64: string }): Promise<string> {
-    const parts: any[] = [{ file_data: { file_uri: videoUrl } }];
+    interface GeminiPart {
+      file_data?: { file_uri: string };
+      inline_data?: { mime_type: string; data: string };
+      text?: string;
+    }
+    const parts: GeminiPart[] = [{ file_data: { file_uri: videoUrl } }];
     if (thumbnail) parts.push({ inline_data: { mime_type: thumbnail.mimeType, data: thumbnail.base64 } });
     parts.push({ text: prompt });
     return this.call({
@@ -69,7 +74,14 @@ export class GeminiProvider implements AIProvider {
       body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Gemini API error (${res.status}): ${(await res.text()).slice(0, 300)}`);
-    const data = (await res.json()) as any;
-    return (data.candidates?.[0]?.content?.parts || []).map((p: any) => p.text || '').join('');
+    interface GeminiResponse {
+      candidates?: Array<{
+        content?: {
+          parts?: Array<{ text?: string }>;
+        };
+      }>;
+    }
+    const data = (await res.json()) as GeminiResponse;
+    return (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
   }
 }

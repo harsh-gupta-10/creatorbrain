@@ -336,7 +336,10 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
                         {msg.product.image_url ? (
                           <img
                             src={msg.product.image_url}
-                            alt=""
+                            alt={msg.product.title || 'Product'}
+                            width={48}
+                            height={48}
+                            loading="lazy"
                             className="w-12 h-12 object-contain rounded-[8px] bg-raised p-1 shrink-0"
                           />
                         ) : (

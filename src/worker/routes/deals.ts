@@ -5,6 +5,23 @@ import type { AppEnv } from '../env';
 /** Brand deal pipeline: talking → agreed → posted → paid */
 export const dealsRoutes = new Hono<AppEnv>();
 
+interface BrandDealRow {
+  id: string;
+  creator_id: string;
+  brand: string;
+  contact: string | null;
+  deliverable: string | null;
+  amount: number;
+  currency: 'USD' | 'INR' | 'EUR' | 'GBP' | 'CAD';
+  stage: (typeof DEAL_STAGES)[number];
+  due_date: string | null;
+  post_date: string | null;
+  notes: string | null;
+  paid_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const DEAL_STAGES = ['talking', 'agreed', 'posted', 'paid'] as const;
 const date = z
   .string()
@@ -13,7 +30,7 @@ const date = z
   .optional()
   .transform((v) => v || null);
 
-const DealSchema = z.object({
+export const DealSchema = z.object({
   brand: z.string().trim().min(1, 'Enter the brand name').max(80),
   contact: z.string().trim().max(120).optional().default(''),
   deliverable: z.string().trim().max(200).optional().default(''),
@@ -60,10 +77,10 @@ dealsRoutes.patch('/:id', async (c) => {
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
   const existing = await c.env.DB.prepare('SELECT * FROM brand_deals WHERE id = ? AND creator_id = ?')
     .bind(c.req.param('id'), creator.id)
-    .first<Record<string, unknown>>();
+    .first<BrandDealRow>();
   if (!existing) return c.json({ error: 'Deal not found' }, 404);
 
-  const next = { ...existing, ...Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) } as Record<string, any>;
+  const next = { ...existing, ...parsed.data };
   const ts = new Date().toISOString();
   const paidAt = next.stage === 'paid' ? existing.paid_at || ts : null;
   await c.env.DB.prepare(

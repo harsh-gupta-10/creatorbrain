@@ -123,7 +123,7 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
         {/* Profile */}
         <header className="flex flex-col items-center text-center">
           {creator?.avatar_url ? (
-            <img src={creator.avatar_url} alt="" className="w-20 h-20 rounded-full object-cover" />
+            <img src={creator.avatar_url} alt={`${name}'s profile photo`} width={80} height={80} className="w-20 h-20 rounded-full object-cover" />
           ) : (
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-[28px] font-medium"
@@ -182,7 +182,10 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                   {prod?.image_url && (
                     <img
                       src={prod.image_url}
-                      alt=""
+                      alt={block.title || prod?.title || 'Product'}
+                      width={64}
+                      height={64}
+                      loading="lazy"
                       className="w-16 h-16 object-contain rounded-[8px] bg-white p-1 shrink-0"
                     />
                   )}

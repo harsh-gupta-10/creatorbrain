@@ -99,7 +99,7 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
       tabIndex={0}
     >
       {creator?.avatar_url ? (
-        <img src={creator.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+        <img src={creator.avatar_url} alt={`${name}'s avatar`} width={64} height={64} className="w-16 h-16 rounded-full object-cover" />
       ) : (
         <div
           className="w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-medium"
@@ -159,7 +159,7 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
                 style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
               >
                 {p?.image_url ? (
-                  <img src={p.image_url} alt="" className="w-12 h-12 rounded-[8px] object-contain bg-white p-1 shrink-0" />
+                  <img src={p.image_url} alt={b.title || p?.title || 'Product'} width={48} height={48} loading="lazy" className="w-12 h-12 rounded-[8px] object-contain bg-white p-1 shrink-0" />
                 ) : (
                   <div className="w-12 h-12 rounded-[8px] shrink-0" style={{ background: PAGE.line }} />
                 )}

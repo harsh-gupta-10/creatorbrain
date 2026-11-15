@@ -49,9 +49,10 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult
       const response = await router.callWithTools(messages, tools, { creatorId });
       stepOutput = response.text;
       toolCalls = response.toolCalls || [];
-    } catch (err: any) {
-      console.warn(`[Agent ${name}] Step ${currentStep} error:`, err.message);
-      stepOutput = `Encountered error: ${err.message}. Proceeding with autonomous fallback plan.`;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn(`[Agent ${name}] Step ${currentStep} error:`, message);
+      stepOutput = `Encountered error: ${message}. Proceeding with autonomous fallback plan.`;
     }
 
     if (toolCalls.length === 0) {
@@ -81,7 +82,7 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult
     // Execute tool calls
     for (const tc of toolCalls) {
       const toolDef = tools.find((t) => t.name === tc.name);
-      let toolResult: any = null;
+      let toolResult: unknown = null;
       let toolStatus: 'success' | 'failed' = 'success';
 
       if (!toolDef) {
@@ -92,8 +93,9 @@ export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult
           // Zod schema validation
           const validatedArgs = toolDef.parameters.parse(tc.arguments);
           toolResult = await toolDef.execute(validatedArgs, { creatorId, db, router });
-        } catch (validationErr: any) {
-          toolResult = { error: `Validation or execution error: ${validationErr.message}` };
+        } catch (validationErr: unknown) {
+          const message = validationErr instanceof Error ? validationErr.message : String(validationErr);
+          toolResult = { error: `Validation or execution error: ${message}` };
           toolStatus = 'failed';
         }
       }
@@ -167,7 +169,7 @@ async function persistTrace(db: D1Database | undefined, trace: AgentTrace): Prom
         trace.created_at
       )
       .run();
-  } catch (err: any) {
-    console.warn('[Agent Runner] Failed to persist trace to D1:', err.message);
+  } catch (err: unknown) {
+    console.warn('[Agent Runner] Failed to persist trace to D1:', err instanceof Error ? err.message : String(err));
   }
 }

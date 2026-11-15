@@ -130,7 +130,15 @@ amazonRoutes.post('/earnings/import-csv', async (c) => {
   if (!csvText) return c.json({ error: 'CSV text is required' }, 400);
 
   const lines = csvText.trim().split('\n');
-  const rows: any[] = [];
+  const rows: Array<{
+    report_date: string;
+    asin: string;
+    product_title: string;
+    items_ordered: number;
+    items_shipped: number;
+    revenue: number;
+    commission: number;
+  }> = [];
 
   // Parse lines: Date, ASIN, Product Title, Items Ordered, Items Shipped, Revenue, Commission
   for (let i = 1; i < lines.length; i++) {

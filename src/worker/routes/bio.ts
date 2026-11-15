@@ -89,7 +89,7 @@ bioRoutes.post('/click/:blockId', async (c) => {
 
   if (!block) return c.json({ error: 'Block not found' }, 404);
 
-  const cf = (c.req.raw as any).cf || {};
+  const cf = (c.req.raw as Request & { cf?: { country?: string } }).cf || {};
   const country = cf.country || 'India';
   const userAgent = c.req.header('user-agent') || '';
   const device = /mobile/i.test(userAgent) ? 'Mobile' : 'Desktop';

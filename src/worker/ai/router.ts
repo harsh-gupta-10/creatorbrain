@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AIMessage, AIProvider, AIGenerateOptions, AIToolDefinition, AIToolCall } from './types';
+import type { AIMessage, AIProvider, AIGenerateOptions, AIToolDefinition, AIToolCall, WorkersAIBinding } from './types';
 import { ClaudeProvider } from './claude';
 import { OpenAIProvider } from './openai';
 import { GeminiProvider } from './gemini';
@@ -15,7 +15,7 @@ export interface AIRouterEnv {
   OPENAI_MODEL?: string;
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
-  AI?: any; // Cloudflare Workers AI binding
+  AI?: WorkersAIBinding;
   KV?: KVNamespace;
 }
 
@@ -136,9 +136,9 @@ export class AIRouter {
           }
           return text;
         }
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[AI Router] Provider ${provider.name} failed, trying next fallback:`, err.message);
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`[AI Router] Provider ${provider.name} failed, trying next fallback:`, lastError.message);
       }
     }
 
@@ -174,9 +174,9 @@ export class AIRouter {
           await this.budgetManager.recordUsage(options.creatorId, cost);
         }
         return result;
-      } catch (err: any) {
-        lastError = err;
-        console.warn(`[AI Router] Provider ${provider.name} failed structured output, falling back:`, err.message);
+      } catch (err: unknown) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        console.warn(`[AI Router] Provider ${provider.name} failed structured output, falling back:`, lastError.message);
       }
     }
 
@@ -198,16 +198,16 @@ export class AIRouter {
     if (this.claude) {
       try {
         return await this.claude.callWithTools(messages, tools, options);
-      } catch (err: any) {
-        console.warn('[AI Router] Claude callWithTools failed, checking OpenAI:', err.message);
+      } catch (err: unknown) {
+        console.warn('[AI Router] Claude callWithTools failed, checking OpenAI:', err instanceof Error ? err.message : String(err));
       }
     }
 
     if (this.openai) {
       try {
         return await this.openai.callWithTools(messages, tools, options);
-      } catch (err: any) {
-        console.warn('[AI Router] OpenAI callWithTools failed:', err.message);
+      } catch (err: unknown) {
+        console.warn('[AI Router] OpenAI callWithTools failed:', err instanceof Error ? err.message : String(err));
       }
     }
 

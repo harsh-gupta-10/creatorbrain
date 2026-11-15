@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 coverage/
+.vite/
+*.tsbuildinfo
 
 # Cloudflare local state and secrets
 .wrangler/
@@ -19,3 +21,10 @@ skills-lock.json
 # OS and logs
 .DS_Store
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Launch video output (large media)
+brag-output*/

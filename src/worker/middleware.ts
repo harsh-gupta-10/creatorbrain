@@ -58,25 +58,28 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   h.set('X-Frame-Options', 'DENY');
+  h.set('X-XSS-Protection', '1; mode=block');
+  h.set('Cross-Origin-Opener-Policy', 'same-origin');
   h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-  if (new URL(c.req.url).protocol === 'https:') {
+  const isHttps = new URL(c.req.url).protocol === 'https:';
+  if (isHttps) {
     h.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   }
   if ((h.get('Content-Type') || '').includes('text/html')) {
-    h.set(
-      'Content-Security-Policy',
-      [
-        "default-src 'self'",
-        "script-src 'self' 'unsafe-inline'",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: https:",
-        "connect-src 'self'",
-        "frame-ancestors 'none'",
-        "base-uri 'self'",
-        "form-action 'self'",
-      ].join('; ')
-    );
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: https:",
+      "connect-src 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ];
+    if (isHttps) cspDirectives.push('upgrade-insecure-requests');
+    h.set('Content-Security-Policy', cspDirectives.join('; '));
   }
   if (c.req.path.startsWith('/api/')) h.set('Cache-Control', 'no-store');
 };

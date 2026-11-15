@@ -419,7 +419,10 @@ export const AmazonAffiliateTab: React.FC = () => {
                 <li key={prod.asin} className="flex items-center gap-3 px-5 py-3">
                   <img
                     src={prod.image_url}
-                    alt=""
+                    alt={prod.title || 'Product'}
+                    width={48}
+                    height={48}
+                    loading="lazy"
                     className="w-12 h-12 rounded-[8px] object-contain bg-white border border-line shrink-0"
                   />
                   <div className="min-w-0 flex-1">
@@ -468,7 +471,10 @@ export const AmazonAffiliateTab: React.FC = () => {
                     <div className="flex items-start gap-3">
                       <img
                         src={prod.image_url}
-                        alt=""
+                        alt={prod.title || 'Product'}
+                        width={64}
+                        height={64}
+                        loading="lazy"
                         className="w-16 h-16 rounded-[8px] object-contain bg-white border border-line shrink-0"
                       />
                       <div className="min-w-0">

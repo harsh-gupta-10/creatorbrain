@@ -11,7 +11,7 @@ export class OpenAIProvider implements AIProvider {
     this.defaultModel = defaultModel;
   }
 
-  private formatMessages(messages: AIMessage[]): any[] {
+  private formatMessages(messages: AIMessage[]): Array<Record<string, unknown>> {
     return messages.map((m) => {
       if (m.role === 'tool') {
         return {
@@ -64,7 +64,10 @@ export class OpenAIProvider implements AIProvider {
       throw new Error(`OpenAI API error (${res.status}): ${err}`);
     }
 
-    const data = (await res.json()) as any;
+    interface OpenAIChatResponse {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    }
+    const data = (await res.json()) as OpenAIChatResponse;
     return data.choices?.[0]?.message?.content || '';
   }
 
@@ -101,14 +104,18 @@ export class OpenAIProvider implements AIProvider {
       throw new Error(`OpenAI API error (${res.status}): ${err}`);
     }
 
-    const data = (await res.json()) as any;
+    interface OpenAIChatResponse {
+      choices?: Array<{ message?: { content?: string | null } }>;
+    }
+    const data = (await res.json()) as OpenAIChatResponse;
     const raw = data.choices?.[0]?.message?.content || '{}';
 
     try {
       const parsed = JSON.parse(raw);
       return schema.parse(parsed);
-    } catch (e: any) {
-      throw new Error(`Failed to validate structured JSON from OpenAI: ${e.message}. Raw: ${raw}`);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      throw new Error(`Failed to validate structured JSON from OpenAI: ${message}`);
     }
   }
 
@@ -123,10 +130,10 @@ export class OpenAIProvider implements AIProvider {
     const openaiTools = tools.map((t) => {
       const def = t.parameters._def as { shape?: unknown } | undefined;
       const shape = (typeof def?.shape === 'function' ? (def.shape as () => Record<string, unknown>)() : (t.parameters.shape as Record<string, unknown>)) || {};
-      const properties: Record<string, any> = {};
+      const properties: Record<string, { type: string; description: string }> = {};
       const required: string[] = [];
 
-      for (const [key, zodType] of Object.entries(shape) as [string, any][]) {
+      for (const [key, zodType] of Object.entries(shape) as [string, { description?: string; isOptional?: () => boolean }][]) {
         properties[key] = {
           type: 'string',
           description: zodType.description || key,
@@ -169,7 +176,18 @@ export class OpenAIProvider implements AIProvider {
       throw new Error(`OpenAI API error (${res.status}): ${err}`);
     }
 
-    const data = (await res.json()) as any;
+    interface OpenAIToolsResponse {
+      choices?: Array<{
+        message?: {
+          content?: string | null;
+          tool_calls?: Array<{
+            id: string;
+            function?: { name?: string; arguments?: string };
+          }>;
+        };
+      }>;
+    }
+    const data = (await res.json()) as OpenAIToolsResponse;
     const choice = data.choices?.[0]?.message;
     const text = choice?.content || '';
     const toolCalls: AIToolCall[] = [];
@@ -177,14 +195,16 @@ export class OpenAIProvider implements AIProvider {
     if (choice?.tool_calls) {
       for (const tc of choice.tool_calls) {
         let args = {};
-        try {
-          args = JSON.parse(tc.function.arguments);
-        } catch {
-          args = {};
+        if (tc.function?.arguments) {
+          try {
+            args = JSON.parse(tc.function.arguments);
+          } catch {
+            args = {};
+          }
         }
         toolCalls.push({
           id: tc.id,
-          name: tc.function.name,
+          name: tc.function?.name || '',
           arguments: args,
         });
       }

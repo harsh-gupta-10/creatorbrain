@@ -97,7 +97,7 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
     <article className="panel overflow-hidden rise-in" aria-labelledby="audit-title">
       <header className="p-5 md:p-6 border-b border-line flex flex-wrap items-center gap-4">
         {audit.channel.avatarUrl ? (
-          <img src={audit.channel.avatarUrl} alt="" className="w-12 h-12 rounded-full object-cover bg-raised" />
+          <img src={audit.channel.avatarUrl} alt={`${audit.channel.title} channel avatar`} width={48} height={48} className="w-12 h-12 rounded-full object-cover bg-raised" />
         ) : (
           <span className="w-12 h-12 rounded-full bg-raised flex items-center justify-center text-fg-3">
             <SquarePlay {...ICON} />
@@ -184,7 +184,7 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
             {audit.outliers.map((o) => (
               <li key={o.id}>
                 <a href={o.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 group">
-                  <img src={o.thumbnailUrl} alt="" loading="lazy" className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0" />
+                  <img src={o.thumbnailUrl} alt={`Thumbnail for ${o.title}`} width={72} height={40} loading="lazy" className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0" />
                   <span className="min-w-0 flex-1">
                     <span className="block text-[13px] leading-5 truncate group-hover:text-accent-ink transition-colors">{o.title}</span>
                     <span className="meta">

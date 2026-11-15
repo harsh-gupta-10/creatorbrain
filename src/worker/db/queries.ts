@@ -52,8 +52,8 @@ export class DBClient {
     ]);
 
     return {
-      nodes: (nodesRes.results as any[]) || [],
-      edges: (edgesRes.results as any[]) || [],
+      nodes: (nodesRes.results as unknown as GraphData['nodes']) || [],
+      edges: (edgesRes.results as unknown as GraphData['edges']) || [],
     };
   }
 
@@ -161,7 +161,7 @@ export class DBClient {
     updates: Partial<Project>
   ): Promise<void> {
     const fields: string[] = [];
-    const values: any[] = [];
+    const values: unknown[] = [];
 
     if (updates.title) {
       fields.push('title = ?');

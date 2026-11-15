@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import { authRoutes } from './routes/auth';
 import { onboardingRoutes } from './routes/onboarding';
 import { studioRoutes } from './routes/studio';
@@ -23,6 +23,9 @@ import { refreshYouTubeContent } from './agents/definitions/onboardingPipeline';
 import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAndCurriculum';
 import type { AppEnv, Env } from './env';
 import { authRateLimit, requireCreator, sameOriginWrites, securityHeaders } from './middleware';
+import { isSafePublicHttpUrl, safePublicHref } from './lib/url-safety';
+import { parseShortLinkCache, serializeShortLinkCache, shortLinkCacheTtl, type CachedShortLink } from './lib/short-link-cache';
+import type { ShortLink } from '../shared/types';
 
 export type { Env };
 
@@ -60,22 +63,37 @@ app.route('/api/chats', chatRoutes);
 // ==========================================
 app.get('/s/:slug', async (c) => {
   const slug = c.req.param('slug');
-  let destinationUrl = '';
+  const dbClient = new DBClient(c.env.DB);
+  let link: ShortLink | CachedShortLink | null = null;
 
-  // 1. Fast KV Lookup
   if (c.env.KV) {
-    const cached = await c.env.KV.get(`link:${slug}`);
-    if (cached) destinationUrl = cached;
+    try {
+      const cached = parseShortLinkCache(await c.env.KV.get(`link:${slug}`));
+      if (cached?.slug === slug) link = cached;
+    } catch {
+      // KV is an optimization; fall back to the D1 source of truth.
+    }
   }
 
-  // 2. Fallback to D1 source of truth
-  const dbClient = new DBClient(c.env.DB);
-  const link = await dbClient.getShortLinkBySlug(slug);
+  if (!link) {
+    const dbLink = await dbClient.getShortLinkBySlug(slug);
+    link = dbLink;
+    if (dbLink && c.env.KV) {
+      const cacheTtl = shortLinkCacheTtl(dbLink.expires_at);
+      if (cacheTtl) {
+        try {
+          await c.env.KV.put(`link:${slug}`, serializeShortLinkCache(dbLink), { expirationTtl: cacheTtl });
+        } catch {
+          // A failed cache write must not prevent a valid redirect.
+        }
+      }
+    }
+  }
 
-  if (!link && !destinationUrl) {
+  if (!link) {
     return c.html(
       `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head><meta charset="UTF-8"><title>Link not found · CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;background:#111214;color:#ededed;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;-webkit-font-smoothing:antialiased}h1{font-size:20px;line-height:28px;font-weight:500}p{margin-top:8px;font-size:14px;line-height:20px;color:#a1a1a6}code{font-family:'Geist Mono',ui-monospace,monospace}a{display:inline-flex;align-items:center;height:36px;margin-top:24px;padding:0 16px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#ededed;font-size:14px;text-decoration:none;transition:background-color 150ms ease}a:hover{background:rgba(255,255,255,0.05)}</style></head>
 <body>
   <main>
@@ -89,11 +107,21 @@ app.get('/s/:slug', async (c) => {
     );
   }
 
-  const target = destinationUrl || link!.destination_url;
+  if (!isSafePublicHttpUrl(link.destination_url)) {
+    await c.env.KV?.delete(`link:${slug}`);
+    return c.text('This short link has an invalid destination.', 410);
+  }
 
-  // 3. Record click analytics via waitUntil (zero latency penalty)
-  if (link) {
-    const cf = (c.req.raw as any).cf || {};
+  if (link.expires_at && Date.parse(link.expires_at) <= Date.now()) {
+    await c.env.KV?.delete(`link:${slug}`);
+    return c.text('This short link has expired.', 410);
+  }
+
+  const target = link.destination_url;
+
+  // Record click analytics via waitUntil (zero latency penalty)
+  {
+    const cf = (c.req.raw as Request & { cf?: { country?: string } }).cf || {};
     const country = cf.country || 'India';
     const userAgent = c.req.header('user-agent') || '';
     const device = /mobile/i.test(userAgent) ? 'Mobile' : 'Desktop';
@@ -113,14 +141,14 @@ app.get('/s/:slug', async (c) => {
     }
   }
 
-  // 4. Transparent 302 redirect
+  // Transparent 302 redirect
   return c.redirect(target, 302);
 });
 
 // ==========================================
 // PUBLIC LINK-IN-BIO PAGE (/@:handle)
 // ==========================================
-const handleBioPage = async (c: any) => {
+const handleBioPage = async (c: Context<AppEnv>) => {
   // The route param is already percent-decoded by Hono, so it starts with a literal '@'
   const handle = String(c.req.param('handle') || '').replace(/^@/, '').toLowerCase();
   if (!handle) return c.text('Not found', 404);
@@ -130,7 +158,7 @@ const handleBioPage = async (c: any) => {
   if (!creator || !bioPage) {
     return c.html(
       `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head><meta charset="UTF-8"><title>Page not found · CreatorBrain</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500&family=Geist+Mono:wght@400&display=swap" rel="stylesheet"><style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Geist',ui-sans-serif,system-ui,-apple-system,sans-serif;background:#111214;color:#ededed;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;-webkit-font-smoothing:antialiased}h1{font-size:20px;line-height:28px;font-weight:500}p{margin-top:8px;font-size:14px;line-height:20px;color:#a1a1a6}code{font-family:'Geist Mono',ui-monospace,monospace}a{display:inline-flex;align-items:center;height:36px;margin-top:24px;padding:0 16px;border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:#ededed;font-size:14px;text-decoration:none;transition:background-color 150ms ease}a:hover{background:rgba(255,255,255,0.05)}</style></head>
 <body>
   <main>
@@ -163,7 +191,9 @@ const handleBioPage = async (c: any) => {
   const arrowSvg =
     '<svg class="arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>';
 
-  // Everything below comes from creators, so escape text and allow only http(s) URLs
+  const origin = new URL(c.req.url).origin;
+
+  // Everything below comes from creators, so escape text and normalize creator-provided URLs.
   const esc = (v: unknown) =>
     String(v ?? '')
       .replace(/&/g, '&amp;')
@@ -171,10 +201,7 @@ const handleBioPage = async (c: any) => {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
-  const safeUrl = (v: unknown) => {
-    const u = String(v ?? '').trim();
-    return /^https?:\/\//i.test(u) || u.startsWith('/') ? esc(u) : '#';
-  };
+  const safeUrl = (v: unknown) => esc(safePublicHref(String(v ?? ''), origin));
 
   const renderedBlocks = activeBlocks
     .map((b) => {
@@ -183,19 +210,19 @@ const handleBioPage = async (c: any) => {
         const href = safeUrl(b.url || prod.product_url);
         return `
       <div class="product">
-        <img src="${safeUrl(prod.image_url)}" alt="${esc(prod.title)}" class="product-img" />
+        <img src="${safeUrl(prod.image_url)}" alt="${esc(prod.title || 'Product')}" width="64" height="64" class="product-img" loading="lazy" />
         <div class="product-info">
           <div class="product-title">${esc(prod.title)}</div>
           <div class="product-price">${esc(prod.price_str)}</div>
           <div class="product-asof">Price as of ${esc(prod.price_timestamp)}</div>
         </div>
-        <a href="${href}" target="_blank" rel="noopener noreferrer sponsored" class="btn-buy" data-block="${esc(b.id)}">Buy</a>
+        <a href="${href}" target="_blank" rel="noopener noreferrer sponsored" class="btn-buy" data-block="${esc(b.id)}" aria-label="Buy ${esc(prod.title)} on Amazon">Buy</a>
       </div>`;
       }
 
       if (b.type === 'link') {
         return `
-      <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer" class="link${b.id === firstLinkId ? ' link-primary' : ''}" data-block="${esc(b.id)}">
+      <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer" class="link${b.id === firstLinkId ? ' link-primary' : ''}" data-block="${esc(b.id)}" aria-label="${esc(b.title || 'Link')}">
         <span class="link-title">${esc(b.title || 'Link')}</span>
         ${arrowSvg}
       </a>`;
@@ -209,7 +236,7 @@ const handleBioPage = async (c: any) => {
           // ignore
         }
         const socialItems = Object.entries(socials)
-          .map(([platform, url]) => `<a href="${safeUrl(url)}" target="_blank" rel="noopener" class="social">${esc(platform)}</a>`)
+          .map(([platform, url]) => `<a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer" class="social" aria-label="Visit ${safeName} on ${esc(platform)}">${esc(platform)}</a>`)
           .join('');
         return `<div class="socials">${socialItems}</div>`;
       }
@@ -234,19 +261,16 @@ const handleBioPage = async (c: any) => {
     .join('\n');
 
   const avatarHtml = creator.avatar_url
-    ? `<img src="${safeUrl(creator.avatar_url)}" alt="${esc(displayName)}" class="avatar" />`
+    ? `<img src="${safeUrl(creator.avatar_url)}" alt="${esc(displayName)} profile photo" width="80" height="80" class="avatar" />`
     : `<div class="avatar avatar-initial" aria-hidden="true">${esc((displayName || '').slice(0, 1))}</div>`;
   const bioText = esc(bioPage.custom_bio || creator.bio || '');
   const safeName = esc(displayName);
   const safeHandle = esc(creator.handle);
-  const origin = new URL(c.req.url).origin;
   const pageUrl = `${origin}/@${encodeURIComponent(creator.handle)}`;
-  // og:image must be absolute; same http(s)-only rule and escaping as the rest of the page
+  // og:image must be absolute; use the same URL validation as creator links.
   const ogImage = (() => {
-    const u = String(creator.avatar_url ?? '').trim();
-    if (/^https?:\/\//i.test(u)) return esc(u);
-    if (u.startsWith('/') && !u.startsWith('//')) return esc(origin + u);
-    return '';
+    const href = safePublicHref(String(creator.avatar_url ?? ''), origin);
+    return href === '#' ? '' : esc(new URL(href, origin).href);
   })();
 
   const html = `<!DOCTYPE html>
@@ -362,7 +386,7 @@ const handleBioPage = async (c: any) => {
 
     <footer class="footer">
       ${hasProducts ? '<p class="disclosure">As an Amazon Associate I earn from qualifying purchases. Prices and availability are accurate as of the date shown and may change.</p>' : ''}
-      <a href="/" class="made-with">Made with CreatorBrain</a>
+      <a href="/" class="made-with" aria-label="Made with CreatorBrain">Made with CreatorBrain</a>
     </footer>
   </div>
 

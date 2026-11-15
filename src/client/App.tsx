@@ -308,7 +308,7 @@ const AppShell: React.FC<{
           </a>
           <div className="mt-2 flex items-center gap-3 px-2 py-2">
             {creator.avatar_url ? (
-              <img src={creator.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover bg-raised" />
+              <img src={creator.avatar_url} alt={`${creator.name}'s profile photo`} width={32} height={32} className="w-8 h-8 rounded-full object-cover bg-raised" />
             ) : (
               <div className="w-8 h-8 rounded-full bg-raised text-fg-2 text-[12px] font-medium flex items-center justify-center">
                 {initials}

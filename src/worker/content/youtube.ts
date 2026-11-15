@@ -184,9 +184,39 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
   const lookup = channelId ? `id=${channelId}` : handle ? `forHandle=${encodeURIComponent(handle)}` : '';
   if (!lookup) throw new ChannelNotFoundError(input);
 
-  const get = async (path: string) => {
+  interface YouTubePlaylistItem {
+    contentDetails: { videoId: string };
+  }
+  interface YouTubeVideoResource {
+    id: string;
+    snippet: {
+      title: string;
+      description?: string;
+      publishedAt: string;
+      tags?: string[];
+      thumbnails?: {
+        maxres?: { url: string };
+        high?: { url: string };
+        medium?: { url: string };
+        default?: { url: string };
+      };
+    };
+    contentDetails?: { duration?: string };
+    statistics?: { viewCount?: string; likeCount?: string; commentCount?: string };
+  }
+  interface YouTubeApiResponse {
+    error?: { message?: string };
+    items?: Array<{
+      id: string;
+      snippet: { title: string; thumbnails?: { high?: { url: string }; default?: { url: string } } };
+      statistics?: { hiddenSubscriberCount?: boolean; subscriberCount?: string };
+      contentDetails: { relatedPlaylists: { uploads: string } };
+    }>;
+  }
+
+  const get = async <T = YouTubeApiResponse>(path: string): Promise<T> => {
     const res = await fetch(`${base}/${path}`, { headers: { 'X-Goog-Api-Key': apiKey } });
-    const data = (await res.json()) as any;
+    const data = (await res.json()) as T & { error?: { message?: string } };
     if (!res.ok) throw new Error(data?.error?.message || `YouTube Data API returned ${res.status}`);
     return data;
   };
@@ -194,9 +224,9 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
   const ch = (await get(`channels?part=snippet,statistics,contentDetails&${lookup}`)).items?.[0];
   if (!ch) throw new ChannelNotFoundError(input);
   const uploads = ch.contentDetails.relatedPlaylists.uploads;
-  const items = (await get(`playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`)).items || [];
-  const ids = items.map((i: any) => i.contentDetails.videoId).join(',');
-  const vids = ids ? (await get(`videos?part=snippet,contentDetails,statistics&id=${ids}`)).items || [] : [];
+  const items = (await get<{ items?: YouTubePlaylistItem[] }>(`playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`)).items || [];
+  const ids = items.map((i) => i.contentDetails.videoId).join(',');
+  const vids = ids ? (await get<{ items?: YouTubeVideoResource[] }>(`videos?part=snippet,contentDetails,statistics&id=${ids}`)).items || [] : [];
 
   return {
     channelId: ch.id,
@@ -204,7 +234,7 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
     url: `https://www.youtube.com/channel/${ch.id}`,
     avatarUrl: ch.snippet.thumbnails?.high?.url || ch.snippet.thumbnails?.default?.url,
     subscribers: ch.statistics?.hiddenSubscriberCount ? undefined : Number(ch.statistics?.subscriberCount || 0),
-    videos: vids.map((v: any) => ({
+    videos: vids.map((v) => ({
       id: v.id,
       title: v.snippet.title,
       description: v.snippet.description || '',
@@ -253,9 +283,27 @@ export async function fetchVideoDetails(videoId: string, preferLang = 'en'): Pro
     }),
   });
   if (!res.ok) throw new Error(`YouTube player returned ${res.status}`);
-  const data = (await res.json()) as any;
+  interface CaptionTrack {
+    baseUrl?: string;
+    languageCode?: string;
+    kind?: string;
+  }
+  interface PlayerResponse {
+    videoDetails?: {
+      lengthSeconds?: string | number;
+      keywords?: string[];
+      shortDescription?: string;
+      viewCount?: string | number;
+    };
+    captions?: {
+      playerCaptionsTracklistRenderer?: {
+        captionTracks?: CaptionTrack[];
+      };
+    };
+  }
+  const data = (await res.json()) as PlayerResponse;
   const vd = data.videoDetails || {};
-  const tracks: any[] = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
+  const tracks: CaptionTrack[] = data.captions?.playerCaptionsTracklistRenderer?.captionTracks || [];
   const pick =
     tracks.find((t) => t.languageCode?.startsWith(preferLang) && t.kind !== 'asr') ||
     tracks.find((t) => t.languageCode?.startsWith(preferLang)) ||

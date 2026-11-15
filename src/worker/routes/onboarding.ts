@@ -158,13 +158,13 @@ onboardingRoutes.post('/study/step', async (c) => {
       .prepare('UPDATE analysis_jobs SET status = ?, current_step = ?, progress_percent = ?, result_json = ?, updated_at = ? WHERE id = ?')
       .bind(next ? 'running' : 'completed', next || 'done', Math.round((stepIndex / STUDY_STEPS.length) * 100), JSON.stringify(results), new Date().toISOString(), jobId)
       .run();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[Study step failed]', step, err);
     const results = JSON.parse(job.result_json || '{}');
     if (err instanceof ChannelNotFoundError) results.errorCode = 'channel_not_found';
     await db
       .prepare("UPDATE analysis_jobs SET status = 'failed', error_message = ?, result_json = ?, updated_at = ? WHERE id = ?")
-      .bind(String(err?.message || 'Study failed'), JSON.stringify(results), new Date().toISOString(), jobId)
+      .bind(err instanceof Error ? err.message : 'Study failed', JSON.stringify(results), new Date().toISOString(), jobId)
       .run();
   }
 
