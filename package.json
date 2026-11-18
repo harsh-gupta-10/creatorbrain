@@ -1,5 +1,5 @@
 {
-  "name": "creatorbrain-app",
+  "name": "creatorbrain",
   "version": "1.0.0",
   "description": "CreatorBrain: an assistant that studies a creator's YouTube and Instagram content and drafts in their voice",
   "type": "module",
