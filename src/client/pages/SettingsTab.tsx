@@ -236,7 +236,9 @@ export const SettingsTab: React.FC = () => {
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-4 px-4 h-11">
               <dt className="text-[13px] text-fg-2">{row.label}</dt>
-              <dd className={`truncate text-right ${row.value ? 'text-fg' : 'text-fg-3'} ${row.mono ? 'font-mono text-[13px]' : ''}`}>
+              <dd
+                className={`truncate text-right ${row.value ? 'text-fg' : 'text-fg-3'} ${row.mono ? 'font-mono text-[13px]' : ''}`}
+              >
                 {row.value || 'Not set'}
               </dd>
             </div>
@@ -286,7 +288,9 @@ export const SettingsTab: React.FC = () => {
                 <div id="amazon-toggle-label" className="font-medium text-fg">
                   Amazon Associates
                 </div>
-                <p id="amazon-toggle-desc" className="mt-1 text-[13px] text-fg-2">Add your tracking ID to product links in scripts and descriptions</p>
+                <p id="amazon-toggle-desc" className="mt-1 text-[13px] text-fg-2">
+                  Add your tracking ID to product links in scripts and descriptions
+                </p>
               </div>
               <button
                 type="button"
@@ -407,7 +411,12 @@ export const SettingsTab: React.FC = () => {
               <label htmlFor="ai-fast" className="field-label">
                 Fast tasks
               </label>
-              <select id="ai-fast" value={preferredFast} onChange={(e) => setPreferredFast(e.target.value)} className="input">
+              <select
+                id="ai-fast"
+                value={preferredFast}
+                onChange={(e) => setPreferredFast(e.target.value)}
+                className="input"
+              >
                 <option value="claude-haiku">Claude Haiku</option>
                 <option value="openai-mini">OpenAI GPT-4o mini</option>
                 <option value="workers-ai">Workers AI</option>
@@ -419,7 +428,12 @@ export const SettingsTab: React.FC = () => {
               <label htmlFor="ai-video" className="field-label">
                 Video analysis
               </label>
-              <select id="ai-video" value={preferredVideo} onChange={(e) => setPreferredVideo(e.target.value)} className="input">
+              <select
+                id="ai-video"
+                value={preferredVideo}
+                onChange={(e) => setPreferredVideo(e.target.value)}
+                className="input"
+              >
                 <option value="gemini">Gemini 1.5 Pro, reads YouTube URLs directly</option>
                 <option value="claude">Claude Sonnet vision</option>
               </select>
@@ -445,7 +459,9 @@ export const SettingsTab: React.FC = () => {
                 className="w-full accent-accent cursor-pointer"
               />
               <div className="mt-1 flex justify-between">
-                <span id="ai-budget-usage" className="meta">Spent today ${(data?.currentDailyUsageUsd || 0).toFixed(2)}</span>
+                <span id="ai-budget-usage" className="meta">
+                  Spent today ${(data?.currentDailyUsageUsd || 0).toFixed(2)}
+                </span>
                 <span className="meta">Max $10.00</span>
               </div>
             </div>
@@ -470,9 +486,14 @@ export const SettingsTab: React.FC = () => {
       >
         <form onSubmit={handleSaveAmazon} className="card p-5 space-y-4">
           <div className="flex items-center gap-2 text-[13px]">
-            <span className={`dot ${data?.amazonConfig.hasCredentials ? 'bg-positive' : 'bg-fg-3'}`} aria-hidden="true" />
+            <span
+              className={`dot ${data?.amazonConfig.hasCredentials ? 'bg-positive' : 'bg-fg-3'}`}
+              aria-hidden="true"
+            />
             <span className="text-fg-2">
-              {data?.amazonConfig.hasCredentials ? 'Keys stored, encrypted' : 'No keys stored, using the sample catalog'}
+              {data?.amazonConfig.hasCredentials
+                ? 'Keys stored, encrypted'
+                : 'No keys stored, using the sample catalog'}
             </span>
           </div>
 
@@ -498,7 +519,12 @@ export const SettingsTab: React.FC = () => {
               <label htmlFor="amz-market" className="field-label">
                 Marketplace
               </label>
-              <select id="amz-market" value={marketplace} onChange={(e) => setMarketplace(e.target.value)} className="input">
+              <select
+                id="amz-market"
+                value={marketplace}
+                onChange={(e) => setMarketplace(e.target.value)}
+                className="input"
+              >
                 {MARKETPLACES.map((m) => (
                   <option key={m} value={m}>
                     {m}

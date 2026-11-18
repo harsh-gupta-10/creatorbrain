@@ -50,7 +50,12 @@ function getKey(secret: string): Promise<CryptoKey> {
     key = (async () => {
       const material = await crypto.subtle.importKey('raw', enc.encode(secret), 'HKDF', false, ['deriveKey']);
       return crypto.subtle.deriveKey(
-        { name: 'HKDF', hash: 'SHA-256', salt: enc.encode('creatorbrain/credentials'), info: enc.encode('aes-gcm-256/v1') },
+        {
+          name: 'HKDF',
+          hash: 'SHA-256',
+          salt: enc.encode('creatorbrain/credentials'),
+          info: enc.encode('aes-gcm-256/v1'),
+        },
         material,
         { name: 'AES-GCM', length: 256 },
         false,

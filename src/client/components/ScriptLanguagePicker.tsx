@@ -56,7 +56,10 @@ export const ScriptLanguagePicker: React.FC<{ compact?: boolean }> = ({ compact 
   const hint = SCRIPT_LANGUAGE_OPTIONS.find((o) => o.value === value)?.hint;
   return (
     <div className={compact ? 'flex items-center gap-2' : ''}>
-      <label htmlFor={id} className={compact ? 'flex items-center gap-1 text-[13px] text-fg-2 whitespace-nowrap' : 'field-label'}>
+      <label
+        htmlFor={id}
+        className={compact ? 'flex items-center gap-1 text-[13px] text-fg-2 whitespace-nowrap' : 'field-label'}
+      >
         {compact && <Languages {...ICON} className="text-fg-3" />}
         Write in
       </label>

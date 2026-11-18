@@ -15,7 +15,6 @@ export async function runProductResearcher(
   db?: D1Database,
   amazonClient: AmazonCreatorsClient = new AmazonCreatorsClient()
 ): Promise<Product | null> {
-
   const tools: AIToolDefinition[] = [
     {
       name: 'searchAmazonProduct',
@@ -282,8 +281,7 @@ export function runComplianceChecker(descriptionText: string): {
   }
 
   // Check 2: Price claims without timestamp
-  const hasPriceMention =
-    lower.includes('₹') || lower.includes('rs') || lower.includes('$') || lower.includes('price');
+  const hasPriceMention = lower.includes('₹') || lower.includes('rs') || lower.includes('$') || lower.includes('price');
   const hasTimestamp =
     lower.includes('as of') ||
     lower.includes('accurate as of') ||
@@ -326,7 +324,11 @@ function extractSection(fullText: string, primaryTag: string, secondaryTag: stri
     }
 
     if (inSection) {
-      if (line.startsWith('## ') || line.startsWith('### ') || (line.startsWith('**') && line.endsWith('**') && line.length < 35)) {
+      if (
+        line.startsWith('## ') ||
+        line.startsWith('### ') ||
+        (line.startsWith('**') && line.endsWith('**') && line.length < 35)
+      ) {
         break;
       }
       sectionLines.push(line);

@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, ChevronLeft, ChevronRight, Pencil, Trash2, Handshake } from 'lucide-react';
 import { api, ApiError, type BrandDeal, type DealInput, type DealStage } from '../lib/api';
-import { PageHeader, Stat, SectionTitle, EmptyState, ErrorNote, Spinner, Dialog, ICON, formatDate } from '../components/ui';
+import {
+  PageHeader,
+  Stat,
+  SectionTitle,
+  EmptyState,
+  ErrorNote,
+  Spinner,
+  Dialog,
+  ICON,
+  formatDate,
+} from '../components/ui';
 
 type Currency = BrandDeal['currency'];
 
@@ -18,7 +28,12 @@ const moneyFormats = new Map<string, Intl.NumberFormat>();
 function money(amount: number, currency: string): string {
   let f = moneyFormats.get(currency);
   if (!f) {
-    f = new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0, minimumFractionDigits: 0 });
+    f = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
     moneyFormats.set(currency, f);
   }
   return f.format(amount || 0);
@@ -52,7 +67,8 @@ function summarize(deals: BrandDeal[]): { total: number; currency: Currency; mix
 }
 
 function errorText(err: unknown, fallback: string): string {
-  if (err instanceof ApiError && err.sample) return 'The sample workspace is read-only. Sign in with your own channel to track deals.';
+  if (err instanceof ApiError && err.sample)
+    return 'The sample workspace is read-only. Sign in with your own channel to track deals.';
   return err instanceof Error && err.message ? err.message : fallback;
 }
 
@@ -159,7 +175,8 @@ export const DealsTab: React.FC = () => {
     setEditing(null);
   };
 
-  const statNote = (s: { mixed: boolean; currency: Currency }) => (s.mixed ? `${s.currency} deals only, other currencies left out` : undefined);
+  const statNote = (s: { mixed: boolean; currency: Currency }) =>
+    s.mixed ? `${s.currency} deals only, other currencies left out` : undefined;
 
   let body: React.ReactNode;
   if (loading) {
@@ -206,7 +223,11 @@ export const DealsTab: React.FC = () => {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              <Stat label="In talks" value={stats.talking} note={stats.talking === 1 ? '1 conversation' : `${stats.talking} conversations`} />
+              <Stat
+                label="In talks"
+                value={stats.talking}
+                note={stats.talking === 1 ? '1 conversation' : `${stats.talking} conversations`}
+              />
               <Stat
                 label="Agreed, not yet posted"
                 value={money(stats.agreed.total, stats.agreed.currency)}
@@ -237,7 +258,11 @@ export const DealsTab: React.FC = () => {
                 const prev = STAGES[i - 1];
                 const next = STAGES[i + 1];
                 return (
-                  <section key={stage.value} aria-label={`${stage.label}, ${items.length} deals`} className="well rounded-[12px] p-3">
+                  <section
+                    key={stage.value}
+                    aria-label={`${stage.label}, ${items.length} deals`}
+                    className="well rounded-[12px] p-3"
+                  >
                     <SectionTitle
                       title={stage.label}
                       meta={<span className="num">{items.length}</span>}
@@ -273,11 +298,21 @@ export const DealsTab: React.FC = () => {
                               )}
                               <div className="mt-3 flex items-center justify-between gap-1">
                                 <div className="flex items-center gap-1">
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditing(d)} aria-label={`Edit ${d.brand}`}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => setEditing(d)}
+                                    aria-label={`Edit ${d.brand}`}
+                                  >
                                     <Pencil {...ICON} />
                                     Edit
                                   </button>
-                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => remove(d)} aria-label={`Delete ${d.brand}`}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-sm"
+                                    onClick={() => remove(d)}
+                                    aria-label={`Delete ${d.brand}`}
+                                  >
                                     <Trash2 {...ICON} />
                                     Delete
                                   </button>
@@ -330,11 +365,7 @@ export const DealsTab: React.FC = () => {
       </div>
       {body}
       {editing && (
-        <DealDialog
-          deal={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onSaved={saved}
-        />
+        <DealDialog deal={editing === 'new' ? null : editing} onClose={() => setEditing(null)} onSaved={saved} />
       )}
     </div>
   );
@@ -382,31 +413,64 @@ const DealDialog: React.FC<{
   const id = (name: string) => `deal-${name}`;
 
   return (
-    <Dialog labelledBy="deal-dialog-title" onClose={onClose} className="card w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto">
+    <Dialog
+      labelledBy="deal-dialog-title"
+      onClose={onClose}
+      className="card w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto"
+    >
       <form onSubmit={submit} className="p-6 flex flex-col gap-4" noValidate>
         <h2 id="deal-dialog-title" className="text-[17px] font-medium text-fg">
           {deal ? `Edit ${deal.brand}` : 'Add deal'}
         </h2>
 
         <div>
-          <label htmlFor={id('brand')} className="field-label">Brand</label>
-          <input id={id('brand')} className="input" required maxLength={80} value={form.brand} onChange={(e) => set('brand', e.target.value)} autoComplete="off" />
+          <label htmlFor={id('brand')} className="field-label">
+            Brand
+          </label>
+          <input
+            id={id('brand')}
+            className="input"
+            required
+            maxLength={80}
+            value={form.brand}
+            onChange={(e) => set('brand', e.target.value)}
+            autoComplete="off"
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor={id('contact')} className="field-label">Contact</label>
-            <input id={id('contact')} className="input" value={form.contact} onChange={(e) => set('contact', e.target.value)} placeholder="Name or email" autoComplete="off" />
+            <label htmlFor={id('contact')} className="field-label">
+              Contact
+            </label>
+            <input
+              id={id('contact')}
+              className="input"
+              value={form.contact}
+              onChange={(e) => set('contact', e.target.value)}
+              placeholder="Name or email"
+              autoComplete="off"
+            />
           </div>
           <div>
-            <label htmlFor={id('deliverable')} className="field-label">Deliverable</label>
-            <input id={id('deliverable')} className="input" value={form.deliverable} onChange={(e) => set('deliverable', e.target.value)} placeholder="60-second integration" />
+            <label htmlFor={id('deliverable')} className="field-label">
+              Deliverable
+            </label>
+            <input
+              id={id('deliverable')}
+              className="input"
+              value={form.deliverable}
+              onChange={(e) => set('deliverable', e.target.value)}
+              placeholder="60-second integration"
+            />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
-            <label htmlFor={id('amount')} className="field-label">Amount</label>
+            <label htmlFor={id('amount')} className="field-label">
+              Amount
+            </label>
             <input
               id={id('amount')}
               className="input num"
@@ -419,18 +483,36 @@ const DealDialog: React.FC<{
             />
           </div>
           <div>
-            <label htmlFor={id('currency')} className="field-label">Currency</label>
-            <select id={id('currency')} className="input" value={form.currency} onChange={(e) => set('currency', e.target.value as Currency)}>
+            <label htmlFor={id('currency')} className="field-label">
+              Currency
+            </label>
+            <select
+              id={id('currency')}
+              className="input"
+              value={form.currency}
+              onChange={(e) => set('currency', e.target.value as Currency)}
+            >
               {CURRENCIES.map((c) => (
-                <option key={c} value={c}>{c}</option>
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label htmlFor={id('stage')} className="field-label">Stage</label>
-            <select id={id('stage')} className="input" value={form.stage} onChange={(e) => set('stage', e.target.value as DealStage)}>
+            <label htmlFor={id('stage')} className="field-label">
+              Stage
+            </label>
+            <select
+              id={id('stage')}
+              className="input"
+              value={form.stage}
+              onChange={(e) => set('stage', e.target.value as DealStage)}
+            >
               {STAGES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
+                <option key={s.value} value={s.value}>
+                  {s.label}
+                </option>
               ))}
             </select>
           </div>
@@ -438,11 +520,21 @@ const DealDialog: React.FC<{
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label htmlFor={id('post')} className="field-label">Post date</label>
-            <input id={id('post')} className="input num" type="date" value={form.post_date} onChange={(e) => set('post_date', e.target.value)} />
+            <label htmlFor={id('post')} className="field-label">
+              Post date
+            </label>
+            <input
+              id={id('post')}
+              className="input num"
+              type="date"
+              value={form.post_date}
+              onChange={(e) => set('post_date', e.target.value)}
+            />
           </div>
           <div>
-            <label htmlFor={id('due')} className="field-label">Payment due</label>
+            <label htmlFor={id('due')} className="field-label">
+              Payment due
+            </label>
             <input
               id={id('due')}
               className="input num"
@@ -451,13 +543,23 @@ const DealDialog: React.FC<{
               onChange={(e) => set('due_date', e.target.value)}
               aria-describedby={id('due-hint')}
             />
-            <p id={id('due-hint')} className="field-hint">Posted deals past this date show as overdue.</p>
+            <p id={id('due-hint')} className="field-hint">
+              Posted deals past this date show as overdue.
+            </p>
           </div>
         </div>
 
         <div>
-          <label htmlFor={id('notes')} className="field-label">Notes</label>
-          <textarea id={id('notes')} className="input min-h-[88px] py-2" rows={3} value={form.notes} onChange={(e) => set('notes', e.target.value)} />
+          <label htmlFor={id('notes')} className="field-label">
+            Notes
+          </label>
+          <textarea
+            id={id('notes')}
+            className="input min-h-[88px] py-2"
+            rows={3}
+            value={form.notes}
+            onChange={(e) => set('notes', e.target.value)}
+          />
         </div>
 
         {error && <ErrorNote>{error}</ErrorNote>}

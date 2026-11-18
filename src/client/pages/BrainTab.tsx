@@ -79,7 +79,9 @@ export const BrainTab: React.FC = () => {
       <div className="space-y-8">
         {/* Graph: the one rich visual on this screen */}
         <section className="panel overflow-hidden" aria-labelledby="brain-graph-heading">
-          <h2 id="brain-graph-heading" className="sr-only">Knowledge graph</h2>
+          <h2 id="brain-graph-heading" className="sr-only">
+            Knowledge graph
+          </h2>
           {loading && graphData.nodes.length === 0 ? (
             <div className="h-[520px] flex items-center justify-center text-fg-3" role="status">
               <Spinner size={16} />
@@ -218,7 +220,10 @@ export const BrainTab: React.FC = () => {
               <SectionTitle title="Recent learnings" meta={learnings.length ? String(learnings.length) : undefined} />
               {learnings.length === 0 ? (
                 <div className="card">
-                  <EmptyState title="No learnings yet" description="New insights appear here as the agents review your content." />
+                  <EmptyState
+                    title="No learnings yet"
+                    description="New insights appear here as the agents review your content."
+                  />
                 </div>
               ) : (
                 <ul className="card divide-y divide-line">

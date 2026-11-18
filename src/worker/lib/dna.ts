@@ -27,6 +27,9 @@ export function creatorDna(creator: Pick<Creator, 'dna_summary' | 'niche' | 'con
       title_patterns: [],
       disclosure_position: 'First three lines of the description',
     },
-    audience: { primary_demographic: `Viewers interested in ${niche}`, buying_intent: 'Unknown until links are tracked' },
+    audience: {
+      primary_demographic: `Viewers interested in ${niche}`,
+      buying_intent: 'Unknown until links are tracked',
+    },
   };
 }

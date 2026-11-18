@@ -51,7 +51,10 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
   const daysSinceLast = Math.floor((now.getTime() - Math.max(...times)) / DAY);
   const gaps = times.slice(0, -1).map((t, i) => (t - times[i + 1]) / DAY);
   const meanGap = gaps.reduce((a, b) => a + b, 0) / Math.max(1, gaps.length);
-  const gapSpread = gaps.length > 1 ? Math.sqrt(gaps.reduce((a, g) => a + (g - meanGap) ** 2, 0) / gaps.length) / Math.max(meanGap, 1) : 0;
+  const gapSpread =
+    gaps.length > 1
+      ? Math.sqrt(gaps.reduce((a, g) => a + (g - meanGap) ** 2, 0) / gaps.length) / Math.max(meanGap, 1)
+      : 0;
 
   const titleLens = videos.map((v) => v.title.length);
   const avgTitle = Math.round(titleLens.reduce((a, b) => a + b, 0) / titleLens.length);
@@ -65,7 +68,9 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
 
   // ---- Category scores ----
   const consistency = clamp(
-    Math.min(uploadsPerMonth / 4, 1) * 55 + (1 - Math.min(gapSpread, 1)) * 25 + (daysSinceLast <= 14 ? 20 : daysSinceLast <= 30 ? 10 : 0)
+    Math.min(uploadsPerMonth / 4, 1) * 55 +
+      (1 - Math.min(gapSpread, 1)) * 25 +
+      (daysSinceLast <= 14 ? 20 : daysSinceLast <= 30 ? 10 : 0)
   );
   const packaging = clamp(
     (avgTitle >= 30 && avgTitle <= 60 ? 45 : avgTitle < 30 ? 30 : Math.max(10, 45 - (avgTitle - 60))) +
@@ -73,9 +78,17 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
       (1 - longShare) * 25
   );
   const reach = clamp(
-    reachRatio === undefined ? 50 : reachRatio >= 0.3 ? 100 : reachRatio >= 0.1 ? 60 + ((reachRatio - 0.1) / 0.2) * 40 : (reachRatio / 0.1) * 60
+    reachRatio === undefined
+      ? 50
+      : reachRatio >= 0.3
+        ? 100
+        : reachRatio >= 0.1
+          ? 60 + ((reachRatio - 0.1) / 0.2) * 40
+          : (reachRatio / 0.1) * 60
   );
-  const momentum = clamp(momentumRatio >= 1.5 ? 100 : momentumRatio >= 1 ? 70 + ((momentumRatio - 1) / 0.5) * 30 : momentumRatio * 70);
+  const momentum = clamp(
+    momentumRatio >= 1.5 ? 100 : momentumRatio >= 1 ? 70 + ((momentumRatio - 1) / 0.5) * 30 : momentumRatio * 70
+  );
 
   const categories: AuditCategory[] = [
     {
@@ -112,7 +125,11 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
 
   // ---- Heatmap ----
   const byDay = WEEKDAYS.map((_, d) => videos.filter((v) => new Date(v.publishedAt).getUTCDay() === d));
-  const heatmap = byDay.map((vs, weekday) => ({ weekday, count: vs.length, medianViews: median(vs.map((v) => v.views)) }));
+  const heatmap = byDay.map((vs, weekday) => ({
+    weekday,
+    count: vs.length,
+    medianViews: median(vs.map((v) => v.views)),
+  }));
 
   // ---- Outliers ----
   const outliers = [...videos]
@@ -134,7 +151,9 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
     consistency: {
       title: 'Pick one upload slot and keep it',
       detail: `You average ${uploadsPerMonth} uploads a month with uneven gaps. ${
-        bestDay ? `${WEEKDAYS[bestDay.weekday]} uploads have your best median (${bestDay.medianViews.toLocaleString('en-US')} views), so try a weekly ${WEEKDAYS[bestDay.weekday]} slot.` : 'A fixed weekly slot helps returning viewers.'
+        bestDay
+          ? `${WEEKDAYS[bestDay.weekday]} uploads have your best median (${bestDay.medianViews.toLocaleString('en-US')} views), so try a weekly ${WEEKDAYS[bestDay.weekday]} slot.`
+          : 'A fixed weekly slot helps returning viewers.'
       }`,
     },
     packaging: {
@@ -155,15 +174,31 @@ export function auditChannel(channel: FetchedChannel, now = new Date()): Channel
       detail: `Your last five uploads are at ${Math.round(momentumRatio * 100)}% of your earlier median. Revisit the topics that performed before your recent dip.`,
     },
   };
-  const fixes = [...categories].sort((a, b) => a.score - b.score).slice(0, 3).map((c) => fixLibrary[c.key]);
+  const fixes = [...categories]
+    .sort((a, b) => a.score - b.score)
+    .slice(0, 3)
+    .map((c) => fixLibrary[c.key]);
 
   return {
-    channel: { id: channel.channelId, title: channel.title, url: channel.url, avatarUrl: channel.avatarUrl, subscribers: channel.subscribers },
+    channel: {
+      id: channel.channelId,
+      title: channel.title,
+      url: channel.url,
+      avatarUrl: channel.avatarUrl,
+      subscribers: channel.subscribers,
+    },
     score,
     categories,
     fixes,
     heatmap,
-    stats: { videos: videos.length, medianViews: med, uploadsPerMonth, daysSinceLastUpload: daysSinceLast, avgTitleLength: avgTitle, numberShare },
+    stats: {
+      videos: videos.length,
+      medianViews: med,
+      uploadsPerMonth,
+      daysSinceLastUpload: daysSinceLast,
+      avgTitleLength: avgTitle,
+      numberShare,
+    },
     outliers,
     generatedAt: now.toISOString(),
   };

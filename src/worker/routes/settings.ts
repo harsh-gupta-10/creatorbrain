@@ -39,7 +39,11 @@ settingsRoutes.get('/', async (c) => {
     currentDailyUsageUsd: usage,
     amazonConfig: describeCredentials(creds),
     creator,
-    monetization: { ...safeJson(creator.monetization_json, {}), partnerTag: creds?.partnerTag || '', marketplace: creds?.marketplace },
+    monetization: {
+      ...safeJson(creator.monetization_json, {}),
+      partnerTag: creds?.partnerTag || '',
+      marketplace: creds?.marketplace,
+    },
     goals: safeJson(creator.goals_json, []),
   });
 });
@@ -88,7 +92,11 @@ settingsRoutes.put('/preferences', async (c) => {
   )
     .bind(scriptLanguage ?? null, contentLanguage ?? null, new Date().toISOString(), creator.id)
     .run();
-  return c.json({ success: true, scriptLanguage: scriptLanguage ?? creator.script_language, contentLanguage: contentLanguage ?? creator.content_language });
+  return c.json({
+    success: true,
+    scriptLanguage: scriptLanguage ?? creator.script_language,
+    contentLanguage: contentLanguage ?? creator.content_language,
+  });
 });
 
 // Update AI provider settings & budget
@@ -104,9 +112,18 @@ settingsRoutes.put('/providers', async (c) => {
 });
 
 const AmazonKeysSchema = z.object({
-  partnerTag: z.string().trim().regex(PARTNER_TAG_RE, 'Tracking IDs use 3 to 40 letters, numbers and dashes').optional(),
+  partnerTag: z
+    .string()
+    .trim()
+    .regex(PARTNER_TAG_RE, 'Tracking IDs use 3 to 40 letters, numbers and dashes')
+    .optional(),
   marketplace: Marketplace.optional(),
-  accessKey: z.string().trim().regex(/^[A-Z0-9]{16,128}$/, 'That access key does not look right').optional().or(z.literal('')),
+  accessKey: z
+    .string()
+    .trim()
+    .regex(/^[A-Z0-9]{16,128}$/, 'That access key does not look right')
+    .optional()
+    .or(z.literal('')),
   secretKey: z.string().trim().min(20, 'That secret key looks too short').max(256).optional().or(z.literal('')),
 });
 

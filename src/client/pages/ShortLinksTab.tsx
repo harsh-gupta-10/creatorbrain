@@ -2,7 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link2, Plus, Copy, Check, ExternalLink, BarChart3, ShieldCheck, X } from 'lucide-react';
 import { api } from '../lib/api';
 import type { ShortLink, LinkClick } from '../../shared/types';
-import { ICON, PageHeader, Stat, SectionTitle, EmptyState, ErrorNote, Spinner, Dialog, formatCount } from '../components/ui';
+import {
+  ICON,
+  PageHeader,
+  Stat,
+  SectionTitle,
+  EmptyState,
+  ErrorNote,
+  Spinner,
+  Dialog,
+  formatCount,
+} from '../components/ui';
 
 const errMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
@@ -76,7 +86,11 @@ const ClicksChart: React.FC<{ clicks: LinkClick[] }> = ({ clicks }) => {
           ))}
         </tbody>
       </table>
-      <div className="flex flex-col justify-between text-right meta !leading-none w-6" style={{ height: chartH }} aria-hidden="true">
+      <div
+        className="flex flex-col justify-between text-right meta !leading-none w-6"
+        style={{ height: chartH }}
+        aria-hidden="true"
+      >
         {ticks.map((t, i) => (
           <span key={i}>{t}</span>
         ))}
@@ -227,10 +241,7 @@ export const ShortLinksTab: React.FC = () => {
 
   const totalClicksAll = links.reduce((acc, l) => acc + (l.total_clicks || 0), 0);
   const avgClicks = links.length ? Math.round(totalClicksAll / links.length) : 0;
-  const topLink = useMemo(
-    () => [...links].sort((a, b) => (b.total_clicks || 0) - (a.total_clicks || 0))[0],
-    [links]
-  );
+  const topLink = useMemo(() => [...links].sort((a, b) => (b.total_clicks || 0) - (a.total_clicks || 0))[0], [links]);
 
   const countries = useMemo(() => breakdown(linkClicks, 'country'), [linkClicks]);
   const devices = useMemo(() => breakdown(linkClicks, 'device'), [linkClicks]);
@@ -293,10 +304,18 @@ export const ShortLinksTab: React.FC = () => {
             <table className="w-full text-left text-[13px]">
               <thead className="text-fg-3 border-b border-line">
                 <tr>
-                  <th scope="col" className="px-4 h-10 font-normal">Short link</th>
-                  <th scope="col" className="px-4 h-10 font-normal">Title and destination</th>
-                  <th scope="col" className="px-4 h-10 font-normal">UTM</th>
-                  <th scope="col" className="px-4 h-10 font-normal text-right">Clicks</th>
+                  <th scope="col" className="px-4 h-10 font-normal">
+                    Short link
+                  </th>
+                  <th scope="col" className="px-4 h-10 font-normal">
+                    Title and destination
+                  </th>
+                  <th scope="col" className="px-4 h-10 font-normal">
+                    UTM
+                  </th>
+                  <th scope="col" className="px-4 h-10 font-normal text-right">
+                    Clicks
+                  </th>
                   <th scope="col" className="px-4 h-10 font-normal text-right">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -312,7 +331,9 @@ export const ShortLinksTab: React.FC = () => {
                           onClick={() => handleCopy(link.slug)}
                           className="btn btn-ghost btn-sm !h-7 !px-2"
                           title="Copy short link"
-                          aria-label={copiedSlug === link.slug ? `Copied /s/${link.slug}` : `Copy short link /s/${link.slug}`}
+                          aria-label={
+                            copiedSlug === link.slug ? `Copied /s/${link.slug}` : `Copy short link /s/${link.slug}`
+                          }
                         >
                           {copiedSlug === link.slug ? (
                             <Check {...ICON} className="text-positive" />
@@ -362,172 +383,180 @@ export const ShortLinksTab: React.FC = () => {
 
       {/* Create short link */}
       {showCreateModal && (
-        <Dialog onClose={() => setShowCreateModal(false)} labelledBy="create-link-title" className="panel w-full max-w-lg p-6" backdropClassName="bg-black/30">
-            <div className="flex items-center justify-between mb-4">
-              <h2 id="create-link-title" className="text-[15px] font-medium text-fg">
-                New short link
-              </h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="btn btn-ghost btn-sm !px-2"
-                aria-label="Close"
-              >
-                <X {...ICON} />
-              </button>
+        <Dialog
+          onClose={() => setShowCreateModal(false)}
+          labelledBy="create-link-title"
+          className="panel w-full max-w-lg p-6"
+          backdropClassName="bg-black/30"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 id="create-link-title" className="text-[15px] font-medium text-fg">
+              New short link
+            </h2>
+            <button onClick={() => setShowCreateModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+              <X {...ICON} />
+            </button>
+          </div>
+
+          <form onSubmit={handleCreate} className="space-y-4">
+            {createError && <ErrorNote>{createError}</ErrorNote>}
+
+            <div>
+              <label className="field-label" htmlFor="sl-dest">
+                Destination URL
+              </label>
+              <input
+                id="sl-dest"
+                type="url"
+                required
+                aria-describedby="sl-dest-hint"
+                value={destUrl}
+                onChange={(e) => setDestUrl(e.target.value)}
+                placeholder="https://www.amazon.in/dp/B0D3G78JKL"
+                className="input"
+              />
+              <p id="sl-dest-hint" className="field-hint">
+                Any public URL, including Amazon product pages
+              </p>
             </div>
 
-            <form onSubmit={handleCreate} className="space-y-4">
-              {createError && <ErrorNote>{createError}</ErrorNote>}
-
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="field-label" htmlFor="sl-dest">
-                  Destination URL
+                <label className="field-label" htmlFor="sl-slug">
+                  Slug <span className="text-fg-3 font-normal">optional</span>
                 </label>
                 <input
-                  id="sl-dest"
-                  type="url"
-                  required
-                  aria-describedby="sl-dest-hint"
-                  value={destUrl}
-                  onChange={(e) => setDestUrl(e.target.value)}
-                  placeholder="https://www.amazon.in/dp/B0D3G78JKL"
+                  id="sl-slug"
+                  type="text"
+                  value={customSlug}
+                  onChange={(e) => setCustomSlug(e.target.value)}
+                  placeholder="edge-50-review"
+                  className="input font-mono"
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="sl-title">
+                  Label
+                </label>
+                <input
+                  id="sl-title"
+                  type="text"
+                  value={linkTitle}
+                  onChange={(e) => setLinkTitle(e.target.value)}
+                  placeholder="Edge 50 review description"
                   className="input"
                 />
-                <p id="sl-dest-hint" className="field-hint">Any public URL, including Amazon product pages</p>
               </div>
+            </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="field-label" htmlFor="sl-slug">
-                    Slug <span className="text-fg-3 font-normal">optional</span>
-                  </label>
-                  <input
-                    id="sl-slug"
-                    type="text"
-                    value={customSlug}
-                    onChange={(e) => setCustomSlug(e.target.value)}
-                    placeholder="edge-50-review"
-                    className="input font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="sl-title">
-                    Label
-                  </label>
-                  <input
-                    id="sl-title"
-                    type="text"
-                    value={linkTitle}
-                    onChange={(e) => setLinkTitle(e.target.value)}
-                    placeholder="Edge 50 review description"
-                    className="input"
-                  />
-                </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="field-label" htmlFor="sl-src">
+                  UTM source
+                </label>
+                <input
+                  id="sl-src"
+                  type="text"
+                  value={utmSource}
+                  onChange={(e) => setUtmSource(e.target.value)}
+                  className="input font-mono"
+                />
               </div>
+              <div>
+                <label className="field-label" htmlFor="sl-med">
+                  UTM medium
+                </label>
+                <input
+                  id="sl-med"
+                  type="text"
+                  value={utmMedium}
+                  onChange={(e) => setUtmMedium(e.target.value)}
+                  className="input font-mono"
+                />
+              </div>
+              <div>
+                <label className="field-label" htmlFor="sl-camp">
+                  UTM campaign
+                </label>
+                <input
+                  id="sl-camp"
+                  type="text"
+                  value={utmCampaign}
+                  onChange={(e) => setUtmCampaign(e.target.value)}
+                  placeholder="edge-50"
+                  className="input font-mono"
+                />
+              </div>
+            </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="field-label" htmlFor="sl-src">
-                    UTM source
-                  </label>
-                  <input
-                    id="sl-src"
-                    type="text"
-                    value={utmSource}
-                    onChange={(e) => setUtmSource(e.target.value)}
-                    className="input font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="sl-med">
-                    UTM medium
-                  </label>
-                  <input
-                    id="sl-med"
-                    type="text"
-                    value={utmMedium}
-                    onChange={(e) => setUtmMedium(e.target.value)}
-                    className="input font-mono"
-                  />
-                </div>
-                <div>
-                  <label className="field-label" htmlFor="sl-camp">
-                    UTM campaign
-                  </label>
-                  <input
-                    id="sl-camp"
-                    type="text"
-                    value={utmCampaign}
-                    onChange={(e) => setUtmCampaign(e.target.value)}
-                    placeholder="edge-50"
-                    className="input font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-ghost">
-                  Cancel
-                </button>
-                <button type="submit" disabled={creating} aria-busy={creating} className="btn btn-primary">
-                  {creating && <Spinner />}
-                  Create link
-                </button>
-              </div>
-            </form>
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setShowCreateModal(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" disabled={creating} aria-busy={creating} className="btn btn-primary">
+                {creating && <Spinner />}
+                Create link
+              </button>
+            </div>
+          </form>
         </Dialog>
       )}
 
       {/* Link analytics */}
       {showStatsModal && selectedLink && (
-        <Dialog onClose={() => setShowStatsModal(false)} labelledBy="stats-title" className="panel w-full max-w-2xl p-6" backdropClassName="bg-black/30">
-            <div className="flex items-start justify-between gap-4 mb-6">
-              <div className="min-w-0">
-                <h2 id="stats-title" className="text-[15px] font-medium text-fg">
-                  <span className="sr-only">Analytics for </span>
-                  <span className="font-mono">/s/{selectedLink.slug}</span>
-                </h2>
-                <p className="text-[13px] text-fg-3 truncate mt-1">{selectedLink.destination_url}</p>
-              </div>
-              <button
-                onClick={() => setShowStatsModal(false)}
-                className="btn btn-ghost btn-sm !px-2 shrink-0"
-                aria-label="Close analytics"
-              >
-                <X {...ICON} />
-              </button>
+        <Dialog
+          onClose={() => setShowStatsModal(false)}
+          labelledBy="stats-title"
+          className="panel w-full max-w-2xl p-6"
+          backdropClassName="bg-black/30"
+        >
+          <div className="flex items-start justify-between gap-4 mb-6">
+            <div className="min-w-0">
+              <h2 id="stats-title" className="text-[15px] font-medium text-fg">
+                <span className="sr-only">Analytics for </span>
+                <span className="font-mono">/s/{selectedLink.slug}</span>
+              </h2>
+              <p className="text-[13px] text-fg-3 truncate mt-1">{selectedLink.destination_url}</p>
             </div>
+            <button
+              onClick={() => setShowStatsModal(false)}
+              className="btn btn-ghost btn-sm !px-2 shrink-0"
+              aria-label="Close analytics"
+            >
+              <X {...ICON} />
+            </button>
+          </div>
 
-            {statsError && (
-              <div className="mb-4">
-                <ErrorNote>{statsError}</ErrorNote>
-              </div>
-            )}
-
-            <div className="flex items-baseline justify-between mb-4">
-              <div className="text-[13px] text-fg-2">Clicks per day, last 14 days</div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-[24px] leading-8 font-medium num text-fg">
-                  {formatCount(selectedLink.total_clicks)}
-                </span>
-                <span className="meta">all time</span>
-              </div>
+          {statsError && (
+            <div className="mb-4">
+              <ErrorNote>{statsError}</ErrorNote>
             </div>
+          )}
 
-            {statsLoading ? (
-              <div className="flex items-center justify-center gap-2 h-40 text-fg-3" role="status">
-                <Spinner />
-                Loading clicks
-              </div>
-            ) : (
-              <ClicksChart clicks={linkClicks} />
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6 pt-6 border-t border-line">
-              <RankedList title="Country" rows={countries} />
-              <RankedList title="Device" rows={devices} />
-              <RankedList title="Referrer" rows={referrers} />
+          <div className="flex items-baseline justify-between mb-4">
+            <div className="text-[13px] text-fg-2">Clicks per day, last 14 days</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-[24px] leading-8 font-medium num text-fg">
+                {formatCount(selectedLink.total_clicks)}
+              </span>
+              <span className="meta">all time</span>
             </div>
+          </div>
+
+          {statsLoading ? (
+            <div className="flex items-center justify-center gap-2 h-40 text-fg-3" role="status">
+              <Spinner />
+              Loading clicks
+            </div>
+          ) : (
+            <ClicksChart clicks={linkClicks} />
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-6 pt-6 border-t border-line">
+            <RankedList title="Country" rows={countries} />
+            <RankedList title="Device" rows={devices} />
+            <RankedList title="Referrer" rows={referrers} />
+          </div>
         </Dialog>
       )}
     </div>

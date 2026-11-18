@@ -93,7 +93,8 @@ export class AmazonCreatorsClient {
 
   constructor(credentials?: AmazonCredentials) {
     this.credentials = credentials;
-    this.marketplace = credentials?.marketplace && HOSTS[credentials.marketplace] ? credentials.marketplace : 'amazon.com';
+    this.marketplace =
+      credentials?.marketplace && HOSTS[credentials.marketplace] ? credentials.marketplace : 'amazon.com';
     this.live = !!(credentials?.accessKey && credentials?.secretKey && credentials?.partnerTag);
   }
 
@@ -158,7 +159,12 @@ export class AmazonCreatorsClient {
         ItemInfo?: { Title?: { DisplayValue?: string }; Features?: { DisplayValues?: string[] } };
         DetailPageURL?: string;
         Images?: { Primary?: { Large?: { URL?: string } } };
-        Offers?: { Listings?: Array<{ Price?: { DisplayAmount?: string; Currency?: string }; Availability?: { Message?: string } }> };
+        Offers?: {
+          Listings?: Array<{
+            Price?: { DisplayAmount?: string; Currency?: string };
+            Availability?: { Message?: string };
+          }>;
+        };
       }
       interface PaapiSearchResponse {
         Errors?: Array<{ Message?: string }>;
@@ -169,29 +175,27 @@ export class AmazonCreatorsClient {
         throw new Error(data?.Errors?.[0]?.Message || `Amazon returned ${res.status}`);
       }
       const now = new Date().toISOString();
-      return (data.SearchResult?.Items || []).map(
-        (item: PaapiItem): Product => {
-          const listing = item.Offers?.Listings?.[0];
-          return {
-            id: `prod_${String(item.ASIN).toLowerCase()}`,
-            creator_id: creatorId,
-            asin: item.ASIN,
-            title: item.ItemInfo?.Title?.DisplayValue || item.ASIN,
-            price_str: listing?.Price?.DisplayAmount || 'See price on Amazon',
-            price_timestamp: this.timestamp(),
-            currency: listing?.Price?.Currency || currency,
-            image_url: item.Images?.Primary?.Large?.URL || '',
-            product_url: item.DetailPageURL || `https://www.${this.marketplace}/dp/${item.ASIN}`,
-            features_json: JSON.stringify(item.ItemInfo?.Features?.DisplayValues || []),
-            specs_json: '{}',
-            pros_cons_json: JSON.stringify({ pros: [], cons: [] }),
-            is_mock: 0,
-            availability: listing?.Availability?.Message || 'Check availability',
-            last_checked_at: now,
-            created_at: now,
-          };
-        }
-      );
+      return (data.SearchResult?.Items || []).map((item: PaapiItem): Product => {
+        const listing = item.Offers?.Listings?.[0];
+        return {
+          id: `prod_${String(item.ASIN).toLowerCase()}`,
+          creator_id: creatorId,
+          asin: item.ASIN,
+          title: item.ItemInfo?.Title?.DisplayValue || item.ASIN,
+          price_str: listing?.Price?.DisplayAmount || 'See price on Amazon',
+          price_timestamp: this.timestamp(),
+          currency: listing?.Price?.Currency || currency,
+          image_url: item.Images?.Primary?.Large?.URL || '',
+          product_url: item.DetailPageURL || `https://www.${this.marketplace}/dp/${item.ASIN}`,
+          features_json: JSON.stringify(item.ItemInfo?.Features?.DisplayValues || []),
+          specs_json: '{}',
+          pros_cons_json: JSON.stringify({ pros: [], cons: [] }),
+          is_mock: 0,
+          availability: listing?.Availability?.Message || 'Check availability',
+          last_checked_at: now,
+          created_at: now,
+        };
+      });
     } catch (err: unknown) {
       this.lastError = err instanceof Error ? err.message : 'Amazon request failed';
       console.warn('[Amazon] live search failed, showing sample catalog:', this.lastError);

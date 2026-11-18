@@ -166,7 +166,12 @@ export const ToolsTab: React.FC = () => {
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <button type="submit" disabled={isGenerating || !topic.trim()} aria-busy={isGenerating} className="btn btn-primary w-full">
+            <button
+              type="submit"
+              disabled={isGenerating || !topic.trim()}
+              aria-busy={isGenerating}
+              className="btn btn-primary w-full"
+            >
               {isGenerating && <Spinner />}
               {isGenerating ? 'Writing' : `Write ${activeLabel.toLowerCase()}`}
             </button>
@@ -179,7 +184,13 @@ export const ToolsTab: React.FC = () => {
               {activeLabel} output
               {savedAt && (
                 <span className="meta font-normal ml-2">
-                  saved {new Date(savedAt).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  saved{' '}
+                  {new Date(savedAt).toLocaleString([], {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
               )}
             </h2>
@@ -194,7 +205,11 @@ export const ToolsTab: React.FC = () => {
           <p className="sr-only" role="status">
             {isGenerating ? `Writing ${activeLabel.toLowerCase()}` : generatedOutput ? `${activeLabel} ready` : ''}
           </p>
-          <div className="flex-1 p-5 overflow-y-auto" tabIndex={generatedOutput ? 0 : undefined} aria-label={`${activeLabel} output`}>
+          <div
+            className="flex-1 p-5 overflow-y-auto"
+            tabIndex={generatedOutput ? 0 : undefined}
+            aria-label={`${activeLabel} output`}
+          >
             {generatedOutput ? (
               <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
                 {generatedOutput}

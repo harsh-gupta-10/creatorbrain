@@ -12,7 +12,10 @@ export class GeminiProvider implements AIProvider {
   }
 
   async generateText(messages: AIMessage[], options?: AIGenerateOptions): Promise<string> {
-    const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+    const system = messages
+      .filter((m) => m.role === 'system')
+      .map((m) => m.content)
+      .join('\n\n');
     const contents = messages
       .filter((m) => m.role !== 'system')
       .map((m) => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }));
@@ -23,11 +26,7 @@ export class GeminiProvider implements AIProvider {
     });
   }
 
-  async generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    options?: AIGenerateOptions
-  ): Promise<T> {
+  async generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, options?: AIGenerateOptions): Promise<T> {
     const promptEnhance: AIMessage = {
       role: 'user',
       content: 'Respond with pure JSON only matching schema, no markdown code blocks.',
@@ -44,7 +43,11 @@ export class GeminiProvider implements AIProvider {
    * Watches a public YouTube video (Gemini accepts YouTube URLs as file input) and
    * optionally a thumbnail image, returning the model's JSON text.
    */
-  async analyzeYouTubeVideo(videoUrl: string, prompt: string, thumbnail?: { mimeType: string; base64: string }): Promise<string> {
+  async analyzeYouTubeVideo(
+    videoUrl: string,
+    prompt: string,
+    thumbnail?: { mimeType: string; base64: string }
+  ): Promise<string> {
     interface GeminiPart {
       file_data?: { file_uri: string };
       inline_data?: { mime_type: string; data: string };
@@ -62,7 +65,9 @@ export class GeminiProvider implements AIProvider {
   /** Describes a single image, returning JSON text */
   async analyzeImage(prompt: string, image: { mimeType: string; base64: string }): Promise<string> {
     return this.call({
-      contents: [{ role: 'user', parts: [{ inline_data: { mime_type: image.mimeType, data: image.base64 } }, { text: prompt }] }],
+      contents: [
+        { role: 'user', parts: [{ inline_data: { mime_type: image.mimeType, data: image.base64 } }, { text: prompt }] },
+      ],
       generationConfig: { responseMimeType: 'application/json', temperature: 0.2 },
     });
   }

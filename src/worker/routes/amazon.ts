@@ -91,7 +91,8 @@ amazonRoutes.post('/build-link', async (c) => {
 
   const { productUrl, customTag } = await c.req.json().catch(() => ({}));
   if (!isAmazonUrl(productUrl)) return c.json({ error: 'Paste an Amazon product URL' }, 400);
-  if (customTag && !/^[\w-]{3,40}$/.test(customTag)) return c.json({ error: 'Tracking IDs use letters, numbers and dashes' }, 400);
+  if (customTag && !/^[\w-]{3,40}$/.test(customTag))
+    return c.json({ error: 'Tracking IDs use letters, numbers and dashes' }, 400);
   const client = await amazonClientFor(c.env.DB, c.env, creator.id);
   const taggedUrl = client.buildAffiliateUrl(productUrl, customTag);
 
@@ -171,7 +172,11 @@ amazonRoutes.post('/health-check', async (c) => {
 
   const client = await amazonClientFor(c.env.DB, c.env, creator.id);
   if (client.isMock()) {
-    return c.json({ success: true, checkedCount: 0, status: 'Add your Amazon API keys in Settings to check live prices and stock' });
+    return c.json({
+      success: true,
+      checkedCount: 0,
+      status: 'Add your Amazon API keys in Settings to check live prices and stock',
+    });
   }
   // Re-query each saved product (bounded to stay under the free tier subrequest limit)
   const now = new Date().toISOString();
@@ -179,13 +184,22 @@ amazonRoutes.post('/health-check', async (c) => {
   for (const p of products.slice(0, 10)) {
     const [fresh] = await client.getItems([p.asin], creator.id);
     if (fresh && !fresh.is_mock) {
-      await dbClient.saveProduct({ ...p, price_str: fresh.price_str, availability: fresh.availability, price_timestamp: fresh.price_timestamp, last_checked_at: now, is_mock: 0 });
+      await dbClient.saveProduct({
+        ...p,
+        price_str: fresh.price_str,
+        availability: fresh.availability,
+        price_timestamp: fresh.price_timestamp,
+        last_checked_at: now,
+        is_mock: 0,
+      });
       checked++;
     }
   }
   return c.json({
     success: true,
     checkedCount: checked,
-    status: client.lastError ? `Amazon returned an error: ${client.lastError}` : `Updated ${checked} of ${products.length} products`,
+    status: client.lastError
+      ? `Amazon returned an error: ${client.lastError}`
+      : `Updated ${checked} of ${products.length} products`,
   });
 });

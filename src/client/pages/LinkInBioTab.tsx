@@ -99,7 +99,13 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
       tabIndex={0}
     >
       {creator?.avatar_url ? (
-        <img src={creator.avatar_url} alt={`${name}'s avatar`} width={64} height={64} className="w-16 h-16 rounded-full object-cover" />
+        <img
+          src={creator.avatar_url}
+          alt={`${name}'s avatar`}
+          width={64}
+          height={64}
+          className="w-16 h-16 rounded-full object-cover"
+        />
       ) : (
         <div
           className="w-16 h-16 rounded-full flex items-center justify-center text-[22px] font-medium"
@@ -159,7 +165,14 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
                 style={{ background: PAGE.raised, border: `1px solid ${PAGE.line}` }}
               >
                 {p?.image_url ? (
-                  <img src={p.image_url} alt={b.title || p?.title || 'Product'} width={48} height={48} loading="lazy" className="w-12 h-12 rounded-[8px] object-contain bg-white p-1 shrink-0" />
+                  <img
+                    src={p.image_url}
+                    alt={b.title || p?.title || 'Product'}
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    className="w-12 h-12 rounded-[8px] object-contain bg-white p-1 shrink-0"
+                  />
                 ) : (
                   <div className="w-12 h-12 rounded-[8px] shrink-0" style={{ background: PAGE.line }} />
                 )}
@@ -190,7 +203,13 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
               }}
             >
               <span className="truncate">{b.title || 'Link'}</span>
-              <ArrowUpRight size={14} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} aria-hidden="true" />
+              <ArrowUpRight
+                size={14}
+                strokeWidth={1.5}
+                className="shrink-0"
+                style={{ color: PAGE.fg2 }}
+                aria-hidden="true"
+              />
             </div>
           );
         })}
@@ -329,7 +348,12 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
               <span className="sr-only">(opens in a new tab)</span>
               <ExternalLink {...ICON} className="text-fg-3" />
             </a>
-            <button onClick={handleSaveChanges} disabled={!bioPage || saving} aria-busy={saving} className="btn btn-primary">
+            <button
+              onClick={handleSaveChanges}
+              disabled={!bioPage || saving}
+              aria-busy={saving}
+              className="btn btn-primary"
+            >
               {saving ? <Spinner /> : savedSuccess ? <Check {...ICON} /> : <Save {...ICON} />}
               {savedSuccess ? 'Saved' : 'Save changes'}
             </button>
@@ -383,7 +407,9 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
               </div>
 
               <div role="group" aria-labelledby="bio-accent-label" aria-describedby="bio-accent-hint">
-                <div id="bio-accent-label" className="field-label">Accent</div>
+                <div id="bio-accent-label" className="field-label">
+                  Accent
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {ACCENTS.map((th) => {
                     const selected = bioPage?.theme === th.id;
@@ -415,7 +441,9 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                     );
                   })}
                 </div>
-                <p id="bio-accent-hint" className="field-hint">Used for your first link and the buy button. The page itself stays dark</p>
+                <p id="bio-accent-hint" className="field-hint">
+                  Used for your first link and the buy button. The page itself stays dark
+                </p>
               </div>
             </div>
           </section>
@@ -448,48 +476,51 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                   {blocks.map((block, idx) => {
                     const blockName = block.title || block.product?.title || blockTypeLabel[block.type];
                     return (
-                    <li key={block.id || idx} className="flex items-center gap-3 px-4 py-3">
-                      <span className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0" aria-hidden="true">
-                        {blockIcon(block.type)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline gap-2 min-w-0">
-                          <span className="text-fg truncate">
-                            {block.title || block.product?.title || blockTypeLabel[block.type]}
-                          </span>
-                          <span className="meta shrink-0">{formatCount(block.clicks_count)} clicks</span>
+                      <li key={block.id || idx} className="flex items-center gap-3 px-4 py-3">
+                        <span
+                          className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0"
+                          aria-hidden="true"
+                        >
+                          {blockIcon(block.type)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-2 min-w-0">
+                            <span className="text-fg truncate">
+                              {block.title || block.product?.title || blockTypeLabel[block.type]}
+                            </span>
+                            <span className="meta shrink-0">{formatCount(block.clicks_count)} clicks</span>
+                          </div>
+                          <p className="text-[12px] leading-4 text-fg-3 truncate mt-1">
+                            {blockTypeLabel[block.type]}
+                            {block.url ? ` · ${block.url}` : ''}
+                          </p>
                         </div>
-                        <p className="text-[12px] leading-4 text-fg-3 truncate mt-1">
-                          {blockTypeLabel[block.type]}
-                          {block.url ? ` · ${block.url}` : ''}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => handleMoveBlock(idx, 'up')}
-                          disabled={idx === 0}
-                          className="btn btn-ghost btn-sm !px-2"
-                          aria-label={`Move ${blockName} up`}
-                        >
-                          <ArrowUp {...ICON} />
-                        </button>
-                        <button
-                          onClick={() => handleMoveBlock(idx, 'down')}
-                          disabled={idx === blocks.length - 1}
-                          className="btn btn-ghost btn-sm !px-2"
-                          aria-label={`Move ${blockName} down`}
-                        >
-                          <ArrowDown {...ICON} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteBlock(idx)}
-                          className="btn btn-ghost btn-sm !px-2 hover:!text-negative"
-                          aria-label={`Delete ${blockName}`}
-                        >
-                          <Trash2 {...ICON} />
-                        </button>
-                      </div>
-                    </li>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => handleMoveBlock(idx, 'up')}
+                            disabled={idx === 0}
+                            className="btn btn-ghost btn-sm !px-2"
+                            aria-label={`Move ${blockName} up`}
+                          >
+                            <ArrowUp {...ICON} />
+                          </button>
+                          <button
+                            onClick={() => handleMoveBlock(idx, 'down')}
+                            disabled={idx === blocks.length - 1}
+                            className="btn btn-ghost btn-sm !px-2"
+                            aria-label={`Move ${blockName} down`}
+                          >
+                            <ArrowDown {...ICON} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteBlock(idx)}
+                            className="btn btn-ghost btn-sm !px-2 hover:!text-negative"
+                            aria-label={`Delete ${blockName}`}
+                          >
+                            <Trash2 {...ICON} />
+                          </button>
+                        </div>
+                      </li>
                     );
                   })}
                 </ul>
@@ -503,7 +534,10 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
         <div className="lg:col-span-5 lg:sticky lg:top-6 flex flex-col items-center">
           <div className="w-[320px] h-[640px] rounded-[44px] p-2 bg-[#1c1d20] shadow-[0_1px_2px_rgb(0_0_0/0.08),0_12px_32px_rgb(0_0_0/0.10)]">
             <div className="relative w-full h-full rounded-[36px] overflow-hidden">
-              <div className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10" aria-hidden="true" />
+              <div
+                className="absolute top-3 left-1/2 -translate-x-1/2 w-20 h-5 rounded-full bg-black z-10"
+                aria-hidden="true"
+              />
               <PhonePreview creator={creator} bioPage={bioPage} blocks={blocks} />
             </div>
           </div>
@@ -513,103 +547,113 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
 
       {/* Add block */}
       {showAddModal && (
-        <Dialog onClose={() => setShowAddModal(false)} labelledBy="add-block-title" className="panel w-full max-w-md p-6" backdropClassName="bg-black/30">
-            <div className="flex items-center justify-between mb-4">
-              <h2 id="add-block-title" className="text-[15px] font-medium text-fg">
+        <Dialog
+          onClose={() => setShowAddModal(false)}
+          labelledBy="add-block-title"
+          className="panel w-full max-w-md p-6"
+          backdropClassName="bg-black/30"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 id="add-block-title" className="text-[15px] font-medium text-fg">
+              Add block
+            </h2>
+            <button onClick={() => setShowAddModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+              <X {...ICON} />
+            </button>
+          </div>
+          <form onSubmit={handleAddBlock} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="nb-type">
+                Type
+              </label>
+              <select
+                id="nb-type"
+                value={newBlockType}
+                onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
+                className="input"
+              >
+                <option value="link">Link</option>
+                <option value="product_card">Product card</option>
+                <option value="social_links">Social links</option>
+                <option value="text">Text</option>
+                <option value="divider">Divider</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="nb-title">
+                Title
+              </label>
+              <input
+                id="nb-title"
+                type="text"
+                required
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Studio gear I use"
+                className="input"
+              />
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="nb-url">
+                URL
+              </label>
+              <input
+                id="nb-url"
+                type="url"
+                value={newUrl}
+                onChange={(e) => setNewUrl(e.target.value)}
+                placeholder="https://"
+                className="input"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
                 Add block
-              </h2>
-              <button onClick={() => setShowAddModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
-                <X {...ICON} />
               </button>
             </div>
-            <form onSubmit={handleAddBlock} className="space-y-4">
-              <div>
-                <label className="field-label" htmlFor="nb-type">
-                  Type
-                </label>
-                <select
-                  id="nb-type"
-                  value={newBlockType}
-                  onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
-                  className="input"
-                >
-                  <option value="link">Link</option>
-                  <option value="product_card">Product card</option>
-                  <option value="social_links">Social links</option>
-                  <option value="text">Text</option>
-                  <option value="divider">Divider</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="field-label" htmlFor="nb-title">
-                  Title
-                </label>
-                <input
-                  id="nb-title"
-                  type="text"
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Studio gear I use"
-                  className="input"
-                />
-              </div>
-
-              <div>
-                <label className="field-label" htmlFor="nb-url">
-                  URL
-                </label>
-                <input
-                  id="nb-url"
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="https://"
-                  className="input"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Add block
-                </button>
-              </div>
-            </form>
+          </form>
         </Dialog>
       )}
 
       {/* QR code */}
       {showQrModal && (
-        <Dialog onClose={() => setShowQrModal(false)} labelledBy="qr-title" className="panel w-full max-w-sm p-6" backdropClassName="bg-black/30">
-            <div className="flex items-center justify-between mb-4">
-              <h2 id="qr-title" className="text-[15px] font-medium text-fg">
-                QR code
-              </h2>
-              <button onClick={() => setShowQrModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
-                <X {...ICON} />
-              </button>
-            </div>
-            <div className="well p-4 flex justify-center">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=192x192&margin=8&data=${encodeURIComponent(fullUrl)}`}
-                alt={`QR code for ${fullUrl}`}
-                width={192}
-                height={192}
-                className="rounded-[4px] bg-white"
-              />
-            </div>
-            <p className="mt-3 text-[13px] text-fg-2">Print it on packaging or show it at the end of a video</p>
-            <div className="mt-4 flex items-center gap-2">
-              <div className="input flex items-center font-mono text-[13px] text-fg-2 truncate">{fullUrl}</div>
-              <button onClick={handleCopyUrl} className="btn btn-secondary shrink-0">
-                {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}
-                <span role="status">{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-            </div>
+        <Dialog
+          onClose={() => setShowQrModal(false)}
+          labelledBy="qr-title"
+          className="panel w-full max-w-sm p-6"
+          backdropClassName="bg-black/30"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 id="qr-title" className="text-[15px] font-medium text-fg">
+              QR code
+            </h2>
+            <button onClick={() => setShowQrModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+              <X {...ICON} />
+            </button>
+          </div>
+          <div className="well p-4 flex justify-center">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=192x192&margin=8&data=${encodeURIComponent(fullUrl)}`}
+              alt={`QR code for ${fullUrl}`}
+              width={192}
+              height={192}
+              className="rounded-[4px] bg-white"
+            />
+          </div>
+          <p className="mt-3 text-[13px] text-fg-2">Print it on packaging or show it at the end of a video</p>
+          <div className="mt-4 flex items-center gap-2">
+            <div className="input flex items-center font-mono text-[13px] text-fg-2 truncate">{fullUrl}</div>
+            <button onClick={handleCopyUrl} className="btn btn-secondary shrink-0">
+              {copied ? <Check {...ICON} className="text-positive" /> : <Copy {...ICON} />}
+              <span role="status">{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+          </div>
         </Dialog>
       )}
     </div>

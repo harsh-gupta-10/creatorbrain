@@ -40,13 +40,13 @@ const ANSWERS: Record<QKey, React.ReactNode> = {
   why: (
     <>
       <p>
-        <strong>One-pan dal for busy weeknights in 20 minutes</strong> reached 112K views, 2.2x your median. Three things
-        stand out against your other uploads:
+        <strong>One-pan dal for busy weeknights in 20 minutes</strong> reached 112K views, 2.2x your median. Three
+        things stand out against your other uploads:
       </p>
       <ol className="mt-3 flex flex-col gap-2">
         <li>
-          <span className="meta mr-2">01</span>The first line is the finished dish: “This is dinner, and it took one pan.” Your
-          lower performers open with an intro
+          <span className="meta mr-2">01</span>The first line is the finished dish: “This is dinner, and it took one
+          pan.” Your lower performers open with an intro
         </li>
         <li>
           <span className="meta mr-2">02</span>The title promises a time, “20 minutes”. 4 of your top 5 uploads do this
@@ -131,7 +131,10 @@ export const AskDemo: React.FC = () => {
           </div>
         </div>
 
-        <figure className="panel overflow-hidden shadow-[0_8px_24px_rgb(0_0_0/0.06)]" aria-label="Example Copilot answer">
+        <figure
+          className="panel overflow-hidden shadow-[0_8px_24px_rgb(0_0_0/0.06)]"
+          aria-label="Example Copilot answer"
+        >
           <div className="h-11 px-4 flex items-center justify-between border-b border-line text-[13px]">
             <span className="font-medium">Copilot</span>
             <span className="text-fg-3">@mayacooks · example</span>
@@ -140,7 +143,10 @@ export const AskDemo: React.FC = () => {
             <div className="self-end max-w-[80%] rounded-[10px] bg-raised px-4 py-2 text-[14px]">
               {QUESTIONS.find((x) => x.value === q)?.label}
             </div>
-            <div className="text-[14px] leading-[22px] text-fg-2 [&_strong]:text-fg [&_strong]:font-medium" aria-live="polite">
+            <div
+              className="text-[14px] leading-[22px] text-fg-2 [&_strong]:text-fg [&_strong]:font-medium"
+              aria-live="polite"
+            >
               {ANSWERS[q]}
             </div>
           </div>
@@ -159,7 +165,10 @@ export const BreakdownShowcase: React.FC = () => (
     <div className={`${WRAP} py-20 md:py-28 grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-center`}>
       <figure className="panel overflow-hidden order-2 md:order-1" aria-label="Example video breakdown">
         <div className="p-5 border-b border-line flex gap-4">
-          <div className="w-[120px] h-[68px] rounded-[8px] bg-[#e7e2d8] shrink-0 relative overflow-hidden" aria-hidden="true">
+          <div
+            className="w-[120px] h-[68px] rounded-[8px] bg-[#e7e2d8] shrink-0 relative overflow-hidden"
+            aria-hidden="true"
+          >
             <div className="absolute inset-x-3 bottom-3 h-3 rounded-[3px] bg-[#c9a227]/70" />
             <div className="absolute left-3 top-3 text-[11px] font-medium text-[#3b2f1e]">ONE PAN</div>
           </div>
@@ -174,7 +183,9 @@ export const BreakdownShowcase: React.FC = () => (
               <span className="text-[13px] text-fg-3">Hook · result first</span>
               <Meter value={0.9} label="Hook strength" />
             </div>
-            <blockquote className="well px-4 py-3 text-[14px]">“This is dinner, and it took one pan. Here's the whole thing.”</blockquote>
+            <blockquote className="well px-4 py-3 text-[14px]">
+              “This is dinner, and it took one pan. Here's the whole thing.”
+            </blockquote>
           </div>
           <ol className="text-[14px]">
             {[
@@ -210,8 +221,8 @@ export const BreakdownShowcase: React.FC = () => (
           Every video, taken apart
         </h2>
         <p className="mt-4 text-fg-2">
-          CreatorBrain reads the transcript of each upload, looks at its thumbnail and writes down what happens and why it
-          worked. You can read all of it in your Library
+          CreatorBrain reads the transcript of each upload, looks at its thumbnail and writes down what happens and why
+          it worked. You can read all of it in your Library
         </p>
         <ul className="mt-6 flex flex-col gap-3 text-[14px]">
           {[
@@ -236,14 +247,26 @@ export const BreakdownShowcase: React.FC = () => (
 // ------------------------------------------------------------------
 
 type ModuleKey = 'studio' | 'library' | 'brain' | 'bio' | 'deals' | 'amazon';
-const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title: string; body: string; rows: [string, string][] }[] = [
+const MODULES: {
+  key: ModuleKey;
+  label: string;
+  icon: typeof Clapperboard;
+  title: string;
+  body: string;
+  rows: [string, string][];
+}[] = [
   {
     key: 'studio',
     label: 'Studio',
     icon: Clapperboard,
     title: 'From idea to every asset for one video',
     body: 'Titles, script outline, description with chapters, pinned comment, Shorts and Reels captions, all drafted from your past uploads',
-    rows: [['Titles', '5 options'], ['Script outline', '6 sections'], ['Description', 'with chapters'], ['Captions', 'Shorts and Reels']],
+    rows: [
+      ['Titles', '5 options'],
+      ['Script outline', '6 sections'],
+      ['Description', 'with chapters'],
+      ['Captions', 'Shorts and Reels'],
+    ],
   },
   {
     key: 'library',
@@ -251,7 +274,12 @@ const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title
     icon: Library,
     title: 'Everything we studied, searchable',
     body: 'Each video and post with its transcript, thumbnail notes and breakdown. Search a phrase across all your transcripts',
-    rows: [['One-pan dal', '112K · studied'], ['Bread, 3 weeks', '61K · studied'], ['Rajma Sunday', '48K · studied'], ['Kitchen tour', 'waiting']],
+    rows: [
+      ['One-pan dal', '112K · studied'],
+      ['Bread, 3 weeks', '61K · studied'],
+      ['Rajma Sunday', '48K · studied'],
+      ['Kitchen tour', 'waiting'],
+    ],
   },
   {
     key: 'brain',
@@ -259,7 +287,12 @@ const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title
     icon: Network,
     title: 'What makes your channel yours',
     body: 'Strengths, gaps, topics and audience learned from your content, linked to the videos that show them',
-    rows: [['Strength', 'Result-first hooks'], ['Gap', 'Descriptions skip ingredients'], ['Topic', 'Weeknight dinners'], ['Audience', 'Busy home cooks']],
+    rows: [
+      ['Strength', 'Result-first hooks'],
+      ['Gap', 'Descriptions skip ingredients'],
+      ['Topic', 'Weeknight dinners'],
+      ['Audience', 'Busy home cooks'],
+    ],
   },
   {
     key: 'bio',
@@ -267,7 +300,12 @@ const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title
     icon: Link2,
     title: 'Your page, and links that count clicks',
     body: 'A public page at your handle plus short links for descriptions, with clicks by country, device and referrer',
-    rows: [['/s/dal-pan', '1,284 clicks'], ['/s/spice-kit', '611 clicks'], ['/@mayacooks', '3,902 views'], ['Top country', 'India']],
+    rows: [
+      ['/s/dal-pan', '1,284 clicks'],
+      ['/s/spice-kit', '611 clicks'],
+      ['/@mayacooks', '3,902 views'],
+      ['Top country', 'India'],
+    ],
   },
   {
     key: 'deals',
@@ -275,7 +313,12 @@ const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title
     icon: Handshake,
     title: 'Sponsorships from first email to paid',
     body: 'A simple pipeline with amounts, post dates and payment due dates, and a nudge when a payment is late',
-    rows: [['Talking', '2 brands'], ['Agreed', '$1,200'], ['Posted', '$600 · 1 overdue'], ['Paid, 90 days', '$2,450']],
+    rows: [
+      ['Talking', '2 brands'],
+      ['Agreed', '$1,200'],
+      ['Posted', '$600 · 1 overdue'],
+      ['Paid, 90 days', '$2,450'],
+    ],
   },
   {
     key: 'amazon',
@@ -283,7 +326,12 @@ const MODULES: { key: ModuleKey; label: string; icon: typeof Clapperboard; title
     icon: ShoppingBag,
     title: 'Affiliate links only if you use them',
     body: 'Links tagged with your own tracking ID, product cards, dated prices and disclosures in the right place. Your keys are encrypted',
-    rows: [['Tracking ID', '••••-21 encrypted'], ['Products', '6 saved'], ['Disclosure', 'first 3 lines'], ['Earnings', 'CSV import']],
+    rows: [
+      ['Tracking ID', '••••-21 encrypted'],
+      ['Products', '6 saved'],
+      ['Disclosure', 'first 3 lines'],
+      ['Earnings', 'CSV import'],
+    ],
   },
 ];
 
@@ -340,8 +388,8 @@ export const AuditSection: React.FC<{ signedIn: boolean }> = ({ signedIn }) => {
               Free channel audit
             </h2>
             <p className="mt-4 text-fg-2 max-w-[460px]">
-              Paste your channel and get a score for consistency, titles, reach and momentum, the day your uploads do best,
-              and three fixes to try next. No account needed
+              Paste your channel and get a score for consistency, titles, reach and momentum, the day your uploads do
+              best, and three fixes to try next. No account needed
             </p>
           </div>
           <AuditForm onResult={setAudit} compact />
@@ -359,10 +407,26 @@ export const AuditSection: React.FC<{ signedIn: boolean }> = ({ signedIn }) => {
 // ------------------------------------------------------------------
 
 const CONTROL = [
-  { icon: EyeOff, title: 'Read-only', body: 'It reads your public uploads and captions. It never posts, comments or messages for you' },
-  { icon: KeyRound, title: 'Your keys stay sealed', body: 'Amazon tracking IDs and API keys are encrypted per creator and never shown back in full' },
-  { icon: ShieldCheck, title: 'Your data is yours', body: 'Transcripts and breakdowns are stored in your workspace only, visible to you alone' },
-  { icon: Trash2, title: 'Delete everything', body: 'One button in Settings removes your account and every row of data we hold' },
+  {
+    icon: EyeOff,
+    title: 'Read-only',
+    body: 'It reads your public uploads and captions. It never posts, comments or messages for you',
+  },
+  {
+    icon: KeyRound,
+    title: 'Your keys stay sealed',
+    body: 'Amazon tracking IDs and API keys are encrypted per creator and never shown back in full',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Your data is yours',
+    body: 'Transcripts and breakdowns are stored in your workspace only, visible to you alone',
+  },
+  {
+    icon: Trash2,
+    title: 'Delete everything',
+    body: 'One button in Settings removes your account and every row of data we hold',
+  },
 ];
 
 export const ControlSection: React.FC = () => (
@@ -400,31 +464,62 @@ export const SiteFooter: React.FC = () => (
       <nav aria-label="Product">
         <h2 className="text-[13px] text-fg-3 mb-3">Product</h2>
         <ul className="flex flex-col gap-2 text-[14px] text-fg-2">
-          <li><a href="#features" className="hover:text-fg">Features</a></li>
-          <li><a href="#how" className="hover:text-fg">How it works</a></li>
-          <li><a href="#faq" className="hover:text-fg">Questions</a></li>
+          <li>
+            <a href="#features" className="hover:text-fg">
+              Features
+            </a>
+          </li>
+          <li>
+            <a href="#how" className="hover:text-fg">
+              How it works
+            </a>
+          </li>
+          <li>
+            <a href="#faq" className="hover:text-fg">
+              Questions
+            </a>
+          </li>
         </ul>
       </nav>
       <nav aria-label="Free tools">
         <h2 className="text-[13px] text-fg-3 mb-3">Free tools</h2>
         <ul className="flex flex-col gap-2 text-[14px] text-fg-2">
-          <li><a {...linkProps('/audit')} className="hover:text-fg">Channel audit</a></li>
-          <li><a {...linkProps('/signup')} className="hover:text-fg">Link in bio page</a></li>
+          <li>
+            <a {...linkProps('/audit')} className="hover:text-fg">
+              Channel audit
+            </a>
+          </li>
+          <li>
+            <a {...linkProps('/signup')} className="hover:text-fg">
+              Link in bio page
+            </a>
+          </li>
         </ul>
       </nav>
       <nav aria-label="Project">
         <h2 className="text-[13px] text-fg-3 mb-3">Project</h2>
         <ul className="flex flex-col gap-2 text-[14px] text-fg-2">
           <li>
-            <a href="https://github.com/harsh-gupta-10/creatorbrain" target="_blank" rel="noreferrer" className="hover:text-fg">
+            <a
+              href="https://github.com/harsh-gupta-10/creatorbrain"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-fg"
+            >
               Source on GitHub<span className="sr-only"> (opens in a new tab)</span>
             </a>
           </li>
-          <li><a {...linkProps('/login')} className="hover:text-fg">Sign in</a></li>
+          <li>
+            <a {...linkProps('/login')} className="hover:text-fg">
+              Sign in
+            </a>
+          </li>
         </ul>
       </nav>
     </div>
-    <div className={`${WRAP} py-6 border-t border-line flex flex-col sm:flex-row gap-2 justify-between text-[12px] text-fg-3`}>
+    <div
+      className={`${WRAP} py-6 border-t border-line flex flex-col sm:flex-row gap-2 justify-between text-[12px] text-fg-3`}
+    >
       <span>Runs on Cloudflare. Reads public data only</span>
       <a {...linkProps('/audit')} className="inline-flex items-center gap-1 hover:text-fg">
         Try the free audit <ArrowRight size={12} strokeWidth={1.5} aria-hidden="true" />

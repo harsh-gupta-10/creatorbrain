@@ -21,16 +21,7 @@ export interface AgentRunResult {
 }
 
 export async function runAgent(options: RunAgentOptions): Promise<AgentRunResult> {
-  const {
-    name,
-    systemPrompt,
-    tools,
-    input,
-    creatorId,
-    maxSteps = 6,
-    router,
-    db,
-  } = options;
+  const { name, systemPrompt, tools, input, creatorId, maxSteps = 6, router, db } = options;
 
   const messages: AIMessage[] = [
     { role: 'system', content: systemPrompt },

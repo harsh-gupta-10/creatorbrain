@@ -19,12 +19,10 @@ bioRoutes.get('/me', async (c) => {
 bioRoutes.put('/page', async (c) => {
   const creator = c.get('creator');
 
-  const { theme, custom_title, custom_bio, accent_color, bg_color, is_published } =
-    await c.req.json();
+  const { theme, custom_title, custom_bio, accent_color, bg_color, is_published } = await c.req.json();
   const dbClient = new DBClient(c.env.DB);
 
-  const existing = await c.env.DB
-    .prepare('SELECT * FROM bio_pages WHERE creator_id = ?')
+  const existing = await c.env.DB.prepare('SELECT * FROM bio_pages WHERE creator_id = ?')
     .bind(creator.id)
     .first<BioPage>();
 
@@ -60,8 +58,7 @@ bioRoutes.put('/blocks', async (c) => {
   const { blocks } = await c.req.json<{ blocks: BioBlock[] }>();
   const dbClient = new DBClient(c.env.DB);
 
-  const page = await c.env.DB
-    .prepare('SELECT id FROM bio_pages WHERE creator_id = ?')
+  const page = await c.env.DB.prepare('SELECT id FROM bio_pages WHERE creator_id = ?')
     .bind(creator.id)
     .first<{ id: string }>();
 
@@ -82,8 +79,9 @@ bioRoutes.put('/blocks', async (c) => {
 // Record block click
 bioRoutes.post('/click/:blockId', async (c) => {
   const blockId = c.req.param('blockId');
-  const block = await c.env.DB
-    .prepare('SELECT b.*, p.creator_id FROM bio_blocks b JOIN bio_pages p ON b.bio_page_id = p.id WHERE b.id = ?')
+  const block = await c.env.DB.prepare(
+    'SELECT b.*, p.creator_id FROM bio_blocks b JOIN bio_pages p ON b.bio_page_id = p.id WHERE b.id = ?'
+  )
     .bind(blockId)
     .first<{ id: string; clicks_count: number; creator_id: string }>();
 
@@ -96,26 +94,22 @@ bioRoutes.post('/click/:blockId', async (c) => {
   const referrer = c.req.header('referer') || 'Direct';
 
   const promise = c.env.DB.batch([
-    c.env.DB
-      .prepare('UPDATE bio_blocks SET clicks_count = clicks_count + 1 WHERE id = ?')
-      .bind(blockId),
-    c.env.DB
-      .prepare(
-        `INSERT INTO link_clicks (
+    c.env.DB.prepare('UPDATE bio_blocks SET clicks_count = clicks_count + 1 WHERE id = ?').bind(blockId),
+    c.env.DB.prepare(
+      `INSERT INTO link_clicks (
           id, bio_block_id, creator_id, country, device, referrer, ip_hash, user_agent, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        `click_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        blockId,
-        block.creator_id,
-        country,
-        device,
-        referrer,
-        'anon',
-        userAgent.slice(0, 100),
-        new Date().toISOString()
-      ),
+    ).bind(
+      `click_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      blockId,
+      block.creator_id,
+      country,
+      device,
+      referrer,
+      'anon',
+      userAgent.slice(0, 100),
+      new Date().toISOString()
+    ),
   ]);
 
   if (c.executionCtx?.waitUntil) {

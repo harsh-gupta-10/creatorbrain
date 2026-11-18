@@ -10,11 +10,11 @@ const WEEKDAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', '
 export const CHANNEL_PLACEHOLDER = 'https://www.youtube.com/@yourhandle';
 
 /** Free channel audit, no account needed. Also embedded on the landing page */
-export const AuditForm: React.FC<{ initial?: string; onResult: (a: ChannelAudit | null) => void; compact?: boolean }> = ({
-  initial = '',
-  onResult,
-  compact,
-}) => {
+export const AuditForm: React.FC<{
+  initial?: string;
+  onResult: (a: ChannelAudit | null) => void;
+  compact?: boolean;
+}> = ({ initial = '', onResult, compact }) => {
   const [channel, setChannel] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -97,7 +97,13 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
     <article className="panel overflow-hidden rise-in" aria-labelledby="audit-title">
       <header className="p-5 md:p-6 border-b border-line flex flex-wrap items-center gap-4">
         {audit.channel.avatarUrl ? (
-          <img src={audit.channel.avatarUrl} alt={`${audit.channel.title} channel avatar`} width={48} height={48} className="w-12 h-12 rounded-full object-cover bg-raised" />
+          <img
+            src={audit.channel.avatarUrl}
+            alt={`${audit.channel.title} channel avatar`}
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded-full object-cover bg-raised"
+          />
         ) : (
           <span className="w-12 h-12 rounded-full bg-raised flex items-center justify-center text-fg-3">
             <SquarePlay {...ICON} />
@@ -157,7 +163,11 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
           <h3 id="audit-heat" className="text-[13px] text-fg-3 mb-4">
             When you post
           </h3>
-          <div className="grid grid-cols-7 gap-2" role="img" aria-label={audit.heatmap.map((h) => `${WEEKDAYS_LONG[h.weekday]}: ${h.count} uploads`).join(', ')}>
+          <div
+            className="grid grid-cols-7 gap-2"
+            role="img"
+            aria-label={audit.heatmap.map((h) => `${WEEKDAYS_LONG[h.weekday]}: ${h.count} uploads`).join(', ')}
+          >
             {audit.heatmap.map((h) => {
               const isBest = best?.weekday === h.weekday;
               const shade = h.count ? 0.15 + (h.count / maxCount) * 0.6 : 0;
@@ -165,7 +175,9 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
                 <div key={h.weekday} className="flex flex-col items-center gap-2">
                   <div
                     className={`w-full aspect-square rounded-[6px] ${isBest ? 'bg-accent' : ''}`}
-                    style={isBest ? undefined : { background: h.count ? `rgb(23 23 23 / ${shade})` : 'var(--color-raised)' }}
+                    style={
+                      isBest ? undefined : { background: h.count ? `rgb(23 23 23 / ${shade})` : 'var(--color-raised)' }
+                    }
                   />
                   <span className="meta">{WEEKDAYS[h.weekday]}</span>
                   <span className="meta">{h.count}</span>
@@ -184,9 +196,18 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
             {audit.outliers.map((o) => (
               <li key={o.id}>
                 <a href={o.url} target="_blank" rel="noreferrer" className="flex items-center gap-3 group">
-                  <img src={o.thumbnailUrl} alt={`Thumbnail for ${o.title}`} width={72} height={40} loading="lazy" className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0" />
+                  <img
+                    src={o.thumbnailUrl}
+                    alt={`Thumbnail for ${o.title}`}
+                    width={72}
+                    height={40}
+                    loading="lazy"
+                    className="w-[72px] h-[40px] rounded-[6px] object-cover bg-raised shrink-0"
+                  />
                   <span className="min-w-0 flex-1">
-                    <span className="block text-[13px] leading-5 truncate group-hover:text-accent-ink transition-colors">{o.title}</span>
+                    <span className="block text-[13px] leading-5 truncate group-hover:text-accent-ink transition-colors">
+                      {o.title}
+                    </span>
                     <span className="meta">
                       {formatCount(o.views)} views · {o.ratio}x median
                     </span>
@@ -216,8 +237,8 @@ export const AuditReport: React.FC<{ audit: ChannelAudit; signedIn: boolean }> =
 
       <footer className="p-5 md:p-6 border-t border-line bg-raised/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <p className="text-[14px] text-fg-2 max-w-[520px]">
-          This audit reads titles, dates and views. With an account, CreatorBrain also studies every video's transcript and
-          thumbnail and drafts your next one in your voice
+          This audit reads titles, dates and views. With an account, CreatorBrain also studies every video's transcript
+          and thumbnail and drafts your next one in your voice
         </p>
         <a {...linkProps(signedIn ? '/app' : '/signup')} className="btn btn-primary shrink-0">
           {signedIn ? 'Open your workspace' : 'Study my channel in depth'}
@@ -234,7 +255,9 @@ export const AuditPage: React.FC<{ session: { creator: Creator | null; isSample:
   const signedIn = !!session.creator && !session.isSample;
 
   useEffect(() => {
-    document.title = audit ? `${audit.channel.title} audit · CreatorBrain` : 'Free YouTube channel audit · CreatorBrain';
+    document.title = audit
+      ? `${audit.channel.title} audit · CreatorBrain`
+      : 'Free YouTube channel audit · CreatorBrain';
   }, [audit]);
 
   return (
@@ -268,7 +291,8 @@ export const AuditPage: React.FC<{ session: { creator: Creator | null; isSample:
           Free YouTube channel audit
         </h1>
         <p className="mt-3 text-[17px] leading-[26px] text-fg-2 max-w-[600px]">
-          A score for consistency, titles, reach and momentum, when you post, your top uploads and three fixes to try next
+          A score for consistency, titles, reach and momentum, when you post, your top uploads and three fixes to try
+          next
         </p>
         <div className="mt-8">
           <AuditForm initial={initial} onResult={setAudit} />

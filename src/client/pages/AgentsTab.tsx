@@ -50,7 +50,12 @@ export const AgentsTab: React.FC = () => {
         title="Agents"
         description="Step-by-step traces of each agent run: what it read, which tool it called and what it returned"
         actions={
-          <button onClick={handleRunAgentsNow} disabled={isRunningAgents} aria-busy={isRunningAgents} className="btn btn-primary">
+          <button
+            onClick={handleRunAgentsNow}
+            disabled={isRunningAgents}
+            aria-busy={isRunningAgents}
+            className="btn btn-primary"
+          >
             {isRunningAgents ? <Spinner /> : <Play {...ICON} />}
             {isRunningAgents ? 'Running' : 'Run agents now'}
           </button>
@@ -72,7 +77,11 @@ export const AgentsTab: React.FC = () => {
         )}
       </div>
 
-      <SectionTitle title="Recent traces" meta={traces.length} action={<span className="meta">Up to 6 steps per run</span>} />
+      <SectionTitle
+        title="Recent traces"
+        meta={traces.length}
+        action={<span className="meta">Up to 6 steps per run</span>}
+      />
 
       {loading && traces.length === 0 ? (
         <div className="card flex items-center justify-center gap-2 py-12 text-fg-3" role="status">
@@ -92,11 +101,7 @@ export const AgentsTab: React.FC = () => {
             <li key={trace.id} className="relative pl-6">
               <span
                 className={`absolute -left-1 top-5 w-2 h-2 rounded-full ring-4 ring-page ${
-                  trace.status === 'success'
-                    ? 'bg-positive'
-                    : trace.status === 'running'
-                    ? 'bg-accent'
-                    : 'bg-negative'
+                  trace.status === 'success' ? 'bg-positive' : trace.status === 'running' ? 'bg-accent' : 'bg-negative'
                 }`}
                 aria-hidden="true"
               />

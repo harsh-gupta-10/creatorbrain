@@ -60,9 +60,33 @@ describe('YouTube channel study', () => {
 
   it('computes stats from real titles and views', () => {
     const stats = computeStats([
-      { id: '1', platform: 'youtube', title: 'One-pan dal in 20 minutes', description: '', views: 112000, likes: 0, published_at: '2026-11-10T00:00:00Z' },
-      { id: '2', platform: 'youtube', title: 'Why is my bread dense?', description: '', views: 48000, likes: 0, published_at: '2026-11-03T00:00:00Z' },
-      { id: '3', platform: 'youtube', title: 'Dal makhani without cream', description: '', views: 52000, likes: 0, published_at: '2026-10-27T00:00:00Z' },
+      {
+        id: '1',
+        platform: 'youtube',
+        title: 'One-pan dal in 20 minutes',
+        description: '',
+        views: 112000,
+        likes: 0,
+        published_at: '2026-11-10T00:00:00Z',
+      },
+      {
+        id: '2',
+        platform: 'youtube',
+        title: 'Why is my bread dense?',
+        description: '',
+        views: 48000,
+        likes: 0,
+        published_at: '2026-11-03T00:00:00Z',
+      },
+      {
+        id: '3',
+        platform: 'youtube',
+        title: 'Dal makhani without cream',
+        description: '',
+        views: 52000,
+        likes: 0,
+        published_at: '2026-10-27T00:00:00Z',
+      },
     ]);
     expect(stats.count).toBe(3);
     expect(stats.medianViews).toBe(52000);
@@ -71,7 +95,6 @@ describe('YouTube channel study', () => {
     expect(stats.questionShare).toBeCloseTo(1 / 3);
   });
 });
-
 
 describe('Free channel audit', () => {
   const day = (d: number) => new Date(Date.UTC(2026, 10, 14) - d * 86400000).toISOString();
@@ -82,7 +105,8 @@ describe('Free channel audit', () => {
     subscribers: 200000,
     videos: Array.from({ length: 12 }, (_, i) => ({
       id: `v${i}`,
-      title: i === 3 ? 'One-pan dal in 20 minutes' : `Weeknight recipe number ${i} that everyone in my family loves to eat`,
+      title:
+        i === 3 ? 'One-pan dal in 20 minutes' : `Weeknight recipe number ${i} that everyone in my family loves to eat`,
       description: '',
       url: `https://www.youtube.com/watch?v=v${i}`,
       thumbnailUrl: '',

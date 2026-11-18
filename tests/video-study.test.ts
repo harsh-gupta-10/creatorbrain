@@ -39,7 +39,11 @@ But</p>
 
 describe('Per-video analysis schema', () => {
   it('fills missing fields without inventing text', () => {
-    const a = VideoAnalysisSchema.parse({ summary: 'Two sentences.', hook: { text: 'Look at this' }, topics: ['phones', null, ''] });
+    const a = VideoAnalysisSchema.parse({
+      summary: 'Two sentences.',
+      hook: { text: 'Look at this' },
+      topics: ['phones', null, ''],
+    });
     expect(a.hook.type).toBe('Unclassified');
     expect(a.hook.note).toBe('');
     expect(a.thumbnail.note).toBe('');

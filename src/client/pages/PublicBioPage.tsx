@@ -123,7 +123,13 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
         {/* Profile */}
         <header className="flex flex-col items-center text-center">
           {creator?.avatar_url ? (
-            <img src={creator.avatar_url} alt={`${name}'s profile photo`} width={80} height={80} className="w-20 h-20 rounded-full object-cover" />
+            <img
+              src={creator.avatar_url}
+              alt={`${name}'s profile photo`}
+              width={80}
+              height={80}
+              className="w-20 h-20 rounded-full object-cover"
+            />
           ) : (
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-[28px] font-medium"
@@ -166,7 +172,13 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
                     {block.title}
                     <span className="sr-only"> (opens in a new tab)</span>
                   </span>
-                  <ArrowUpRight size={16} strokeWidth={1.5} className="shrink-0" style={{ color: PAGE.fg2 }} aria-hidden="true" />
+                  <ArrowUpRight
+                    size={16}
+                    strokeWidth={1.5}
+                    className="shrink-0"
+                    style={{ color: PAGE.fg2 }}
+                    aria-hidden="true"
+                  />
                 </a>
               );
             }
@@ -242,14 +254,25 @@ export const PublicBioPage: React.FC<{ handle?: string }> = ({ handle }) => {
             if (block.type === 'text') {
               const text = parseJson<{ text?: string }>(block.content_json)?.text || block.title;
               return (
-                <p key={block.id} className="px-2 py-1 text-[14px] leading-[22px] text-center" style={{ color: PAGE.fg2 }}>
+                <p
+                  key={block.id}
+                  className="px-2 py-1 text-[14px] leading-[22px] text-center"
+                  style={{ color: PAGE.fg2 }}
+                >
                   {text}
                 </p>
               );
             }
 
             if (block.type === 'divider') {
-              return <hr key={block.id} aria-hidden="true" className="my-2 border-0 h-px" style={{ background: PAGE.line }} />;
+              return (
+                <hr
+                  key={block.id}
+                  aria-hidden="true"
+                  className="my-2 border-0 h-px"
+                  style={{ background: PAGE.line }}
+                />
+              );
             }
 
             return null;

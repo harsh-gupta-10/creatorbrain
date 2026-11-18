@@ -4,7 +4,15 @@ import type { AppEnv } from '../env';
 import { saveAmazonCredentials, MARKETPLACES, PARTNER_TAG_RE } from '../amazon/credentials';
 import { SCRIPT_LANGUAGES } from '../lib/language';
 import { AIRouter } from '../ai/router';
-import { runStudyStep, stepVideo, stepFetch, STUDY_STEPS, STEP_LABELS, computeStats } from '../agents/definitions/onboardingPipeline';
+import {
+  runStudyStep,
+  stepVideo,
+  stepFetch,
+  STUDY_STEPS,
+  STEP_LABELS,
+  computeStats,
+  type ContentRow,
+} from '../agents/definitions/onboardingPipeline';
 import { ChannelNotFoundError } from '../content/youtube';
 import type { AnalysisJob } from '../../shared/types';
 
@@ -45,7 +53,8 @@ onboardingRoutes.post('/profile', async (c) => {
 
   const db = c.env.DB;
   const ts = new Date().toISOString();
-  const platform = p.youtube && (p.instagram || p.instagramCaptions.length) ? 'both' : p.youtube ? 'youtube' : 'instagram';
+  const platform =
+    p.youtube && (p.instagram || p.instagramCaptions.length) ? 'both' : p.youtube ? 'youtube' : 'instagram';
   // The tracking ID is stored encrypted in credentials_encrypted, not in this JSON
   const monetization = { amazon: p.amazon.enabled, marketplace: p.amazon.marketplace, other: p.otherIncome };
 
@@ -56,23 +65,45 @@ onboardingRoutes.post('/profile', async (c) => {
            platform = ?, goals_json = ?, monetization_json = ?, onboarding_status = 'ready', updated_at = ?
          WHERE id = ?`
       )
-      .bind(p.niche, p.language, p.scriptLanguage, p.cadence, p.youtube || null, p.instagram.replace(/^@/, '') || null, platform, JSON.stringify(p.goals), JSON.stringify(monetization), ts, creator.id),
-    db.prepare("DELETE FROM content_items WHERE creator_id = ? AND platform = 'instagram'").bind(creator.id),
-    ...p.instagramCaptions
-      .filter(Boolean)
-      .map((caption, i) =>
-        db
-          .prepare(
-            `INSERT INTO content_items (id, creator_id, platform, external_id, title, description, views, likes, published_at, created_at, updated_at)
-             VALUES (?, ?, 'instagram', ?, ?, ?, 0, 0, ?, ?, ?)`
-          )
-          .bind(`ci_${crypto.randomUUID().slice(0, 12)}`, creator.id, `caption_${i + 1}`, caption.split('\n')[0].slice(0, 120), caption, new Date(Date.now() - i * 86400000).toISOString(), ts, ts)
+      .bind(
+        p.niche,
+        p.language,
+        p.scriptLanguage,
+        p.cadence,
+        p.youtube || null,
+        p.instagram.replace(/^@/, '') || null,
+        platform,
+        JSON.stringify(p.goals),
+        JSON.stringify(monetization),
+        ts,
+        creator.id
       ),
+    db.prepare("DELETE FROM content_items WHERE creator_id = ? AND platform = 'instagram'").bind(creator.id),
+    ...p.instagramCaptions.filter(Boolean).map((caption, i) =>
+      db
+        .prepare(
+          `INSERT INTO content_items (id, creator_id, platform, external_id, title, description, views, likes, published_at, created_at, updated_at)
+             VALUES (?, ?, 'instagram', ?, ?, ?, 0, 0, ?, ?, ?)`
+        )
+        .bind(
+          `ci_${crypto.randomUUID().slice(0, 12)}`,
+          creator.id,
+          `caption_${i + 1}`,
+          caption.split('\n')[0].slice(0, 120),
+          caption,
+          new Date(Date.now() - i * 86400000).toISOString(),
+          ts,
+          ts
+        )
+    ),
   ];
 
   await db.batch(stmts);
   if (p.amazon.enabled) {
-    await saveAmazonCredentials(db, c.env, creator.id, { partnerTag: p.amazon.partnerTag, marketplace: p.amazon.marketplace });
+    await saveAmazonCredentials(db, c.env, creator.id, {
+      partnerTag: p.amazon.partnerTag,
+      marketplace: p.amazon.marketplace,
+    });
   }
   return c.json({ success: true });
 });
@@ -86,7 +117,12 @@ onboardingRoutes.post('/study/start', async (c) => {
   )
     .bind(creator.id, new Date(Date.now() - 10 * 60 * 1000).toISOString())
     .first<{ id: string }>();
-  if (running) return c.json({ success: true, jobId: running.id, steps: STUDY_STEPS.map((s) => ({ id: s, label: STEP_LABELS[s] })) });
+  if (running)
+    return c.json({
+      success: true,
+      jobId: running.id,
+      steps: STUDY_STEPS.map((s) => ({ id: s, label: STEP_LABELS[s] })),
+    });
 
   const jobId = `job_${crypto.randomUUID()}`;
   const ts = new Date().toISOString();
@@ -155,16 +191,32 @@ onboardingRoutes.post('/study/step', async (c) => {
 
     const stepIndex = next ? STUDY_STEPS.indexOf(next as (typeof STUDY_STEPS)[number]) : STUDY_STEPS.length;
     await db
-      .prepare('UPDATE analysis_jobs SET status = ?, current_step = ?, progress_percent = ?, result_json = ?, updated_at = ? WHERE id = ?')
-      .bind(next ? 'running' : 'completed', next || 'done', Math.round((stepIndex / STUDY_STEPS.length) * 100), JSON.stringify(results), new Date().toISOString(), jobId)
+      .prepare(
+        'UPDATE analysis_jobs SET status = ?, current_step = ?, progress_percent = ?, result_json = ?, updated_at = ? WHERE id = ?'
+      )
+      .bind(
+        next ? 'running' : 'completed',
+        next || 'done',
+        Math.round((stepIndex / STUDY_STEPS.length) * 100),
+        JSON.stringify(results),
+        new Date().toISOString(),
+        jobId
+      )
       .run();
   } catch (err: unknown) {
     console.error('[Study step failed]', step, err);
     const results = JSON.parse(job.result_json || '{}');
     if (err instanceof ChannelNotFoundError) results.errorCode = 'channel_not_found';
     await db
-      .prepare("UPDATE analysis_jobs SET status = 'failed', error_message = ?, result_json = ?, updated_at = ? WHERE id = ?")
-      .bind(err instanceof Error ? err.message : 'Study failed', JSON.stringify(results), new Date().toISOString(), jobId)
+      .prepare(
+        "UPDATE analysis_jobs SET status = 'failed', error_message = ?, result_json = ?, updated_at = ? WHERE id = ?"
+      )
+      .bind(
+        err instanceof Error ? err.message : 'Study failed',
+        JSON.stringify(results),
+        new Date().toISOString(),
+        jobId
+      )
       .run();
   }
 
@@ -217,7 +269,7 @@ onboardingRoutes.get('/content', async (c) => {
      FROM content_items WHERE creator_id = ? ORDER BY published_at DESC LIMIT 15`
   )
     .bind(creator.id)
-    .all<any>();
+    .all<ContentRow>();
   const items = results || [];
   const stats = computeStats(items);
   return c.json({

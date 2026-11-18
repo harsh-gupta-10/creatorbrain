@@ -32,11 +32,7 @@ export interface AIGenerateOptions {
 export interface AIProvider {
   name: string;
   generateText(messages: AIMessage[], options?: AIGenerateOptions): Promise<string>;
-  generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    options?: AIGenerateOptions
-  ): Promise<T>;
+  generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, options?: AIGenerateOptions): Promise<T>;
 }
 
 export interface WorkersAIBinding {

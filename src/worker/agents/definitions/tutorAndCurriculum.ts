@@ -104,9 +104,7 @@ export async function runAssessorQuizScoring(options: {
   // If score is 4 or 5 out of 5, reduce gap severity or update node confidence
   if (score >= 4 && gapNodeId) {
     const gapUpdate = await db
-      .prepare(
-        'UPDATE nodes SET confidence = confidence * 0.7, updated_at = ? WHERE id = ? AND creator_id = ?'
-      )
+      .prepare('UPDATE nodes SET confidence = confidence * 0.7, updated_at = ? WHERE id = ? AND creator_id = ?')
       .bind(now, gapNodeId, creatorId)
       .run();
     gapImproved = Boolean(gapUpdate.meta.changes);
@@ -127,14 +125,7 @@ export async function runMemoryCurator(creatorId: string, db: D1Database): Promi
       `INSERT INTO learnings (id, creator_id, title, insight, source_agent, created_at)
        VALUES (?, ?, ?, ?, ?, ?)`
     )
-    .bind(
-      `learn_cron_${Date.now()}`,
-      creatorId,
-      'Weekly Autonomous Synthesis',
-      insight,
-      'Memory Curator',
-      now
-    )
+    .bind(`learn_cron_${Date.now()}`, creatorId, 'Weekly Autonomous Synthesis', insight, 'Memory Curator', now)
     .run();
 
   return insight;

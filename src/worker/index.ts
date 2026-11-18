@@ -24,7 +24,12 @@ import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAnd
 import type { AppEnv, Env } from './env';
 import { authRateLimit, requireCreator, sameOriginWrites, securityHeaders } from './middleware';
 import { isSafePublicHttpUrl, safePublicHref } from './lib/url-safety';
-import { parseShortLinkCache, serializeShortLinkCache, shortLinkCacheTtl, type CachedShortLink } from './lib/short-link-cache';
+import {
+  parseShortLinkCache,
+  serializeShortLinkCache,
+  shortLinkCacheTtl,
+  type CachedShortLink,
+} from './lib/short-link-cache';
 import type { ShortLink } from '../shared/types';
 
 export type { Env };
@@ -150,7 +155,9 @@ app.get('/s/:slug', async (c) => {
 // ==========================================
 const handleBioPage = async (c: Context<AppEnv>) => {
   // The route param is already percent-decoded by Hono, so it starts with a literal '@'
-  const handle = String(c.req.param('handle') || '').replace(/^@/, '').toLowerCase();
+  const handle = String(c.req.param('handle') || '')
+    .replace(/^@/, '')
+    .toLowerCase();
   if (!handle) return c.text('Not found', 404);
   const dbClient = new DBClient(c.env.DB);
   const { creator, bioPage, blocks } = await dbClient.getBioPageWithBlocks(handle);
@@ -236,7 +243,10 @@ const handleBioPage = async (c: Context<AppEnv>) => {
           // ignore
         }
         const socialItems = Object.entries(socials)
-          .map(([platform, url]) => `<a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer" class="social" aria-label="Visit ${safeName} on ${esc(platform)}">${esc(platform)}</a>`)
+          .map(
+            ([platform, url]) =>
+              `<a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer" class="social" aria-label="Visit ${safeName} on ${esc(platform)}">${esc(platform)}</a>`
+          )
           .join('');
         return `<div class="socials">${socialItems}</div>`;
       }
@@ -448,7 +458,9 @@ export default {
           for (const id of await pendingItems(env.DB, row.id, 2)) {
             await analyzeContentItem(env.DB, env, router, id);
           }
-          await env.DB.prepare('UPDATE creators SET last_studied_at = ? WHERE id = ?').bind(new Date().toISOString(), row.id).run();
+          await env.DB.prepare('UPDATE creators SET last_studied_at = ? WHERE id = ?')
+            .bind(new Date().toISOString(), row.id)
+            .run();
           await Promise.all([runOrchestrator(row.id, env.DB), runMemoryCurator(row.id, env.DB)]);
           console.log(`[Cron] Refreshed ${count} uploads for ${row.id}`);
         } catch (err) {

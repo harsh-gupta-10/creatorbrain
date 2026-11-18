@@ -408,7 +408,12 @@ export interface EncryptedCredentials {
 
 export const CreateShortLinkSchema = z.object({
   destination_url: z.string().url(),
-  slug: z.string().min(2).max(64).regex(/^[a-zA-Z0-9_-]+$/, 'Alphanumeric, dashes, and underscores only').optional(),
+  slug: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^[a-zA-Z0-9_-]+$/, 'Alphanumeric, dashes, and underscores only')
+    .optional(),
   title: z.string().max(128).optional(),
   utm_source: z.string().max(64).optional(),
   utm_medium: z.string().max(64).optional(),

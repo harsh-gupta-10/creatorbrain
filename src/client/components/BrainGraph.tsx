@@ -124,7 +124,13 @@ function nodePosition(node: GraphNode): V3 {
   const r = REGIONS[node.type] || REGIONS.Concept;
   let lon = r.lon[0] + hash(node.id, 1) * (r.lon[1] - r.lon[0]);
   const lat = r.lat[0] + hash(node.id, 2) * (r.lat[1] - r.lat[0]);
-  if (!r.side && r.lon[1] - r.lon[0] < 360 && node.type !== 'Video' && hash(node.id, 3) > 0.5 && (node.type === 'Style' || node.type === 'Hook')) {
+  if (
+    !r.side &&
+    r.lon[1] - r.lon[0] < 360 &&
+    node.type !== 'Video' &&
+    hash(node.id, 3) > 0.5 &&
+    (node.type === 'Style' || node.type === 'Hook')
+  ) {
     lon = -lon; // mirror across hemispheres for frontal traits
   }
   return brainSurface(lon, lat, 1.04);
@@ -170,7 +176,8 @@ function buildAnatomy(): Anatomy {
     curves.push({ pts: sylvian, w: 1.8 });
     // Central sulcus: roughly vertical, separating frontal and parietal lobes
     const central: V3[] = [];
-    for (let lat = -5; lat <= 85; lat += 3) central.push(brainSurface(side * (75 + 8 * Math.sin(lat * 0.12)), lat, 1.006));
+    for (let lat = -5; lat <= 85; lat += 3)
+      central.push(brainSurface(side * (75 + 8 * Math.sin(lat * 0.12)), lat, 1.006));
     curves.push({ pts: central, w: 1.4 });
   }
   // Longitudinal fissure along the top, front to back
@@ -183,7 +190,11 @@ function buildAnatomy(): Anatomy {
   curves.push({ pts: fissure, w: 2 });
 
   // Cerebellum: small ellipsoid at the back, underneath, with horizontal folia
-  const cb = (u: number, v: number): V3 => [Math.cos(v) * Math.sin(u) * 0.44, Math.sin(v) * 0.2 - 0.42, Math.cos(v) * Math.cos(u) * 0.28 - 0.66];
+  const cb = (u: number, v: number): V3 => [
+    Math.cos(v) * Math.sin(u) * 0.44,
+    Math.sin(v) * 0.2 - 0.42,
+    Math.cos(v) * Math.cos(u) * 0.28 - 0.66,
+  ];
   for (let i = 0; i < 420; i++) {
     const u = hash(`cb${i}`, 1) * Math.PI * 2;
     const v = (hash(`cb${i}`, 2) - 0.5) * Math.PI;
@@ -225,7 +236,11 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
   const [hovered, setHovered] = useState<GraphNode | null>(null);
   const reducedMotion = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, []);
   const [spinning, setSpinning] = useState(!reducedMotion);
-  const view = useRef({ yaw: -1.15, pitch: 0.22, drag: null as null | { x: number; y: number; yaw: number; pitch: number } });
+  const view = useRef({
+    yaw: -1.15,
+    pitch: 0.22,
+    drag: null as null | { x: number; y: number; yaw: number; pitch: number },
+  });
   const projected = useRef<{ node: GraphNode; x: number; y: number; r: number; depth: number }[]>([]);
 
   const anatomy = useMemo(buildAnatomy, []);
@@ -239,7 +254,9 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
   const neighbors = useMemo(() => {
     const id = selected?.id;
     if (!id) return new Set<string>();
-    return new Set(data.edges.flatMap((e) => (e.source_id === id ? [e.target_id] : e.target_id === id ? [e.source_id] : [])));
+    return new Set(
+      data.edges.flatMap((e) => (e.source_id === id ? [e.target_id] : e.target_id === id ? [e.source_id] : []))
+    );
   }, [selected, data.edges]);
 
   const select = (n: GraphNode | null) => {
@@ -459,7 +476,10 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="relative">
-          <div ref={wrapRef} className="h-[460px] md:h-[540px] relative bg-[radial-gradient(ellipse_at_center,#ffffff_0%,#f4f4f5_70%)]">
+          <div
+            ref={wrapRef}
+            className="h-[460px] md:h-[540px] relative bg-[radial-gradient(ellipse_at_center,#ffffff_0%,#f4f4f5_70%)]"
+          >
             <canvas
               ref={canvasRef}
               className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing touch-none"
@@ -484,7 +504,10 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
           </ul>
         </div>
 
-        <aside className="border-t lg:border-t-0 lg:border-l border-line flex flex-col max-h-[620px]" aria-label="Brain nodes">
+        <aside
+          className="border-t lg:border-t-0 lg:border-l border-line flex flex-col max-h-[620px]"
+          aria-label="Brain nodes"
+        >
           {selected ? (
             <div className="p-4 border-b border-line" role="region" aria-live="polite" aria-label="Selected node">
               <div className="flex items-start justify-between gap-2">
@@ -492,7 +515,11 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
                   <span className="dot" style={{ background: TYPE_COLORS[selected.type] }} aria-hidden="true" />
                   {TYPE_LABEL[selected.type]}
                 </div>
-                <button className="btn btn-ghost btn-sm px-2 h-7" onClick={() => select(null)} aria-label="Close node details">
+                <button
+                  className="btn btn-ghost btn-sm px-2 h-7"
+                  onClick={() => select(null)}
+                  aria-label="Close node details"
+                >
                   <X {...ICON} />
                 </button>
               </div>

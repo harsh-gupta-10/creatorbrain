@@ -15,6 +15,8 @@ chatRoutes.get('/:thread', async (c) => {
 chatRoutes.delete('/:thread', async (c) => {
   const thread = c.req.param('thread');
   if (!THREAD_RE.test(thread)) return c.json({ error: 'Unknown conversation' }, 400);
-  await c.env.DB.prepare('DELETE FROM chat_messages WHERE creator_id = ? AND thread = ?').bind(c.get('creator').id, thread).run();
+  await c.env.DB.prepare('DELETE FROM chat_messages WHERE creator_id = ? AND thread = ?')
+    .bind(c.get('creator').id, thread)
+    .run();
   return c.json({ success: true });
 });

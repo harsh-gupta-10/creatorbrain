@@ -41,7 +41,10 @@ publicRoutes.post('/audit', async (c) => {
     return c.json({ audit, cached: false });
   } catch (err: unknown) {
     if (err instanceof ChannelNotFoundError) {
-      return c.json({ error: `${err.message}. Use a link like https://www.youtube.com/@yourhandle`, code: 'channel_not_found' }, 404);
+      return c.json(
+        { error: `${err.message}. Use a link like https://www.youtube.com/@yourhandle`, code: 'channel_not_found' },
+        404
+      );
     }
     return c.json({ error: err instanceof Error ? err.message : 'The audit failed. Try again in a minute' }, 502);
   }

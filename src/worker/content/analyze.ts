@@ -20,12 +20,19 @@ import { fetchTranscript, fetchVideoDetails, formatTimestamp, type TranscriptSeg
 
 // Missing or null fields become the fallback, never the text "undefined"
 const str = (fallback = '') =>
-  z.preprocess((v) => (v === null || v === undefined ? fallback : typeof v === 'string' ? v : String(v)), z.string()).catch(fallback);
+  z
+    .preprocess((v) => (v === null || v === undefined ? fallback : typeof v === 'string' ? v : String(v)), z.string())
+    .catch(fallback);
 const strList = (max: number) =>
   z
     .array(z.unknown())
     .catch([])
-    .transform((a) => a.filter((v) => v !== null && v !== undefined && v !== '').map(String).slice(0, max));
+    .transform((a) =>
+      a
+        .filter((v) => v !== null && v !== undefined && v !== '')
+        .map(String)
+        .slice(0, max)
+    );
 const score = z.coerce.number().min(0).max(1).catch(0.5);
 
 export const VideoAnalysisSchema = z.object({
@@ -43,9 +50,7 @@ export const VideoAnalysisSchema = z.object({
   calls_to_action: strList(6),
   products_mentioned: strList(10),
   catchphrases: strList(6),
-  title: z
-    .object({ pattern: str(), note: str() })
-    .catch({ pattern: '', note: '' }),
+  title: z.object({ pattern: str(), note: str() }).catch({ pattern: '', note: '' }),
   thumbnail: z
     .object({
       text_overlay: str(),
@@ -134,7 +139,9 @@ const ANALYSIS_SHAPE = `{"summary":"2 sentences","hook":{"text":"the opening lin
 function contextLines(item: ItemRow, medianViews: number, durationSeconds: number, tags: string[]): string {
   return [
     `Title: ${item.title}`,
-    item.platform === 'youtube' ? `Views: ${item.views.toLocaleString('en-US')} (channel median ${medianViews.toLocaleString('en-US')})` : '',
+    item.platform === 'youtube'
+      ? `Views: ${item.views.toLocaleString('en-US')} (channel median ${medianViews.toLocaleString('en-US')})`
+      : '',
     item.likes ? `Likes: ${item.likes.toLocaleString('en-US')}` : '',
     durationSeconds ? `Duration: ${formatTimestamp(durationSeconds)}` : '',
     tags.length ? `Creator tags: ${tags.slice(0, 15).join(', ')}` : '',
@@ -147,7 +154,11 @@ function contextLines(item: ItemRow, medianViews: number, durationSeconds: numbe
 
 /** Breakdown built only from real data when no model is reachable */
 function heuristicAnalysis(item: ItemRow, segs: TranscriptSegment[], medianViews: number): VideoAnalysis {
-  const opening = segs.filter((s) => s.start <= 15).map((s) => s.text).join(' ') || item.title;
+  const opening =
+    segs
+      .filter((s) => s.start <= 15)
+      .map((s) => s.text)
+      .join(' ') || item.title;
   const ratio = medianViews ? item.views / medianViews : 1;
   return VideoAnalysisSchema.parse({
     summary: item.description?.split('\n')[0]?.slice(0, 240) || item.title,
@@ -179,7 +190,12 @@ export interface AnalyzeResult {
   error?: string;
 }
 
-export async function analyzeContentItem(db: D1Database, _env: Env, router: AIRouter, itemId: string): Promise<AnalyzeResult> {
+export async function analyzeContentItem(
+  db: D1Database,
+  _env: Env,
+  router: AIRouter,
+  itemId: string
+): Promise<AnalyzeResult> {
   const item = await db.prepare('SELECT * FROM content_items WHERE id = ?').bind(itemId).first<ItemRow>();
   if (!item) return { status: 'failed', error: 'Content not found' };
 
@@ -219,7 +235,10 @@ export async function analyzeContentItem(db: D1Database, _env: Env, router: AIRo
       }
     } else {
       const text = item.description || item.title;
-      segs = text.split(/\n+/).map((t) => ({ start: 0, text: t.trim() })).filter((s) => s.text);
+      segs = text
+        .split(/\n+/)
+        .map((t) => ({ start: 0, text: t.trim() }))
+        .filter((s) => s.text);
       transcriptSource = 'caption-text';
     }
 
@@ -270,10 +289,13 @@ Return JSON only with this shape: ${ANALYSIS_SHAPE}`,
           .catch(() => '');
       } else if (thumb && gemini) {
         thumbnailNotes = await gemini
-          .analyzeImage('Describe this YouTube thumbnail: text overlay words, face and emotion, main colors, layout. JSON.', {
-            mimeType: thumb.mimeType,
-            base64: toBase64(thumb.bytes),
-          })
+          .analyzeImage(
+            'Describe this YouTube thumbnail: text overlay words, face and emotion, main colors, layout. JSON.',
+            {
+              mimeType: thumb.mimeType,
+              base64: toBase64(thumb.bytes),
+            }
+          )
           .catch(() => '');
       }
 
@@ -283,8 +305,7 @@ Return JSON only with this shape: ${ANALYSIS_SHAPE}`,
             [
               {
                 role: 'system',
-                content:
-                  `You study one piece of a creator's content to learn their style. Quote the transcript where you can. Never invent numbers. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
+                content: `You study one piece of a creator's content to learn their style. Quote the transcript where you can. Never invent numbers. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
               },
               {
                 role: 'user',
@@ -299,7 +320,13 @@ Return JSON with this shape: ${ANALYSIS_SHAPE}`,
             VideoAnalysisSchema,
             { creatorId: item.creator_id, fast: true, maxTokens: 1200, temperature: 0.3 }
           );
-          analyzedBy = providers.claude ? 'claude' : providers.openai ? 'openai' : providers.workersAi ? 'workers-ai' : 'gemini';
+          analyzedBy = providers.claude
+            ? 'claude'
+            : providers.openai
+              ? 'openai'
+              : providers.workersAi
+                ? 'workers-ai'
+                : 'gemini';
         } catch (err) {
           console.warn('[analyze] language model failed, using statistics', err);
         }

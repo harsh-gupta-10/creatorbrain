@@ -30,11 +30,7 @@ export class MockAIProvider implements AIProvider {
     return `Here is the comprehensive content synthesized according to Creator DNA voice and high-velocity pacing. All key product specs and transparent Amazon short links have been populated.`;
   }
 
-  async generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    _options?: AIGenerateOptions
-  ): Promise<T> {
+  async generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, _options?: AIGenerateOptions): Promise<T> {
     const lastMsg = messages[messages.length - 1]?.content.toLowerCase() || '';
 
     // If schema is asking for CreatorDNA
@@ -50,7 +46,8 @@ export class MockAIProvider implements AIProvider {
         },
         visual: {
           thumbnail_palette: ['#FF0055', '#00F0FF', '#111827', '#F59E0B'],
-          composition: 'Subject on left with high key backlight, expressive creator reaction face on right, 3-word bold title card',
+          composition:
+            'Subject on left with high key backlight, expressive creator reaction face on right, 3-word bold title card',
           text_overlay_words: 3,
           contrast: 'High dynamic range with complementary cyan-amber lighting',
         },

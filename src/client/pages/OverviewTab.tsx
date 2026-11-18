@@ -145,7 +145,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
         <Stat
           label="Uploads per month"
           value={stats?.count ? stats.uploadsPerMonth.toFixed(1) : '–'}
-          note={creator?.upload_cadence ? `You aimed for ${cadenceLabel(creator.upload_cadence)}` : 'Based on publish dates'}
+          note={
+            creator?.upload_cadence ? `You aimed for ${cadenceLabel(creator.upload_cadence)}` : 'Based on publish dates'
+          }
         />
         <Stat label="Short link clicks" value={formatCount(totalClicks)} note={`${links.length} active links`} />
         <Stat
@@ -193,12 +195,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
               {insights.map((n) => (
                 <li key={n.id} className="py-3 border-t border-line first:border-t-0 first:pt-1">
                   <div className="flex items-center gap-2">
-                    <span className={`dot ${n.type === 'Strength' ? 'bg-positive' : 'bg-negative'}`} aria-hidden="true" />
+                    <span
+                      className={`dot ${n.type === 'Strength' ? 'bg-positive' : 'bg-negative'}`}
+                      aria-hidden="true"
+                    />
                     <span className="text-[12px] text-fg-3">{n.type === 'Strength' ? 'Strength' : 'To work on'}</span>
                     <Meter value={n.confidence ?? 0.7} className="ml-auto" />
                   </div>
                   <div className="mt-1 text-[14px] text-fg leading-5">{n.label}</div>
-                  {n.description && <div className="mt-[2px] text-[13px] text-fg-2 leading-5 line-clamp-2">{n.description}</div>}
+                  {n.description && (
+                    <div className="mt-[2px] text-[13px] text-fg-2 leading-5 line-clamp-2">{n.description}</div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -218,10 +225,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
             <table className="w-full text-left">
               <thead>
                 <tr className="text-[12px] text-fg-3 border-b border-line">
-                  <th scope="col" className="font-normal px-5 py-2">Title</th>
-                  <th scope="col" className="font-normal px-5 py-2 w-24">Published</th>
-                  <th scope="col" className="font-normal px-5 py-2 w-24 text-right">Views</th>
-                  <th scope="col" className="font-normal px-5 py-2 w-32 text-right">Vs median</th>
+                  <th scope="col" className="font-normal px-5 py-2">
+                    Title
+                  </th>
+                  <th scope="col" className="font-normal px-5 py-2 w-24">
+                    Published
+                  </th>
+                  <th scope="col" className="font-normal px-5 py-2 w-24 text-right">
+                    Views
+                  </th>
+                  <th scope="col" className="font-normal px-5 py-2 w-32 text-right">
+                    Vs median
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -229,7 +244,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                   const ratio = stats?.medianViews ? item.views / stats.medianViews : 0;
                   const pct = Math.round((ratio - 1) * 100);
                   return (
-                    <tr key={item.id} className="border-b border-line last:border-b-0 hover:bg-raised/60 transition-colors">
+                    <tr
+                      key={item.id}
+                      className="border-b border-line last:border-b-0 hover:bg-raised/60 transition-colors"
+                    >
                       <td className="px-5 py-3">
                         <a
                           href={item.url || undefined}
@@ -251,12 +269,16 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                               {item.platform === 'instagram' ? <Camera {...ICON} /> : <SquarePlay {...ICON} />}
                             </span>
                           )}
-                          <span className="truncate text-fg group-hover:text-accent-ink transition-colors">{item.title}</span>
+                          <span className="truncate text-fg group-hover:text-accent-ink transition-colors">
+                            {item.title}
+                          </span>
                           {item.url && <span className="sr-only">(opens in a new tab)</span>}
                         </a>
                       </td>
                       <td className="px-5 py-3 meta">{formatDate(item.published_at)}</td>
-                      <td className="px-5 py-3 text-right num">{item.platform === 'youtube' ? formatCount(item.views) : '–'}</td>
+                      <td className="px-5 py-3 text-right num">
+                        {item.platform === 'youtube' ? formatCount(item.views) : '–'}
+                      </td>
                       <td
                         className={`px-5 py-3 text-right num text-[13px] ${
                           item.platform !== 'youtube' || !stats?.medianViews
@@ -330,12 +352,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
                       <span className="font-mono text-[13px] truncate">/s/{l.slug}</span>
                       <span className="text-[13px] text-fg-2 truncate flex-1">{l.title || l.destination_domain}</span>
                       <span className="meta">{formatCount(l.total_clicks)}</span>
-                      <a href={`/s/${l.slug}`} target="_blank" rel="noreferrer" className="text-fg-3 hover:text-fg" aria-label={`Open /s/${l.slug} in a new tab`}>
+                      <a
+                        href={`/s/${l.slug}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-fg-3 hover:text-fg"
+                        aria-label={`Open /s/${l.slug} in a new tab`}
+                      >
                         <ExternalLink size={14} strokeWidth={1.5} aria-hidden="true" />
                       </a>
                     </div>
                     <div className="mt-2 h-[3px] rounded-full bg-raised overflow-hidden" aria-hidden="true">
-                      <div className="h-full bg-fg-3/60 rounded-full" style={{ width: `${((l.total_clicks || 0) / max) * 100}%` }} />
+                      <div
+                        className="h-full bg-fg-3/60 rounded-full"
+                        style={{ width: `${((l.total_clicks || 0) / max) * 100}%` }}
+                      />
                     </div>
                   </li>
                 );
@@ -390,7 +421,13 @@ const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items,
         {ticks.map((t) => (
           <g key={t}>
             <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="rgb(23 23 23 / 0.06)" />
-            <text x={pad.l - 8} y={y(t) + 4} textAnchor="end" className="fill-fg-3" style={{ font: '11px var(--font-mono)' }}>
+            <text
+              x={pad.l - 8}
+              y={y(t) + 4}
+              textAnchor="end"
+              className="fill-fg-3"
+              style={{ font: '11px var(--font-mono)' }}
+            >
               {formatCount(t)}
             </text>
           </g>
@@ -413,7 +450,13 @@ const ViewsChart: React.FC<{ items: ContentItem[]; median: number }> = ({ items,
                 style={{ transition: 'fill 150ms' }}
               />
               {(i % Math.ceil(data.length / 6) === 0 || isLast) && (
-                <text x={x + w / 2} y={H - 8} textAnchor="middle" className="fill-fg-3" style={{ font: '11px var(--font-mono)' }}>
+                <text
+                  x={x + w / 2}
+                  y={H - 8}
+                  textAnchor="middle"
+                  className="fill-fg-3"
+                  style={{ font: '11px var(--font-mono)' }}
+                >
                   {formatDate(d.published_at)}
                 </text>
               )}

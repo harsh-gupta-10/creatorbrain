@@ -22,10 +22,7 @@ describe('Quality Gate 1: Provider Fallback Chain', () => {
       status: z.string(),
       score: z.number(),
     });
-    const structured = await router.generateStructured(
-      [{ role: 'user', content: 'Output test json' }],
-      schema
-    );
+    const structured = await router.generateStructured([{ role: 'user', content: 'Output test json' }], schema);
     expect(structured.status).toBe('success');
     expect(structured.score).toBe(5);
   });

@@ -102,11 +102,7 @@ export class ClaudeProvider implements AIProvider {
     return textBlock?.text || '';
   }
 
-  async generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    options?: AIGenerateOptions
-  ): Promise<T> {
+  async generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, options?: AIGenerateOptions): Promise<T> {
     const promptEnhancement: AIMessage = {
       role: 'user',
       content:
@@ -119,7 +115,10 @@ export class ClaudeProvider implements AIProvider {
     });
 
     try {
-      const clean = raw.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+      const clean = raw
+        .replace(/^```json\s*/i, '')
+        .replace(/```\s*$/i, '')
+        .trim();
       const parsed = JSON.parse(clean);
       return schema.parse(parsed);
     } catch (e: unknown) {
@@ -140,11 +139,17 @@ export class ClaudeProvider implements AIProvider {
     const anthropicTools = tools.map((t) => {
       // Basic JSON schema conversion from Zod object
       const def = t.parameters._def as { shape?: unknown } | undefined;
-      const shape = (typeof def?.shape === 'function' ? (def.shape as () => Record<string, unknown>)() : (t.parameters.shape as Record<string, unknown>)) || {};
-      const properties: Record<string, any> = {};
+      const shape =
+        (typeof def?.shape === 'function'
+          ? (def.shape as () => Record<string, unknown>)()
+          : (t.parameters.shape as Record<string, unknown>)) || {};
+      const properties: Record<string, { type: string; description: string }> = {};
       const required: string[] = [];
 
-      for (const [key, zodType] of Object.entries(shape) as [string, any][]) {
+      for (const [key, zodType] of Object.entries(shape) as [
+        string,
+        { description?: string; isOptional?: () => boolean },
+      ][]) {
         properties[key] = {
           type: 'string',
           description: zodType.description || key,

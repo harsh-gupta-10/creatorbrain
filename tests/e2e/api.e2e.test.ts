@@ -77,7 +77,10 @@ describe('Auth', () => {
 
   it('validates signup input', async () => {
     const api = client();
-    const res = await api('/api/auth/signup', { method: 'POST', json: { name: 'x', email: 'nope', password: '1', handle: '!' } });
+    const res = await api('/api/auth/signup', {
+      method: 'POST',
+      json: { name: 'x', email: 'nope', password: '1', handle: '!' },
+    });
     expect(res.status).toBe(400);
   });
 
@@ -85,7 +88,9 @@ describe('Auth', () => {
     const api = client();
     const { res } = await signup(api);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { creator: { onboarding_status: string; password_hash?: unknown; password_salt?: unknown } };
+    const body = (await res.json()) as {
+      creator: { onboarding_status: string; password_hash?: unknown; password_salt?: unknown };
+    };
     expect(body.creator.onboarding_status).toBe('profile');
     expect(body.creator.password_hash).toBeUndefined();
     expect(body.creator.password_salt).toBeUndefined();
@@ -111,8 +116,12 @@ describe('Auth', () => {
     const a = client();
     const { email } = await signup(a);
     const b = client();
-    expect((await b('/api/auth/login', { method: 'POST', json: { email, password: 'wrong-password' } })).status).toBe(401);
-    expect((await b('/api/auth/login', { method: 'POST', json: { email, password: 'correct-horse-9' } })).status).toBe(200);
+    expect((await b('/api/auth/login', { method: 'POST', json: { email, password: 'wrong-password' } })).status).toBe(
+      401
+    );
+    expect((await b('/api/auth/login', { method: 'POST', json: { email, password: 'correct-horse-9' } })).status).toBe(
+      200
+    );
     expect((await b('/api/studio/projects')).status).toBe(200);
     await b('/api/auth/logout', { method: 'POST' });
     expect((await b('/api/studio/projects')).status).toBe(401);
@@ -124,7 +133,10 @@ describe('Request safety', () => {
     const api = client('10.9.9.9');
     const statuses: number[] = [];
     for (let i = 0; i < 12; i++) {
-      const res = await api('/api/auth/login', { method: 'POST', json: { email: 'nobody@example.com', password: 'wrong-password' } });
+      const res = await api('/api/auth/login', {
+        method: 'POST',
+        json: { email: 'nobody@example.com', password: 'wrong-password' },
+      });
       statuses.push(res.status);
     }
     expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
@@ -208,7 +220,10 @@ describe('Onboarding', () => {
   it('requires something to study', async () => {
     const api = client();
     await signup(api);
-    const res = await api('/api/onboarding/profile', { method: 'POST', json: { niche: 'Cooking', youtube: '', instagramCaptions: [] } });
+    const res = await api('/api/onboarding/profile', {
+      method: 'POST',
+      json: { niche: 'Cooking', youtube: '', instagramCaptions: [] },
+    });
     expect(res.status).toBe(400);
   });
 
@@ -246,7 +261,10 @@ describe('Study in the app', () => {
   it('opens the app right after setup and lets the creator fix the channel link', async () => {
     const api = client();
     await signup(api);
-    await api('/api/onboarding/profile', { method: 'POST', json: { niche: 'Cooking', instagramCaptions: ['Weeknight dal'] } });
+    await api('/api/onboarding/profile', {
+      method: 'POST',
+      json: { niche: 'Cooking', instagramCaptions: ['Weeknight dal'] },
+    });
     const me = (await (await api('/api/auth/me')).json()) as { creator: { onboarding_status: string } };
     expect(me.creator.onboarding_status).toBe('ready');
 
@@ -254,12 +272,17 @@ describe('Study in the app', () => {
     const second = (await (await api('/api/onboarding/study/start', { method: 'POST' })).json()) as { jobId: string };
     expect(second.jobId).toBe(first.jobId); // no duplicate studies
 
-    const active = (await (await api('/api/onboarding/study/active')).json()) as { job: { id: string; status: string } };
+    const active = (await (await api('/api/onboarding/study/active')).json()) as {
+      job: { id: string; status: string };
+    };
     expect(active.job.id).toBe(first.jobId);
     expect(active.job.status).toBe('running');
 
     expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: '' } })).status).toBe(400);
-    expect((await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: 'https://www.youtube.com/@someone' } })).status).toBe(200);
+    expect(
+      (await api('/api/onboarding/channel', { method: 'PUT', json: { youtube: 'https://www.youtube.com/@someone' } }))
+        .status
+    ).toBe(200);
     const after = (await (await api('/api/auth/me')).json()) as { creator: { youtube_input: string } };
     expect(after.creator.youtube_input).toBe('https://www.youtube.com/@someone');
   });
@@ -277,7 +300,9 @@ describe('Brand deals', () => {
     expect(created.status).toBe(201);
     const { deal } = (await created.json()) as { deal: { id: string } };
 
-    const paid = (await (await api(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'paid' } })).json()) as { deal: { stage: string; paid_at: string | null } };
+    const paid = (await (await api(`/api/deals/${deal.id}`, { method: 'PATCH', json: { stage: 'paid' } })).json()) as {
+      deal: { stage: string; paid_at: string | null };
+    };
     expect(paid.deal.stage).toBe('paid');
     expect(paid.deal.paid_at).toBeTruthy();
 
@@ -295,8 +320,12 @@ describe('Writing preferences', () => {
   it('saves the script language and rejects unknown values', async () => {
     const api = client();
     await signup(api);
-    expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'klingon' } })).status).toBe(400);
-    expect((await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'hinglish' } })).status).toBe(200);
+    expect(
+      (await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'klingon' } })).status
+    ).toBe(400);
+    expect(
+      (await api('/api/settings/preferences', { method: 'PUT', json: { scriptLanguage: 'hinglish' } })).status
+    ).toBe(200);
     const me = (await (await api('/api/auth/me')).json()) as { creator: { script_language: string } };
     expect(me.creator.script_language).toBe('hinglish');
   });
@@ -330,7 +359,12 @@ describe('Amazon credentials', () => {
     await signup(api);
     const save = await api('/api/settings/amazon', {
       method: 'PUT',
-      json: { partnerTag: 'maya-20', marketplace: 'amazon.com', accessKey: FAKE_ACCESS_KEY, secretKey: FAKE_SECRET_KEY },
+      json: {
+        partnerTag: 'maya-20',
+        marketplace: 'amazon.com',
+        accessKey: FAKE_ACCESS_KEY,
+        secretKey: FAKE_SECRET_KEY,
+      },
     });
     expect(save.status).toBe(200);
     const saved = (await save.json()) as { hasCredentials: boolean; accessKeyHint: string };
@@ -343,7 +377,10 @@ describe('Amazon credentials', () => {
     expect(JSON.stringify(settings)).not.toContain(FAKE_SECRET_KEY);
 
     const link = (await (
-      await api('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'https://www.amazon.com/dp/B000000001' } })
+      await api('/api/amazon/build-link', {
+        method: 'POST',
+        json: { productUrl: 'https://www.amazon.com/dp/B000000001' },
+      })
     ).json()) as { taggedUrl: string };
     expect(link.taggedUrl).toBe('https://www.amazon.com/dp/B000000001?tag=maya-20');
   });
@@ -351,14 +388,21 @@ describe('Amazon credentials', () => {
   it('rejects half a key pair and non-Amazon links', async () => {
     const api = client();
     await signup(api);
-    expect((await api('/api/settings/amazon', { method: 'PUT', json: { accessKey: FAKE_ACCESS_KEY } })).status).toBe(400);
-    expect((await api('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'https://evil.example/x' } })).status).toBe(400);
+    expect((await api('/api/settings/amazon', { method: 'PUT', json: { accessKey: FAKE_ACCESS_KEY } })).status).toBe(
+      400
+    );
+    expect(
+      (await api('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'https://evil.example/x' } })).status
+    ).toBe(400);
   });
 
   it("keeps each creator's tracking ID private to them", async () => {
     const a = client();
     await signup(a);
-    await a('/api/settings/monetization', { method: 'PUT', json: { amazon: true, partnerTag: 'alpha-20', marketplace: 'amazon.com' } });
+    await a('/api/settings/monetization', {
+      method: 'PUT',
+      json: { amazon: true, partnerTag: 'alpha-20', marketplace: 'amazon.com' },
+    });
     const b = client();
     await signup(b);
     const settings = (await (await b('/api/settings')).json()) as { amazonConfig: { partnerTag: string } };
@@ -370,7 +414,10 @@ describe('Public creator page', () => {
   it('escapes creator-controlled text', async () => {
     const api = client();
     const { handle } = await signup(api);
-    await api('/api/bio/page', { method: 'PUT', json: { custom_title: '<script>alert(1)</script>', custom_bio: '"><img src=x onerror=alert(1)>' } });
+    await api('/api/bio/page', {
+      method: 'PUT',
+      json: { custom_title: '<script>alert(1)</script>', custom_bio: '"><img src=x onerror=alert(1)>' },
+    });
     const res = await fetch(`${base}/@${handle}`);
     const html = await res.text();
     expect(res.status).toBe(200);

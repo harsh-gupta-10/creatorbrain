@@ -51,7 +51,12 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               id: m.id,
               role: m.role,
               content: m.content,
-              time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              time: new Date(m.created_at).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
               product: (m.meta?.detectedProduct as Product | null) || null,
               proposedProject: (m.meta?.proposedProject as Message['proposedProject']) || null,
             })),
@@ -87,22 +92,26 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const starterPrompts = [
     {
       label: 'Compare two phones',
-      prompt: 'I want to review the Motorola Edge 50 Fusion vs Vivo T3 Pro 5G for college students under ₹25k. Give me 3 angles and teardown points.',
+      prompt:
+        'I want to review the Motorola Edge 50 Fusion vs Vivo T3 Pro 5G for college students under ₹25k. Give me 3 angles and teardown points.',
       mode: 'brainstorm' as const,
     },
     {
       label: 'Hook for a Mac mini test',
-      prompt: 'Testing the base M4 Mac Mini for 4K video editing. What is the most contrarian hook to test if 256GB SSD is really enough?',
+      prompt:
+        'Testing the base M4 Mac Mini for 4K video editing. What is the most contrarian hook to test if 256GB SSD is really enough?',
       mode: 'script' as const,
     },
     {
       label: 'Fix the minute 4 drop',
-      prompt: 'My viewers drop off between minutes 3:45 and 5:00. How do I build a forward loop and pattern interrupt for my next phone teardown?',
+      prompt:
+        'My viewers drop off between minutes 3:45 and 5:00. How do I build a forward loop and pattern interrupt for my next phone teardown?',
       mode: 'strategy' as const,
     },
     {
       label: 'Budget gear kit',
-      prompt: 'Suggest a budget YouTube creator gear kit on Amazon India under ₹15,000 that I can recommend to my student audience.',
+      prompt:
+        'Suggest a budget YouTube creator gear kit on Amazon India under ₹15,000 that I can recommend to my student audience.',
       mode: 'review' as const,
     },
   ];
@@ -123,10 +132,13 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     setLoading(true);
 
     try {
-      const history = messages.filter((m) => !m.isError).slice(-6).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
+      const history = messages
+        .filter((m) => !m.isError)
+        .slice(-6)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+        }));
 
       const res = await api.copilot.chat({
         message: text,
@@ -260,24 +272,24 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         description="Talk through a video idea. Answers draw on your published content and live Amazon data"
         actions={
           <>
-          <ScriptLanguagePicker />
-          {messages.length > 1 && (
-            <button className="btn btn-ghost btn-sm" onClick={clearConversation}>
-              <Trash2 {...ICON} />
-              Clear
-            </button>
-          )}
-          <Segmented
-            label="Copilot mode"
-            value={activeMode}
-            onChange={setActiveMode}
-            options={[
-              { value: 'brainstorm', label: 'Brainstorm' },
-              { value: 'script', label: 'Script' },
-              { value: 'review', label: 'Products' },
-              { value: 'strategy', label: 'Retention' },
-            ]}
-          />
+            <ScriptLanguagePicker />
+            {messages.length > 1 && (
+              <button className="btn btn-ghost btn-sm" onClick={clearConversation}>
+                <Trash2 {...ICON} />
+                Clear
+              </button>
+            )}
+            <Segmented
+              label="Copilot mode"
+              value={activeMode}
+              onChange={setActiveMode}
+              options={[
+                { value: 'brainstorm', label: 'Brainstorm' },
+                { value: 'script', label: 'Script' },
+                { value: 'review', label: 'Products' },
+                { value: 'strategy', label: 'Retention' },
+              ]}
+            />
           </>
         }
       />
@@ -297,8 +309,13 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
         )}
       </div>
 
-      <section className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden" aria-labelledby="copilot-conversation">
-        <h2 id="copilot-conversation" className="sr-only">Conversation</h2>
+      <section
+        className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden"
+        aria-labelledby="copilot-conversation"
+      >
+        <h2 id="copilot-conversation" className="sr-only">
+          Conversation
+        </h2>
         <div
           className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6"
           role="log"

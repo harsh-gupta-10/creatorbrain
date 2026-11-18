@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { draftLanguageRule, chatLanguageRule, scriptLanguageOf, ANALYSIS_LANGUAGE_RULE } from '../src/worker/lib/language';
+import {
+  draftLanguageRule,
+  chatLanguageRule,
+  scriptLanguageOf,
+  ANALYSIS_LANGUAGE_RULE,
+} from '../src/worker/lib/language';
 
 describe('Script language rules', () => {
   it('defaults to English for unknown or missing values', () => {
@@ -23,7 +28,9 @@ describe('Script language rules', () => {
   });
 
   it('follows the video language when set to match', () => {
-    expect(draftLanguageRule({ script_language: 'match', content_language: 'Hindi and English' })).toMatch(/Hindi and English/);
+    expect(draftLanguageRule({ script_language: 'match', content_language: 'Hindi and English' })).toMatch(
+      /Hindi and English/
+    );
   });
 
   it('keeps chat explanations and analysis in English', () => {

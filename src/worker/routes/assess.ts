@@ -32,8 +32,7 @@ assessRoutes.post('/quizzes/:id/submit', async (c) => {
   const answers = parseQuizSubmission(body);
   if (!answers) return c.json({ error: 'Submit a valid answer for each question' }, 400);
 
-  const quiz = await c.env.DB
-    .prepare('SELECT * FROM quizzes WHERE id = ? AND creator_id = ?')
+  const quiz = await c.env.DB.prepare('SELECT * FROM quizzes WHERE id = ? AND creator_id = ?')
     .bind(quizId, creator.id)
     .first<Quiz>();
 

@@ -83,10 +83,14 @@ CREATOR DNA & SIGNATURE VOICE:
 - Retention Focus: Prevent viewer drop-offs between minutes 4 and 6 with deliberate pattern interrupts and forward loops.
 
 CURRENT MODE: ${mode.toUpperCase()}
-${detectedProduct ? `RESOLVED AMAZON PRODUCT:
+${
+  detectedProduct
+    ? `RESOLVED AMAZON PRODUCT:
 - Title: ${detectedProduct.title}
 - ASIN: ${detectedProduct.asin}
-- Price: ${detectedProduct.price_str} (${detectedProduct.price_timestamp})` : ''}
+- Price: ${detectedProduct.price_str} (${detectedProduct.price_timestamp})`
+    : ''
+}
 
 INSTRUCTIONS:
 1. Speak as a peer collaborator who deeply understands ${creator.name}'s exact editing style, audience, and revenue goals.
@@ -97,7 +101,9 @@ INSTRUCTIONS:
 
   // Context comes from the saved conversation, so it survives refreshes and other devices
   const saved = await loadThread(c.env.DB, creator.id, 'copilot', 12);
-  const history = saved.length ? saved.map((m) => ({ role: m.role, content: m.content })) : (body.history || []).slice(-12);
+  const history = saved.length
+    ? saved.map((m) => ({ role: m.role, content: m.content }))
+    : (body.history || []).slice(-12);
   const messages = [
     ...history.map((h) => ({
       role: h.role,
@@ -111,10 +117,11 @@ INSTRUCTIONS:
 
   let replyText = '';
   try {
-    replyText = await router.generateText(
-      [{ role: 'system', content: systemPrompt }, ...messages],
-      { preferred: 'claude', fast: false, creatorId: creator.id }
-    );
+    replyText = await router.generateText([{ role: 'system', content: systemPrompt }, ...messages], {
+      preferred: 'claude',
+      fast: false,
+      creatorId: creator.id,
+    });
   } catch (err: unknown) {
     console.error('Copilot router error:', err);
     replyText = `### 🎬 Video Concept Breakdown\n\nI love this angle! Here is how we should execute this in your signature **Creator DNA** voice:\n\n#### 🎯 3 High-CTR Title Angles\n1. **${userMessage.slice(0, 35)}: Do NOT Buy Until You See This!**\n2. **I Tested It For 7 Days... Huge Mistake?**\n3. **The Brutally Honest Truth Nobody Tells You**\n\n#### ⏱️ Pacing & Retention Strategy\n- **0:00 - 0:04 Hook:** Jump straight into the physical teardown or unexpected flaw. No channel intro.\n- **3:30 Forward Loop:** Tease the thermal throttling or low-light test right before the minute-4 retention dip.\n- **7:00 Verdict:** Give a clear "Buy This If / Avoid If" summary with transparent affiliate disclosure.\n\nReady to turn this into a project in Content Studio?`;
@@ -137,7 +144,9 @@ INSTRUCTIONS:
     lowerMsg.includes('start project')
   ) {
     proposedProject = {
-      title: userMessage.replace(/(?:make|create|turn into|start) (?:a )?project (?:about|on|for)?/i, '').trim() || 'New Video Project',
+      title:
+        userMessage.replace(/(?:make|create|turn into|start) (?:a )?project (?:about|on|for)?/i, '').trim() ||
+        'New Video Project',
       brief: userMessage,
     };
   }

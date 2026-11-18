@@ -134,7 +134,14 @@ export interface VideoAnalysis {
   products_mentioned: string[];
   catchphrases: string[];
   title: { pattern: string; note: string };
-  thumbnail: { text_overlay: string; faces: string; emotion: string; colors: string[]; composition: string; note: string };
+  thumbnail: {
+    text_overlay: string;
+    faces: string;
+    emotion: string;
+    colors: string[];
+    composition: string;
+    note: string;
+  };
   what_worked: string[];
   to_improve: string[];
   recreate?: string[];
@@ -156,7 +163,14 @@ export interface ChannelAudit {
   categories: { key: string; label: string; score: number; detail: string }[];
   fixes: { title: string; detail: string }[];
   heatmap: { weekday: number; count: number; medianViews: number }[];
-  stats: { videos: number; medianViews: number; uploadsPerMonth: number; daysSinceLastUpload: number; avgTitleLength: number; numberShare: number };
+  stats: {
+    videos: number;
+    medianViews: number;
+    uploadsPerMonth: number;
+    daysSinceLastUpload: number;
+    avgTitleLength: number;
+    numberShare: number;
+  };
   outliers: { id: string; title: string; url: string; thumbnailUrl: string; views: number; ratio: number }[];
   generatedAt: string;
 }
@@ -189,17 +203,27 @@ export interface SavedMessage {
 
 export const api = {
   chats: {
-    get: (thread: string) => fetchJson<{ thread: string; messages: SavedMessage[] }>(`/api/chats/${encodeURIComponent(thread)}`),
-    clear: (thread: string) => fetchJson<{ success: boolean }>(`/api/chats/${encodeURIComponent(thread)}`, { method: 'DELETE' }),
+    get: (thread: string) =>
+      fetchJson<{ thread: string; messages: SavedMessage[] }>(`/api/chats/${encodeURIComponent(thread)}`),
+    clear: (thread: string) =>
+      fetchJson<{ success: boolean }>(`/api/chats/${encodeURIComponent(thread)}`, { method: 'DELETE' }),
   },
   publicAudit: (channel: string) =>
-    fetchJson<{ audit: ChannelAudit; cached: boolean }>('/api/public/audit', { method: 'POST', body: JSON.stringify({ channel }) }),
+    fetchJson<{ audit: ChannelAudit; cached: boolean }>('/api/public/audit', {
+      method: 'POST',
+      body: JSON.stringify({ channel }),
+    }),
   deals: {
     list: () => fetchJson<{ deals: BrandDeal[] }>('/api/deals'),
-    create: (body: DealInput) => fetchJson<{ deal: BrandDeal }>('/api/deals', { method: 'POST', body: JSON.stringify(body) }),
+    create: (body: DealInput) =>
+      fetchJson<{ deal: BrandDeal }>('/api/deals', { method: 'POST', body: JSON.stringify(body) }),
     update: (id: string, body: DealInput) =>
-      fetchJson<{ deal: BrandDeal }>(`/api/deals/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    remove: (id: string) => fetchJson<{ success: boolean }>(`/api/deals/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+      fetchJson<{ deal: BrandDeal }>(`/api/deals/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    remove: (id: string) =>
+      fetchJson<{ success: boolean }>(`/api/deals/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   },
   content: {
     list: (params: { status?: string; platform?: string } = {}) =>
@@ -215,12 +239,21 @@ export const api = {
   },
   auth: {
     me: () =>
-      fetchJson<{ authenticated: boolean; isDemo: boolean; isSample: boolean; creator: Creator | null }>('/api/auth/me'),
-    sample: () => fetchJson<{ success: boolean; isSample: boolean; creator: Creator }>('/api/auth/sample', { method: 'POST' }),
+      fetchJson<{ authenticated: boolean; isDemo: boolean; isSample: boolean; creator: Creator | null }>(
+        '/api/auth/me'
+      ),
+    sample: () =>
+      fetchJson<{ success: boolean; isSample: boolean; creator: Creator }>('/api/auth/sample', { method: 'POST' }),
     login: (body: { email: string; password: string }) =>
-      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     signup: (body: { name: string; handle: string; email: string; password: string }) =>
-      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     handleAvailable: (handle: string) =>
       fetchJson<{ available: boolean }>(`/api/auth/handle-available?handle=${encodeURIComponent(handle)}`),
     logout: () => fetchJson<{ success: boolean }>('/api/auth/logout', { method: 'POST' }),
@@ -229,11 +262,17 @@ export const api = {
     saveProfile: (body: OnboardingProfile) =>
       fetchJson<{ success: boolean }>('/api/onboarding/profile', { method: 'POST', body: JSON.stringify(body) }),
     startStudy: () =>
-      fetchJson<{ success: boolean; jobId: string; steps: { id: string; label: string }[] }>('/api/onboarding/study/start', {
-        method: 'POST',
-      }),
+      fetchJson<{ success: boolean; jobId: string; steps: { id: string; label: string }[] }>(
+        '/api/onboarding/study/start',
+        {
+          method: 'POST',
+        }
+      ),
     runStep: (jobId: string) =>
-      fetchJson<{ job: StudyJob; busy?: boolean }>('/api/onboarding/study/step', { method: 'POST', body: JSON.stringify({ jobId }) }),
+      fetchJson<{ job: StudyJob; busy?: boolean }>('/api/onboarding/study/step', {
+        method: 'POST',
+        body: JSON.stringify({ jobId }),
+      }),
     getJob: (jobId: string) => fetchJson<{ job: StudyJob }>(`/api/onboarding/job/${jobId}`),
     activeStudy: () => fetchJson<{ job: StudyJob | null }>('/api/onboarding/study/active'),
     updateChannel: (youtube: string) =>
@@ -241,7 +280,13 @@ export const api = {
     getContent: () =>
       fetchJson<{
         items: ContentItem[];
-        stats: { count: number; medianViews: number; avgTitleLength: number; uploadsPerMonth: number; topWords: string[] };
+        stats: {
+          count: number;
+          medianViews: number;
+          avgTitleLength: number;
+          uploadsPerMonth: number;
+          topWords: string[];
+        };
         lastStudiedAt: string | null;
       }>('/api/onboarding/content'),
   },
@@ -253,7 +298,10 @@ export const api = {
     updateProject: (id: string, updates: Partial<Project>) =>
       fetchJson<{ project: Project }>(`/api/studio/projects/${id}`, { method: 'PATCH', body: JSON.stringify(updates) }),
     editAsset: (id: string, body: { content: string; title?: string }) =>
-      fetchJson<{ success: boolean; versionId: string; nextVer: number }>(`/api/studio/assets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; versionId: string; nextVer: number }>(`/api/studio/assets/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
     chat: (body: { projectId: string; message: string; productAsin?: string }) =>
       fetchJson<{
         reply: string;
@@ -269,41 +317,74 @@ export const api = {
     updatePage: (body: Partial<BioPage>) =>
       fetchJson<{ success: boolean; bioPage: BioPage }>('/api/bio/page', { method: 'PUT', body: JSON.stringify(body) }),
     updateBlocks: (blocks: BioBlock[]) =>
-      fetchJson<{ success: boolean; blocks: BioBlock[] }>('/api/bio/blocks', { method: 'PUT', body: JSON.stringify({ blocks }) }),
+      fetchJson<{ success: boolean; blocks: BioBlock[] }>('/api/bio/blocks', {
+        method: 'PUT',
+        body: JSON.stringify({ blocks }),
+      }),
   },
   links: {
     getLinks: () => fetchJson<{ links: ShortLink[] }>('/api/links'),
     createLink: (body: Partial<ShortLink>) =>
-      fetchJson<{ success: boolean; shortLink: ShortLink; shortUrl: string }>('/api/links/create', { method: 'POST', body: JSON.stringify(body) }),
-    getLinkDetails: (id: string) =>
-      fetchJson<{ link: ShortLink; clicks: LinkClick[] }>(`/api/links/${id}`),
+      fetchJson<{ success: boolean; shortLink: ShortLink; shortUrl: string }>('/api/links/create', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    getLinkDetails: (id: string) => fetchJson<{ link: ShortLink; clicks: LinkClick[] }>(`/api/links/${id}`),
     reportAbuse: (body: { slug: string; reason?: string }) =>
-      fetchJson<{ success: boolean; message: string }>('/api/links/report-abuse', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; message: string }>('/api/links/report-abuse', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   amazon: {
     getProducts: () =>
-      fetchJson<{ products: Product[]; isMock: boolean; marketplace: string; partnerTag: string }>('/api/amazon/products'),
+      fetchJson<{ products: Product[]; isMock: boolean; marketplace: string; partnerTag: string }>(
+        '/api/amazon/products'
+      ),
     search: (query: string) =>
-      fetchJson<{ results: Product[]; isMock: boolean; query: string; marketplace: string }>(`/api/amazon/search?q=${encodeURIComponent(query)}`),
+      fetchJson<{ results: Product[]; isMock: boolean; query: string; marketplace: string }>(
+        `/api/amazon/search?q=${encodeURIComponent(query)}`
+      ),
     importProduct: (product: Partial<Product>) =>
-      fetchJson<{ success: boolean; product: Product }>('/api/amazon/import', { method: 'POST', body: JSON.stringify(product) }),
+      fetchJson<{ success: boolean; product: Product }>('/api/amazon/import', {
+        method: 'POST',
+        body: JSON.stringify(product),
+      }),
     buildLink: (body: { productUrl: string; customTag?: string }) =>
-      fetchJson<{ taggedUrl: string; disclosure: string; tag: string }>('/api/amazon/build-link', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ taggedUrl: string; disclosure: string; tag: string }>('/api/amazon/build-link', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
     getEarnings: () =>
-      fetchJson<{ earnings: EarningsReport[]; summary: { totalRevenue: number; totalCommission: number; totalItems: number } }>('/api/amazon/earnings'),
+      fetchJson<{
+        earnings: EarningsReport[];
+        summary: { totalRevenue: number; totalCommission: number; totalItems: number };
+      }>('/api/amazon/earnings'),
     importEarningsCsv: (csvText: string) =>
-      fetchJson<{ success: boolean; importedCount: number }>('/api/amazon/earnings/import-csv', { method: 'POST', body: JSON.stringify({ csvText }) }),
+      fetchJson<{ success: boolean; importedCount: number }>('/api/amazon/earnings/import-csv', {
+        method: 'POST',
+        body: JSON.stringify({ csvText }),
+      }),
     healthCheck: () =>
-      fetchJson<{ success: boolean; checkedCount: number; status: string }>('/api/amazon/health-check', { method: 'POST' }),
+      fetchJson<{ success: boolean; checkedCount: number; status: string }>('/api/amazon/health-check', {
+        method: 'POST',
+      }),
   },
   brain: {
     getGraph: () =>
-      fetchJson<{ graph: GraphData; learnings: Learning[]; nodeCounts: Record<string, number>; creatorDNA: CreatorDNA | null }>('/api/brain/graph'),
+      fetchJson<{
+        graph: GraphData;
+        learnings: Learning[];
+        nodeCounts: Record<string, number>;
+        creatorDNA: CreatorDNA | null;
+      }>('/api/brain/graph'),
     getLearnings: () => fetchJson<{ learnings: Learning[] }>('/api/brain/learnings'),
   },
   learn: {
     getLessons: () =>
-      fetchJson<{ lessons: Lesson[]; completedCount: number; totalCount: number; progressPercent: number }>('/api/learn/lessons'),
+      fetchJson<{ lessons: Lesson[]; completedCount: number; totalCount: number; progressPercent: number }>(
+        '/api/learn/lessons'
+      ),
     completeLesson: (id: string) =>
       fetchJson<{ success: boolean; lessons: Lesson[] }>(`/api/learn/lessons/${id}/complete`, { method: 'POST' }),
     tutorChat: (message: string) =>
@@ -312,16 +393,25 @@ export const api = {
   assess: {
     getQuizzes: () => fetchJson<{ quizzes: Quiz[] }>('/api/assess/quizzes'),
     submitQuiz: (id: string, answers: Record<string, number>) =>
-      fetchJson<{ success: boolean; score: number; total: number; gapImproved: boolean }>(`/api/assess/quizzes/${id}/submit`, { method: 'POST', body: JSON.stringify({ answers }) }),
+      fetchJson<{ success: boolean; score: number; total: number; gapImproved: boolean }>(
+        `/api/assess/quizzes/${id}/submit`,
+        { method: 'POST', body: JSON.stringify({ answers }) }
+      ),
   },
   tools: {
     generate: (body: { toolType: string; topic: string; targetProduct?: string; platform?: string }) =>
-      fetchJson<{ toolType: string; topic: string; platform: string; output: string }>('/api/tools/generate', { method: 'POST', body: JSON.stringify(body) }),
+      fetchJson<{ toolType: string; topic: string; platform: string; output: string }>('/api/tools/generate', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
   },
   agents: {
     getTraces: () => fetchJson<{ traces: AgentTrace[] }>('/api/agents/traces'),
     runNow: () =>
-      fetchJson<{ success: boolean; nextBestAction: string; learning: string; traces: AgentTrace[] }>('/api/agents/run-now', { method: 'POST' }),
+      fetchJson<{ success: boolean; nextBestAction: string; learning: string; traces: AgentTrace[] }>(
+        '/api/agents/run-now',
+        { method: 'POST' }
+      ),
   },
   settings: {
     getSettings: () =>
@@ -335,16 +425,31 @@ export const api = {
         goals: string[];
       }>('/api/settings'),
     updateProviders: (body: Partial<ProviderSettings>) =>
-      fetchJson<{ success: boolean; providerSettings: ProviderSettings }>('/api/settings/providers', { method: 'PUT', body: JSON.stringify(body) }),
-    updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
-      fetchJson<{ success: boolean; message: string; hasCredentials: boolean; partnerTag: string; marketplace: string }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
-    updatePreferences: (body: { scriptLanguage?: ScriptLanguage; contentLanguage?: string }) =>
-      fetchJson<{ success: boolean; scriptLanguage: ScriptLanguage; contentLanguage: string }>('/api/settings/preferences', {
+      fetchJson<{ success: boolean; providerSettings: ProviderSettings }>('/api/settings/providers', {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
+    updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
+      fetchJson<{
+        success: boolean;
+        message: string;
+        hasCredentials: boolean;
+        partnerTag: string;
+        marketplace: string;
+      }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
+    updatePreferences: (body: { scriptLanguage?: ScriptLanguage; contentLanguage?: string }) =>
+      fetchJson<{ success: boolean; scriptLanguage: ScriptLanguage; contentLanguage: string }>(
+        '/api/settings/preferences',
+        {
+          method: 'PUT',
+          body: JSON.stringify(body),
+        }
+      ),
     updateMonetization: (body: Monetization) =>
-      fetchJson<{ success: boolean; monetization: Monetization }>('/api/settings/monetization', { method: 'PUT', body: JSON.stringify(body) }),
+      fetchJson<{ success: boolean; monetization: Monetization }>('/api/settings/monetization', {
+        method: 'PUT',
+        body: JSON.stringify(body),
+      }),
     deleteData: () => fetchJson<{ success: boolean; message: string }>('/api/settings/delete-data', { method: 'POST' }),
   },
   copilot: {

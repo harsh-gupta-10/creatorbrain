@@ -1,5 +1,4 @@
-import { Hono } from 'hono';
-import type { Context } from 'hono';
+import { Hono, type Context } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { DBClient } from '../db/queries';
@@ -103,7 +102,11 @@ async function startSession(c: Context, creatorId: string): Promise<void> {
 
 function publicCreator(creator: Creator | null) {
   if (!creator) return null;
-  const { password_hash: _h, password_salt: _s, ...rest } = creator as Creator & {
+  const {
+    password_hash: _h,
+    password_salt: _s,
+    ...rest
+  } = creator as Creator & {
     password_hash?: string;
     password_salt?: string;
   };

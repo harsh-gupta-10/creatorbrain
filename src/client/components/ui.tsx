@@ -9,7 +9,11 @@ import { Loader2 } from 'lucide-react';
 export const ICON = { size: 16, strokeWidth: 1.5, 'aria-hidden': true } as const;
 
 /** Signature detail: a five-step level meter for confidence and strength (0..1) */
-export const Meter: React.FC<{ value: number; label?: string; className?: string }> = ({ value, label, className = '' }) => {
+export const Meter: React.FC<{ value: number; label?: string; className?: string }> = ({
+  value,
+  label,
+  className = '',
+}) => {
   const steps = 5;
   const lit = Math.max(0, Math.min(steps, Math.round(value * steps)));
   return (
@@ -86,9 +90,13 @@ export const Dialog: React.FC<{
     const node = ref.current;
     const previous = document.activeElement as HTMLElement | null;
     const focusables = () =>
-      node ? Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.getClientRects().length > 0) : [];
+      node
+        ? Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((el) => el.getClientRects().length > 0)
+        : [];
     // Prefer the first form field, then any control, then the dialog itself
-    const field = node?.querySelector<HTMLElement>('input:not([disabled]), textarea:not([disabled]), select:not([disabled])');
+    const field = node?.querySelector<HTMLElement>(
+      'input:not([disabled]), textarea:not([disabled]), select:not([disabled])'
+    );
     (field || focusables()[0] || node)?.focus();
 
     const onKey = (e: KeyboardEvent) => {
@@ -197,7 +205,14 @@ export const EmptyState: React.FC<{
   action?: React.ReactNode;
 }> = ({ icon, title, description, action }) => (
   <div className="flex flex-col items-center text-center py-12 px-6">
-    {icon && <div className="w-10 h-10 rounded-[10px] bg-raised text-fg-3 flex items-center justify-center mb-4" aria-hidden="true">{icon}</div>}
+    {icon && (
+      <div
+        className="w-10 h-10 rounded-[10px] bg-raised text-fg-3 flex items-center justify-center mb-4"
+        aria-hidden="true"
+      >
+        {icon}
+      </div>
+    )}
     <div className="font-medium text-fg">{title}</div>
     {description && <p className="mt-1 text-fg-2 max-w-sm">{description}</p>}
     {action && <div className="mt-4">{action}</div>}

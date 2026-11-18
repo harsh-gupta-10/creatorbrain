@@ -122,10 +122,21 @@ export async function loadAmazonCredentials(
 }
 
 /** A client scoped to one creator: tags links with their own ID, uses their own API keys */
-export async function amazonClientFor(db: D1Database, env: CryptoEnv, creatorId: string): Promise<AmazonCreatorsClient> {
+export async function amazonClientFor(
+  db: D1Database,
+  env: CryptoEnv,
+  creatorId: string
+): Promise<AmazonCreatorsClient> {
   const creds = await loadAmazonCredentials(db, env, creatorId).catch(() => null);
   return new AmazonCreatorsClient(
-    creds ? { partnerTag: creds.partnerTag, marketplace: creds.marketplace, accessKey: creds.accessKey, secretKey: creds.secretKey } : undefined
+    creds
+      ? {
+          partnerTag: creds.partnerTag,
+          marketplace: creds.marketplace,
+          accessKey: creds.accessKey,
+          secretKey: creds.secretKey,
+        }
+      : undefined
   );
 }
 

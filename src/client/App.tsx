@@ -135,21 +135,26 @@ export const App: React.FC = () => {
   if (path === '/onboarding' || path.startsWith('/app')) {
     if (session.loading) return <FullPageLoader />;
     if (!session.creator) {
-      return <Redirect to='/login' />;
+      return <Redirect to="/login" />;
     }
     // Only the setup questions gate the app; the channel study itself runs inside the app
     const needsSetup = session.creator.onboarding_status === 'profile' && !session.isSample;
     if (path === '/onboarding') {
       if (!needsSetup) {
-        return <Redirect to='/app' />;
+        return <Redirect to="/app" />;
       }
-      return <OnboardingPage creator={session.creator} onComplete={async () => {
-        await refreshSession();
-        navigate('/app', { replace: true });
-      }} />;
+      return (
+        <OnboardingPage
+          creator={session.creator}
+          onComplete={async () => {
+            await refreshSession();
+            navigate('/app', { replace: true });
+          }}
+        />
+      );
     }
     if (needsSetup) {
-      return <Redirect to='/onboarding' />;
+      return <Redirect to="/onboarding" />;
     }
     const tabId = (path.split('/')[2] || 'overview') as TabId;
     const activeTab = ALL_TAB_IDS.includes(tabId) ? tabId : 'overview';
@@ -183,7 +188,6 @@ const FullPageLoader: React.FC = () => (
     <span className="sr-only">Loading</span>
   </div>
 );
-
 
 function parseMonetization(creator: Creator | null): { amazon?: boolean } {
   try {
@@ -242,7 +246,9 @@ const AppShell: React.FC<{
         {...linkProps(tab.id === 'overview' ? '/app' : `/app/${tab.id}`)}
         aria-current={active ? 'page' : undefined}
         className={`flex items-center gap-2 h-8 px-2 rounded-[8px] text-[14px] transition-colors ${
-          active ? 'bg-raised text-fg shadow-[inset_0_0_0_1px_var(--color-line)]' : 'text-fg-2 hover:bg-raised hover:text-fg'
+          active
+            ? 'bg-raised text-fg shadow-[inset_0_0_0_1px_var(--color-line)]'
+            : 'text-fg-2 hover:bg-raised hover:text-fg'
         }`}
       >
         <Icon {...ICON} className={active ? 'text-fg' : 'text-fg-3'} />
@@ -274,7 +280,11 @@ const AppShell: React.FC<{
           <a {...linkProps('/app')} aria-label="CreatorBrain dashboard">
             <Logo />
           </a>
-          <button className="btn btn-ghost btn-sm md:hidden px-2" onClick={() => setMenuOpen(false)} aria-label="Close menu">
+          <button
+            className="btn btn-ghost btn-sm md:hidden px-2"
+            onClick={() => setMenuOpen(false)}
+            aria-label="Close menu"
+          >
             <X {...ICON} />
           </button>
         </div>
@@ -282,7 +292,9 @@ const AppShell: React.FC<{
         <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Workspace">
           {groups.map((group) => (
             <div key={group} role="group" aria-labelledby={`nav-group-${group}`}>
-              <div id={`nav-group-${group}`} className="px-2 pt-6 pb-2 text-[12px] text-fg-3">{group}</div>
+              <div id={`nav-group-${group}`} className="px-2 pt-6 pb-2 text-[12px] text-fg-3">
+                {group}
+              </div>
               <div className="flex flex-col gap-[2px]">
                 {visibleTabs
                   .filter((t) => t.group === group)
@@ -308,7 +320,13 @@ const AppShell: React.FC<{
           </a>
           <div className="mt-2 flex items-center gap-3 px-2 py-2">
             {creator.avatar_url ? (
-              <img src={creator.avatar_url} alt={`${creator.name}'s profile photo`} width={32} height={32} className="w-8 h-8 rounded-full object-cover bg-raised" />
+              <img
+                src={creator.avatar_url}
+                alt={`${creator.name}'s profile photo`}
+                width={32}
+                height={32}
+                className="w-8 h-8 rounded-full object-cover bg-raised"
+              />
             ) : (
               <div className="w-8 h-8 rounded-full bg-raised text-fg-2 text-[12px] font-medium flex items-center justify-center">
                 {initials}
@@ -348,41 +366,42 @@ const AppShell: React.FC<{
           <span className="font-medium">{current?.label}</span>
         </header>
 
-      {/* Main */}
-      <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 min-w-0 flex flex-col outline-none">
-
-        {isSample && (
-          <div className="border-b border-line bg-surface">
-            <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[13px] text-fg-2">
-                You are viewing a sample workspace built from a real channel, IzooG10. Editing is turned off
-              </span>
-              <a {...linkProps('/signup')} className="btn btn-accent btn-sm">
-                Create your account
-              </a>
+        {/* Main */}
+        <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 min-w-0 flex flex-col outline-none">
+          {isSample && (
+            <div className="border-b border-line bg-surface">
+              <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[13px] text-fg-2">
+                  You are viewing a sample workspace built from a real channel, IzooG10. Editing is turned off
+                </span>
+                <a {...linkProps('/signup')} className="btn btn-accent btn-sm">
+                  Create your account
+                </a>
+              </div>
             </div>
+          )}
+
+          {!isSample && <StudyBanner youtubeInput={creator.youtube_input} onChannelChanged={onSessionChanged} />}
+
+          <div key={activeTab} className="rise-in flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
+            {activeTab === 'overview' && (
+              <OverviewTab creator={creator} onNavigateTab={onNavigateTab} isSample={isSample} />
+            )}
+            {activeTab === 'copilot' && <CopilotTab creator={creator} onNavigateTab={onNavigateTab} />}
+            {activeTab === 'studio' && <ContentStudioTab />}
+            {activeTab === 'tools' && <ToolsTab />}
+            {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
+            {activeTab === 'links' && <ShortLinksTab />}
+            {activeTab === 'amazon' && <AmazonAffiliateTab />}
+            {activeTab === 'deals' && <DealsTab />}
+            {activeTab === 'library' && <LibraryTab />}
+            {activeTab === 'brain' && <BrainTab />}
+            {activeTab === 'learn' && <LearnTab />}
+            {activeTab === 'assess' && <AssessTab />}
+            {activeTab === 'agents' && <AgentsTab />}
+            {activeTab === 'settings' && <SettingsTab />}
           </div>
-        )}
-
-        {!isSample && <StudyBanner youtubeInput={creator.youtube_input} onChannelChanged={onSessionChanged} />}
-
-        <div key={activeTab} className="rise-in flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
-          {activeTab === 'overview' && <OverviewTab creator={creator} onNavigateTab={onNavigateTab} isSample={isSample} />}
-          {activeTab === 'copilot' && <CopilotTab creator={creator} onNavigateTab={onNavigateTab} />}
-          {activeTab === 'studio' && <ContentStudioTab />}
-          {activeTab === 'tools' && <ToolsTab />}
-          {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
-          {activeTab === 'links' && <ShortLinksTab />}
-          {activeTab === 'amazon' && <AmazonAffiliateTab />}
-          {activeTab === 'deals' && <DealsTab />}
-          {activeTab === 'library' && <LibraryTab />}
-          {activeTab === 'brain' && <BrainTab />}
-          {activeTab === 'learn' && <LearnTab />}
-          {activeTab === 'assess' && <AssessTab />}
-          {activeTab === 'agents' && <AgentsTab />}
-          {activeTab === 'settings' && <SettingsTab />}
-        </div>
-      </main>
+        </main>
       </div>
     </div>
   );

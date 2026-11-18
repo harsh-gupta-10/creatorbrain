@@ -1,5 +1,16 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Play, Search, ExternalLink, Square, SquarePlay, Camera, RotateCw, Check, AlertCircle, Clock } from 'lucide-react';
+import {
+  Play,
+  Search,
+  ExternalLink,
+  Square,
+  SquarePlay,
+  Camera,
+  RotateCw,
+  Check,
+  AlertCircle,
+  Clock,
+} from 'lucide-react';
 import { useStudyRefresh } from '../components/StudyBanner';
 import { api, type LibraryItem, type LibraryItemDetail } from '../lib/api';
 import {
@@ -57,7 +68,9 @@ export const LibraryTab: React.FC = () => {
       const res = await api.content.list();
       setItems(res.items);
       setCounts(res.counts);
-      setSelectedId((cur) => cur ?? res.items.find((i) => i.analysis_status === 'done')?.id ?? res.items[0]?.id ?? null);
+      setSelectedId(
+        (cur) => cur ?? res.items.find((i) => i.analysis_status === 'done')?.id ?? res.items[0]?.id ?? null
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not load your library');
     } finally {
@@ -74,7 +87,10 @@ export const LibraryTab: React.FC = () => {
   }, []);
 
   const waiting = counts.pending || 0;
-  const visible = useMemo(() => (filter === 'all' ? items : items.filter((i) => i.analysis_status === filter)), [items, filter]);
+  const visible = useMemo(
+    () => (filter === 'all' ? items : items.filter((i) => i.analysis_status === filter)),
+    [items, filter]
+  );
 
   // Studies waiting videos one request at a time until done or stopped
   const studyWaiting = async () => {
@@ -174,7 +190,14 @@ export const LibraryTab: React.FC = () => {
                   }`}
                 >
                   {item.thumbnail_url ? (
-                    <img src={item.thumbnail_url} alt={`Thumbnail for ${item.title}`} width={88} height={50} loading="lazy" className="w-[88px] h-[50px] rounded-[6px] object-cover bg-raised shrink-0" />
+                    <img
+                      src={item.thumbnail_url}
+                      alt={`Thumbnail for ${item.title}`}
+                      width={88}
+                      height={50}
+                      loading="lazy"
+                      className="w-[88px] h-[50px] rounded-[6px] object-cover bg-raised shrink-0"
+                    />
                   ) : (
                     <span className="w-[88px] h-[50px] rounded-[6px] bg-raised shrink-0 flex items-center justify-center text-fg-3">
                       {item.platform === 'instagram' ? <Camera {...ICON} /> : <SquarePlay {...ICON} />}
@@ -207,9 +230,19 @@ const StatusMark: React.FC<{ item: LibraryItem }> = ({ item }) => {
     return <Meter value={item.packaging_score ?? 0.5} label="Packaging score" className="shrink-0" />;
   }
   if (item.analysis_status === 'failed') {
-    return <AlertCircle {...ICON} className="text-negative shrink-0" aria-hidden={false} role="img" aria-label="Study failed" />;
+    return (
+      <AlertCircle
+        {...ICON}
+        className="text-negative shrink-0"
+        aria-hidden={false}
+        role="img"
+        aria-label="Study failed"
+      />
+    );
   }
-  return <Clock {...ICON} className="text-fg-3 shrink-0" aria-hidden={false} role="img" aria-label="Waiting to be studied" />;
+  return (
+    <Clock {...ICON} className="text-fg-3 shrink-0" aria-hidden={false} role="img" aria-label="Waiting to be studied" />
+  );
 };
 
 const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged }) => {
@@ -251,7 +284,14 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
   if (!item) {
     return (
       <div className="card p-10 flex justify-center text-fg-3" role={error ? undefined : 'status'}>
-        {error ? <ErrorNote>{error}</ErrorNote> : <><Spinner size={18} /><span className="sr-only">Loading</span></>}
+        {error ? (
+          <ErrorNote>{error}</ErrorNote>
+        ) : (
+          <>
+            <Spinner size={18} />
+            <span className="sr-only">Loading</span>
+          </>
+        )}
       </div>
     );
   }
@@ -261,13 +301,21 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
     ? item.transcript.filter((s) => s.text.toLowerCase().includes(query.toLowerCase()))
     : item.transcript;
   const at = (start: number) =>
-    item.platform === 'youtube' && item.url ? `${item.url}${item.url.includes('?') ? '&' : '?'}t=${Math.floor(start)}s` : undefined;
+    item.platform === 'youtube' && item.url
+      ? `${item.url}${item.url.includes('?') ? '&' : '?'}t=${Math.floor(start)}s`
+      : undefined;
 
   return (
     <article className="card overflow-hidden" aria-labelledby="detail-title">
       <div className="p-5 border-b border-line flex gap-4">
         {item.thumbnail_url && (
-          <img src={item.thumbnail_url} alt={`Thumbnail for ${item.title}`} width={160} height={90} className="w-[160px] h-[90px] rounded-[8px] object-cover bg-raised shrink-0 hidden sm:block" />
+          <img
+            src={item.thumbnail_url}
+            alt={`Thumbnail for ${item.title}`}
+            width={160}
+            height={90}
+            className="w-[160px] h-[90px] rounded-[8px] object-cover bg-raised shrink-0 hidden sm:block"
+          />
         )}
         <div className="min-w-0 flex-1">
           <h2 id="detail-title" className="text-[17px] leading-6 font-medium">
@@ -338,7 +386,9 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
                 <dt className="text-fg-3">Text</dt>
                 <dd className="text-fg">{a.thumbnail.text_overlay || 'None'}</dd>
                 <dt className="text-fg-3">Face</dt>
-                <dd className="text-fg">{[a.thumbnail.faces, a.thumbnail.emotion].filter(Boolean).join(', ') || 'Not seen'}</dd>
+                <dd className="text-fg">
+                  {[a.thumbnail.faces, a.thumbnail.emotion].filter(Boolean).join(', ') || 'Not seen'}
+                </dd>
                 <dt className="text-fg-3">Layout</dt>
                 <dd className="text-fg">{a.thumbnail.composition || 'Not described'}</dd>
                 {a.thumbnail.colors.length > 0 && (
@@ -347,7 +397,9 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
                     <dd className="flex flex-wrap gap-1">
                       {a.thumbnail.colors.map((c) => (
                         <span key={c} className="tag">
-                          {/^#[0-9a-f]{3,8}$/i.test(c) && <span className="dot" aria-hidden="true" style={{ background: c }} />}
+                          {/^#[0-9a-f]{3,8}$/i.test(c) && (
+                            <span className="dot" aria-hidden="true" style={{ background: c }} />
+                          )}
                           {c}
                         </span>
                       ))}
@@ -436,7 +488,12 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
               {lines.slice(0, 600).map((s, i) => (
                 <li key={i} className="flex gap-3">
                   {item.platform === 'youtube' ? (
-                    <a href={at(s.start)} target="_blank" rel="noreferrer" className="meta w-14 shrink-0 pt-[3px] hover:text-accent-ink">
+                    <a
+                      href={at(s.start)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="meta w-14 shrink-0 pt-[3px] hover:text-accent-ink"
+                    >
                       <span className="sr-only">Play from </span>
                       {duration(Math.floor(s.start)) || '0:00'}
                       <span className="sr-only"> on YouTube (opens in a new tab)</span>
@@ -445,12 +502,18 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
                   <span className="text-fg-2">{s.text}</span>
                 </li>
               ))}
-              {lines.length === 0 && <li className="text-[13px] text-fg-3" role="status">No lines match</li>}
+              {lines.length === 0 && (
+                <li className="text-[13px] text-fg-3" role="status">
+                  No lines match
+                </li>
+              )}
             </ol>
           </>
         ) : (
           <p className="text-[13px] text-fg-2">
-            {item.analysis_status === 'pending' ? 'Pulled when this item is studied' : 'This video has no captions we could read'}
+            {item.analysis_status === 'pending'
+              ? 'Pulled when this item is studied'
+              : 'This video has no captions we could read'}
           </p>
         )}
         {item.analyzed_by && (
@@ -464,7 +527,11 @@ const Detail: React.FC<{ id: string; onChanged: () => void }> = ({ id, onChanged
   );
 };
 
-const ListBlock: React.FC<{ title: string; items: string[]; tone: 'positive' | 'neutral' }> = ({ title, items, tone }) =>
+const ListBlock: React.FC<{ title: string; items: string[]; tone: 'positive' | 'neutral' }> = ({
+  title,
+  items,
+  tone,
+}) =>
   items.length ? (
     <section>
       <h3 className="text-[13px] text-fg-3 mb-2">{title}</h3>

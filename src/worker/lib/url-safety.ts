@@ -69,11 +69,7 @@ export function safePublicHref(value: string, baseOrigin: string): string {
   try {
     const base = new URL(baseOrigin);
     const target = new URL(input, base);
-    if (
-      (target.protocol !== 'http:' && target.protocol !== 'https:') ||
-      target.username ||
-      target.password
-    ) {
+    if ((target.protocol !== 'http:' && target.protocol !== 'https:') || target.username || target.password) {
       return '#';
     }
 

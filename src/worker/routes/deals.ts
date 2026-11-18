@@ -65,7 +65,22 @@ dealsRoutes.post('/', async (c) => {
     `INSERT INTO brand_deals (id, creator_id, brand, contact, deliverable, amount, currency, stage, due_date, post_date, notes, paid_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   )
-    .bind(id, creator.id, d.brand, d.contact, d.deliverable, d.amount, d.currency, d.stage, d.due_date, d.post_date, d.notes, d.stage === 'paid' ? ts : null, ts, ts)
+    .bind(
+      id,
+      creator.id,
+      d.brand,
+      d.contact,
+      d.deliverable,
+      d.amount,
+      d.currency,
+      d.stage,
+      d.due_date,
+      d.post_date,
+      d.notes,
+      d.stage === 'paid' ? ts : null,
+      ts,
+      ts
+    )
     .run();
   const deal = await c.env.DB.prepare('SELECT * FROM brand_deals WHERE id = ?').bind(id).first();
   return c.json({ deal }, 201);
@@ -87,7 +102,21 @@ dealsRoutes.patch('/:id', async (c) => {
     `UPDATE brand_deals SET brand = ?, contact = ?, deliverable = ?, amount = ?, currency = ?, stage = ?, due_date = ?, post_date = ?,
        notes = ?, paid_at = ?, updated_at = ? WHERE id = ? AND creator_id = ?`
   )
-    .bind(next.brand, next.contact, next.deliverable, next.amount, next.currency, next.stage, next.due_date, next.post_date, next.notes, paidAt, ts, existing.id, creator.id)
+    .bind(
+      next.brand,
+      next.contact,
+      next.deliverable,
+      next.amount,
+      next.currency,
+      next.stage,
+      next.due_date,
+      next.post_date,
+      next.notes,
+      paidAt,
+      ts,
+      existing.id,
+      creator.id
+    )
     .run();
   const deal = await c.env.DB.prepare('SELECT * FROM brand_deals WHERE id = ?').bind(existing.id).first();
   return c.json({ deal });
@@ -95,7 +124,9 @@ dealsRoutes.patch('/:id', async (c) => {
 
 dealsRoutes.delete('/:id', async (c) => {
   const creator = c.get('creator');
-  const res = await c.env.DB.prepare('DELETE FROM brand_deals WHERE id = ? AND creator_id = ?').bind(c.req.param('id'), creator.id).run();
+  const res = await c.env.DB.prepare('DELETE FROM brand_deals WHERE id = ? AND creator_id = ?')
+    .bind(c.req.param('id'), creator.id)
+    .run();
   if (!res.meta.changes) return c.json({ error: 'Deal not found' }, 404);
   return c.json({ success: true });
 });

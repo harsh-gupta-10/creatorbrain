@@ -178,11 +178,7 @@ export const StudyBanner: React.FC<{ youtubeInput?: string | null; onChannelChan
   // ---- Channel not found (blocking, or partial once the creator asks to fix it) ----
   if (channelMissing || (partialChannelMissing && (job.status !== 'running' || fixing))) {
     return (
-      <section
-        className="border-b border-line bg-warning-soft"
-        role="alert"
-        aria-labelledby="study-banner-title"
-      >
+      <section className="border-b border-line bg-warning-soft" role="alert" aria-labelledby="study-banner-title">
         <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-4">
           <div className="flex items-start gap-3">
             <AlertCircle {...ICON} className="text-warning mt-[2px] shrink-0" />
@@ -219,7 +215,11 @@ export const StudyBanner: React.FC<{ youtubeInput?: string | null; onChannelChan
               </form>
               {error && <p className="mt-2 text-[13px] text-negative">{error}</p>}
             </div>
-            <button className="btn btn-ghost btn-sm px-2 shrink-0" onClick={dismiss} aria-label="Dismiss channel message">
+            <button
+              className="btn btn-ghost btn-sm px-2 shrink-0"
+              onClick={dismiss}
+              aria-label="Dismiss channel message"
+            >
               <X {...ICON} />
             </button>
           </div>
@@ -255,7 +255,10 @@ export const StudyBanner: React.FC<{ youtubeInput?: string | null; onChannelChan
             aria-valuemax={100}
             aria-valuenow={pct}
           >
-            <div className="h-full bg-accent rounded-full transition-[width] duration-500" style={{ width: `${pct}%` }} />
+            <div
+              className="h-full bg-accent rounded-full transition-[width] duration-500"
+              style={{ width: `${pct}%` }}
+            />
           </div>
           <ol className="sr-only">
             {STEP_ORDER.map((s) => (

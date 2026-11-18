@@ -41,7 +41,13 @@ const Choice: React.FC<{
       checked ? 'border-accent bg-accent-soft' : 'border-line-strong bg-surface hover:bg-raised'
     }`}
   >
-    <input type={type} name={name} checked={checked} onChange={onChange} className="mt-[2px] accent-[#2f5bea] w-4 h-4" />
+    <input
+      type={type}
+      name={name}
+      checked={checked}
+      onChange={onChange}
+      className="mt-[2px] accent-[#2f5bea] w-4 h-4"
+    />
     <span className="min-w-0">
       <span className="block text-[14px] text-fg">{children}</span>
       {description && <span className="block mt-[2px] text-[13px] text-fg-2">{description}</span>}
@@ -160,7 +166,9 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                   {done ? <Check size={12} strokeWidth={2} /> : i + 1}
                 </span>
                 <span>
-                  <span className={`block text-[14px] ${active ? 'text-fg font-medium' : done ? 'text-fg' : 'text-fg-3'}`}>
+                  <span
+                    className={`block text-[14px] ${active ? 'text-fg font-medium' : done ? 'text-fg' : 'text-fg-3'}`}
+                  >
                     {s.label}
                     <span className="sr-only">{done ? ' (done)' : active ? ' (current step)' : ''}</span>
                   </span>
@@ -195,7 +203,10 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       onChange={(e) => set('youtube', e.target.value)}
                     />
                   </div>
-                  <p id="yt-hint" className="field-hint">Paste your channel link, like https://www.youtube.com/@yourhandle, or just the @handle. If we cannot find it, you can fix it later inside the app</p>
+                  <p id="yt-hint" className="field-hint">
+                    Paste your channel link, like https://www.youtube.com/@yourhandle, or just the @handle. If we cannot
+                    find it, you can fix it later inside the app
+                  </p>
                 </div>
 
                 <div>
@@ -226,7 +237,9 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                     value={captionsText}
                     onChange={(e) => setCaptionsText(e.target.value)}
                   />
-                  <p id="captions-hint" className="field-hint">Instagram has no public feed, so pasted captions are how we learn your Reels voice</p>
+                  <p id="captions-hint" className="field-hint">
+                    Instagram has no public feed, so pasted captions are how we learn your Reels voice
+                  </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -285,7 +298,9 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                         </Choice>
                       ))}
                     </div>
-                    <p className="field-hint">You can film in Hindi and still read drafts in English. Insights are always in English</p>
+                    <p className="field-hint">
+                      You can film in Hindi and still read drafts in English. Insights are always in English
+                    </p>
                   </fieldset>
                 </div>
               </div>
@@ -296,7 +311,8 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
             <div className="rise-in">
               <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">How do you earn</h1>
               <p className="mt-2 text-fg-2">
-                This decides which tools show up. Affiliate links, disclosures and product cards only appear if you use them
+                This decides which tools show up. Affiliate links, disclosures and product cards only appear if you use
+                them
               </p>
 
               <fieldset className="mt-8">
@@ -337,7 +353,9 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       value={profile.amazon.partnerTag}
                       onChange={(e) => set('amazon', { ...profile.amazon, partnerTag: e.target.value.trim() })}
                     />
-                    <p id="tag-hint" className="field-hint">Found in Associates Central under Manage tracking IDs</p>
+                    <p id="tag-hint" className="field-hint">
+                      Found in Associates Central under Manage tracking IDs
+                    </p>
                   </div>
                   <div>
                     <label htmlFor="market" className="field-label">
@@ -361,7 +379,11 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                 <legend className="field-label">Other income</legend>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {INCOME.map((label) => (
-                    <Choice key={label} checked={profile.otherIncome.includes(label)} onChange={() => toggle('otherIncome', label)}>
+                    <Choice
+                      key={label}
+                      checked={profile.otherIncome.includes(label)}
+                      onChange={() => toggle('otherIncome', label)}
+                    >
                       {label}
                     </Choice>
                   ))}
@@ -373,29 +395,30 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
           {step === 'goals' && (
             <div className="rise-in">
               <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">What should we focus on</h1>
-              <p id="goals-hint" className="mt-2 text-fg-2">Pick up to three. Lessons and suggestions lean toward these</p>
+              <p id="goals-hint" className="mt-2 text-fg-2">
+                Pick up to three. Lessons and suggestions lean toward these
+              </p>
               <fieldset className="mt-8" aria-describedby="goals-hint">
-              <legend className="sr-only">Goals</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {GOALS.map((g) => (
-                  <Choice
-                    key={g}
-                    checked={profile.goals.includes(g)}
-                    onChange={() => {
-                      if (!profile.goals.includes(g) && profile.goals.length >= 3) return;
-                      toggle('goals', g);
-                    }}
-                  >
-                    {g}
-                  </Choice>
-                ))}
-              </div>
+                <legend className="sr-only">Goals</legend>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {GOALS.map((g) => (
+                    <Choice
+                      key={g}
+                      checked={profile.goals.includes(g)}
+                      onChange={() => {
+                        if (!profile.goals.includes(g) && profile.goals.length >= 3) return;
+                        toggle('goals', g);
+                      }}
+                    >
+                      {g}
+                    </Choice>
+                  ))}
+                </div>
               </fieldset>
             </div>
           )}
 
-
-          {(
+          {
             <>
               {error && (
                 <div className="mt-6">
@@ -418,7 +441,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                 </button>
               </div>
             </>
-          )}
+          }
         </section>
       </main>
     </div>

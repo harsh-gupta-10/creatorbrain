@@ -71,11 +71,7 @@ export class OpenAIProvider implements AIProvider {
     return data.choices?.[0]?.message?.content || '';
   }
 
-  async generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    options?: AIGenerateOptions
-  ): Promise<T> {
+  async generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, options?: AIGenerateOptions): Promise<T> {
     const model = options?.model || this.defaultModel;
     const formatted = this.formatMessages([
       ...messages,
@@ -129,11 +125,17 @@ export class OpenAIProvider implements AIProvider {
 
     const openaiTools = tools.map((t) => {
       const def = t.parameters._def as { shape?: unknown } | undefined;
-      const shape = (typeof def?.shape === 'function' ? (def.shape as () => Record<string, unknown>)() : (t.parameters.shape as Record<string, unknown>)) || {};
+      const shape =
+        (typeof def?.shape === 'function'
+          ? (def.shape as () => Record<string, unknown>)()
+          : (t.parameters.shape as Record<string, unknown>)) || {};
       const properties: Record<string, { type: string; description: string }> = {};
       const required: string[] = [];
 
-      for (const [key, zodType] of Object.entries(shape) as [string, { description?: string; isOptional?: () => boolean }][]) {
+      for (const [key, zodType] of Object.entries(shape) as [
+        string,
+        { description?: string; isOptional?: () => boolean },
+      ][]) {
         properties[key] = {
           type: 'string',
           description: zodType.description || key,

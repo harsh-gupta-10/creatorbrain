@@ -25,13 +25,12 @@ agentsRoutes.post('/run-now', async (c) => {
 
   // Record agent trace
   const now = new Date().toISOString();
-  await c.env.DB
-    .prepare(
-      `INSERT INTO agent_traces (
+  await c.env.DB.prepare(
+    `INSERT INTO agent_traces (
         id, creator_id, agent_name, task_description, step_number, total_steps,
         tool_called, tool_input, tool_result, output_summary, status, created_at
       ) VALUES (?, ?, 'Orchestrator', 'Evaluate channel growth bottlenecks & update next best action', 1, 1, 'evaluateChannelHealth', ?, ?, ?, 'success', ?)`
-    )
+  )
     .bind(
       `trace_run_${Date.now()}`,
       creator.id,

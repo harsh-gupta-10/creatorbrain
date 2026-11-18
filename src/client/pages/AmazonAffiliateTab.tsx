@@ -81,7 +81,11 @@ const EarningsChart: React.FC<{ series: { date: string; value: number }[]; money
           ))}
         </tbody>
       </table>
-      <div className="flex flex-col justify-between text-right meta !leading-none shrink-0" style={{ height: chartH }} aria-hidden="true">
+      <div
+        className="flex flex-col justify-between text-right meta !leading-none shrink-0"
+        style={{ height: chartH }}
+        aria-hidden="true"
+      >
         {ticks.map((t, i) => (
           <span key={i}>{money(t)}</span>
         ))}
@@ -280,7 +284,12 @@ export const AmazonAffiliateTab: React.FC = () => {
         actions={
           !off && (
             <>
-              <button onClick={handleHealthCheck} disabled={isHealthChecking} aria-busy={isHealthChecking} className="btn btn-secondary">
+              <button
+                onClick={handleHealthCheck}
+                disabled={isHealthChecking}
+                aria-busy={isHealthChecking}
+                className="btn btn-secondary"
+              >
                 {isHealthChecking ? <Spinner /> : <RefreshCw {...ICON} className="text-fg-2" />}
                 Check links
               </button>
@@ -328,7 +337,11 @@ export const AmazonAffiliateTab: React.FC = () => {
       {!off && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
-            <Stat label="Referred revenue" value={money(totalRevenue)} note={`${formatCount(totalItems)} items shipped`} />
+            <Stat
+              label="Referred revenue"
+              value={money(totalRevenue)}
+              note={`${formatCount(totalItems)} items shipped`}
+            />
             <Stat
               label="Commission"
               value={money(totalEarnings)}
@@ -364,7 +377,9 @@ export const AmazonAffiliateTab: React.FC = () => {
                     <EarningsChart series={series} money={money} />
                   </div>
                   <div>
-                    <h3 id="top-products-heading" className="text-[13px] text-fg-2 mb-3">Top products by commission</h3>
+                    <h3 id="top-products-heading" className="text-[13px] text-fg-2 mb-3">
+                      Top products by commission
+                    </h3>
                     <div className="space-y-3" role="list" aria-labelledby="top-products-heading">
                       {topProducts.map(([title, value]) => (
                         <div key={title} role="listitem">
@@ -512,48 +527,56 @@ export const AmazonAffiliateTab: React.FC = () => {
 
       {/* CSV earnings import */}
       {showCsvModal && (
-        <Dialog onClose={() => setShowCsvModal(false)} labelledBy="csv-title" className="panel w-full max-w-lg p-6" backdropClassName="bg-black/30">
-            <div className="flex items-center justify-between mb-2">
-              <h2 id="csv-title" className="text-[15px] font-medium text-fg">
-                Import earnings
-              </h2>
-              <button onClick={() => setShowCsvModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
-                <X {...ICON} />
+        <Dialog
+          onClose={() => setShowCsvModal(false)}
+          labelledBy="csv-title"
+          className="panel w-full max-w-lg p-6"
+          backdropClassName="bg-black/30"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <h2 id="csv-title" className="text-[15px] font-medium text-fg">
+              Import earnings
+            </h2>
+            <button onClick={() => setShowCsvModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+              <X {...ICON} />
+            </button>
+          </div>
+          <p id="csv-help" className="text-[13px] text-fg-2 mb-4">
+            Paste rows from your Associates earnings report. Columns: date, ASIN, product title, items ordered, items
+            shipped, revenue, commission.
+          </p>
+
+          <form onSubmit={handleCsvImport} className="space-y-4">
+            {csvError && <ErrorNote>{csvError}</ErrorNote>}
+            {importCount !== null && (
+              <div
+                role="status"
+                className="rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2"
+              >
+                <Check {...ICON} className="shrink-0" />
+                Imported {importCount} rows
+              </div>
+            )}
+
+            <textarea
+              rows={6}
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              aria-label="Earnings CSV"
+              aria-describedby="csv-help"
+              placeholder={`Date,ASIN,Product Title,Items Ordered,Items Shipped,Revenue,Commission\n2026-11-12,B0D3G78JKL,Motorola Edge 50 Fusion,4,4,91996.0,2299.9`}
+              className="input font-mono !text-[12px]"
+            />
+
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setShowCsvModal(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Import
               </button>
             </div>
-            <p id="csv-help" className="text-[13px] text-fg-2 mb-4">
-              Paste rows from your Associates earnings report. Columns: date, ASIN, product title, items ordered, items
-              shipped, revenue, commission.
-            </p>
-
-            <form onSubmit={handleCsvImport} className="space-y-4">
-              {csvError && <ErrorNote>{csvError}</ErrorNote>}
-              {importCount !== null && (
-                <div role="status" className="rounded-[8px] bg-positive-soft text-positive text-[13px] px-3 py-2 flex items-center gap-2">
-                  <Check {...ICON} className="shrink-0" />
-                  Imported {importCount} rows
-                </div>
-              )}
-
-              <textarea
-                rows={6}
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                aria-label="Earnings CSV"
-                aria-describedby="csv-help"
-                placeholder={`Date,ASIN,Product Title,Items Ordered,Items Shipped,Revenue,Commission\n2026-11-12,B0D3G78JKL,Motorola Edge 50 Fusion,4,4,91996.0,2299.9`}
-                className="input font-mono !text-[12px]"
-              />
-
-              <div className="flex items-center justify-end gap-2">
-                <button type="button" onClick={() => setShowCsvModal(false)} className="btn btn-ghost">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Import
-                </button>
-              </div>
-            </form>
+          </form>
         </Dialog>
       )}
     </div>

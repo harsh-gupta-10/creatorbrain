@@ -176,7 +176,10 @@ export class AIRouter {
         return result;
       } catch (err: unknown) {
         lastError = err instanceof Error ? err : new Error(String(err));
-        console.warn(`[AI Router] Provider ${provider.name} failed structured output, falling back:`, lastError.message);
+        console.warn(
+          `[AI Router] Provider ${provider.name} failed structured output, falling back:`,
+          lastError.message
+        );
       }
     }
 
@@ -199,7 +202,10 @@ export class AIRouter {
       try {
         return await this.claude.callWithTools(messages, tools, options);
       } catch (err: unknown) {
-        console.warn('[AI Router] Claude callWithTools failed, checking OpenAI:', err instanceof Error ? err.message : String(err));
+        console.warn(
+          '[AI Router] Claude callWithTools failed, checking OpenAI:',
+          err instanceof Error ? err.message : String(err)
+        );
       }
     }
 

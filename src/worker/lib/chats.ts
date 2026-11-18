@@ -13,7 +13,12 @@ export const THREAD_RE = /^(copilot|tutor|studio:[\w-]{1,80}|tools:(hook|script|
 const MAX_CONTENT = 20_000;
 const KEEP_PER_THREAD = 200;
 
-export async function loadThread(db: D1Database, creatorId: string, thread: string, limit = 100): Promise<ChatMessage[]> {
+export async function loadThread(
+  db: D1Database,
+  creatorId: string,
+  thread: string,
+  limit = 100
+): Promise<ChatMessage[]> {
   const { results } = await db
     .prepare(
       `SELECT id, role, content, meta_json, created_at FROM (
@@ -42,7 +47,9 @@ export async function appendToThread(
   const base = Date.now();
   const stmts = messages.map((m, i) =>
     db
-      .prepare('INSERT INTO chat_messages (id, creator_id, thread, role, content, meta_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .prepare(
+        'INSERT INTO chat_messages (id, creator_id, thread, role, content, meta_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      )
       .bind(
         `msg_${crypto.randomUUID()}`,
         creatorId,

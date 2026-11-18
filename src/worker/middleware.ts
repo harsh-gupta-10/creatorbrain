@@ -4,7 +4,13 @@ import type { AppEnv } from './env';
 import { getSession } from './routes/auth';
 
 /** API paths reachable without a session */
-const PUBLIC_API = [/^\/api\/auth\//, /^\/api\/bio\/click\//, /^\/api\/links\/report-abuse$/, /^\/api\/health$/, /^\/api\/public\//];
+const PUBLIC_API = [
+  /^\/api\/auth\//,
+  /^\/api\/bio\/click\//,
+  /^\/api\/links\/report-abuse$/,
+  /^\/api\/health$/,
+  /^\/api\/public\//,
+];
 
 const isWrite = (method: string) => !['GET', 'HEAD', 'OPTIONS'].includes(method);
 
@@ -60,6 +66,10 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   h.set('X-Frame-Options', 'DENY');
   h.set('X-XSS-Protection', '1; mode=block');
   h.set('Cross-Origin-Opener-Policy', 'same-origin');
+  h.set('Cross-Origin-Embedder-Policy', 'credentialless');
+  h.set('X-Permitted-Cross-Domain-Policies', 'none');
+  const isPublicBio = /^\/@[^/]+$/.test(c.req.path);
+  h.set('Cross-Origin-Resource-Policy', isPublicBio ? 'cross-origin' : 'same-origin');
   h.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   const isHttps = new URL(c.req.url).protocol === 'https:';
   if (isHttps) {

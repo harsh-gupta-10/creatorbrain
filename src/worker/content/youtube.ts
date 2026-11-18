@@ -177,7 +177,11 @@ export function parseIsoDuration(iso: string): number {
 }
 
 /** Up to `max` most recent uploads with duration, tags and engagement. Uses 3 API calls (~3 quota units) */
-export async function fetchChannelWithDataApi(input: string, apiKey: string, max = 50): Promise<FetchedChannel & { videos: DataApiVideo[] }> {
+export async function fetchChannelWithDataApi(
+  input: string,
+  apiKey: string,
+  max = 50
+): Promise<FetchedChannel & { videos: DataApiVideo[] }> {
   const { channelId, pageUrl } = normalizeYouTubeInput(input);
   const base = 'https://www.googleapis.com/youtube/v3';
   const handle = pageUrl.match(/\/(@[\w.-]+)/)?.[1];
@@ -224,9 +228,17 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
   const ch = (await get(`channels?part=snippet,statistics,contentDetails&${lookup}`)).items?.[0];
   if (!ch) throw new ChannelNotFoundError(input);
   const uploads = ch.contentDetails.relatedPlaylists.uploads;
-  const items = (await get<{ items?: YouTubePlaylistItem[] }>(`playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`)).items || [];
+  const items =
+    (
+      await get<{ items?: YouTubePlaylistItem[] }>(
+        `playlistItems?part=contentDetails&maxResults=${Math.min(max, 50)}&playlistId=${uploads}`
+      )
+    ).items || [];
   const ids = items.map((i) => i.contentDetails.videoId).join(',');
-  const vids = ids ? (await get<{ items?: YouTubeVideoResource[] }>(`videos?part=snippet,contentDetails,statistics&id=${ids}`)).items || [] : [];
+  const vids = ids
+    ? (await get<{ items?: YouTubeVideoResource[] }>(`videos?part=snippet,contentDetails,statistics&id=${ids}`))
+        .items || []
+    : [];
 
   return {
     channelId: ch.id,
@@ -239,7 +251,9 @@ export async function fetchChannelWithDataApi(input: string, apiKey: string, max
       title: v.snippet.title,
       description: v.snippet.description || '',
       url: `https://www.youtube.com/watch?v=${v.id}`,
-      thumbnailUrl: (v.snippet.thumbnails?.maxres || v.snippet.thumbnails?.high || v.snippet.thumbnails?.medium)?.url || `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
+      thumbnailUrl:
+        (v.snippet.thumbnails?.maxres || v.snippet.thumbnails?.high || v.snippet.thumbnails?.medium)?.url ||
+        `https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`,
       views: Number(v.statistics?.viewCount || 0),
       likes: Number(v.statistics?.likeCount || 0),
       comments: Number(v.statistics?.commentCount || 0),
@@ -323,7 +337,10 @@ export async function fetchVideoDetails(videoId: string, preferLang = 'en'): Pro
 /** Parses YouTube timedtext (srv3 `<p t="ms">` or classic `<text start="s">`) into segments */
 export function parseTimedText(xml: string): TranscriptSegment[] {
   const segs: TranscriptSegment[] = [];
-  const clean = (t: string) => decodeEntities(t.replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+  const clean = (t: string) =>
+    decodeEntities(t.replace(/<[^>]+>/g, ''))
+      .replace(/\s+/g, ' ')
+      .trim();
   for (const m of xml.matchAll(/<p t="(\d+)"[^>]*>([\s\S]*?)<\/p>/g)) {
     const text = clean(m[2]);
     if (text) segs.push({ start: Number(m[1]) / 1000, text });

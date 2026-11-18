@@ -98,7 +98,11 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
         </a>
       </header>
 
-      <main id="main" tabIndex={-1} className="outline-none flex-1 flex items-start md:items-center justify-center px-4 pb-16 pt-8 md:pt-0">
+      <main
+        id="main"
+        tabIndex={-1}
+        className="outline-none flex-1 flex items-start md:items-center justify-center px-4 pb-16 pt-8 md:pt-0"
+      >
         <div className="w-full max-w-[400px]">
           <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
             {isSignup ? 'Create your account' : 'Sign in'}
@@ -130,7 +134,9 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
                     Handle
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">@</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">
+                      @
+                    </span>
                     <input
                       id="handle"
                       className="input pl-7 pr-9"
@@ -149,8 +155,14 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
                       {handleState === 'ok' && <Check {...ICON} className="text-positive" />}
                     </span>
                   </div>
-                  <p id="handle-hint" aria-live="polite" className={`field-hint ${handleState === 'taken' ? 'text-negative' : ''}`}>
-                    {handleState === 'taken' ? 'That handle is taken' : `Your public page: ${window.location.host}/@${handle || 'handle'}`}
+                  <p
+                    id="handle-hint"
+                    aria-live="polite"
+                    className={`field-hint ${handleState === 'taken' ? 'text-negative' : ''}`}
+                  >
+                    {handleState === 'taken'
+                      ? 'That handle is taken'
+                      : `Your public page: ${window.location.host}/@${handle || 'handle'}`}
                     {handleState === 'ok' && <span className="sr-only"> (available)</span>}
                   </p>
                 </div>
@@ -198,12 +210,21 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
                   {showPassword ? <EyeOff {...ICON} /> : <Eye {...ICON} />}
                 </button>
               </div>
-              {isSignup && <p id="password-hint" className="field-hint">At least 8 characters</p>}
+              {isSignup && (
+                <p id="password-hint" className="field-hint">
+                  At least 8 characters
+                </p>
+              )}
             </div>
 
             {error && <ErrorNote>{error}</ErrorNote>}
 
-            <button type="submit" className="btn btn-primary btn-lg w-full mt-2" disabled={submitting} aria-busy={submitting}>
+            <button
+              type="submit"
+              className="btn btn-primary btn-lg w-full mt-2"
+              disabled={submitting}
+              aria-busy={submitting}
+            >
               {submitting && <Spinner size={14} />}
               {isSignup ? 'Create account' : 'Sign in'}
             </button>
@@ -213,14 +234,20 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
             {isSignup ? (
               <>
                 Already have an account?{' '}
-                <a {...linkProps('/login')} className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink">
+                <a
+                  {...linkProps('/login')}
+                  className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
+                >
                   Sign in
                 </a>
               </>
             ) : (
               <>
                 New to CreatorBrain?{' '}
-                <a {...linkProps('/signup')} className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink">
+                <a
+                  {...linkProps('/signup')}
+                  className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
+                >
                   Create an account
                 </a>
               </>

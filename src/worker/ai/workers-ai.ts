@@ -32,11 +32,7 @@ export class WorkersAIProvider implements AIProvider {
     return out ? JSON.stringify(out) : '';
   }
 
-  async generateStructured<T>(
-    messages: AIMessage[],
-    schema: z.ZodType<T>,
-    options?: AIGenerateOptions
-  ): Promise<T> {
+  async generateStructured<T>(messages: AIMessage[], schema: z.ZodType<T>, options?: AIGenerateOptions): Promise<T> {
     const jsonPrompt: AIMessage = {
       role: 'user',
       content: 'Respond ONLY with valid JSON matching the schema. No markdown backticks or commentary.',

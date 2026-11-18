@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { encryptSecret, decryptSecret, isEncrypted, resolveMasterSecret, MissingEncryptionKeyError } from '../src/worker/amazon/crypto';
+import {
+  encryptSecret,
+  decryptSecret,
+  isEncrypted,
+  resolveMasterSecret,
+  MissingEncryptionKeyError,
+} from '../src/worker/amazon/crypto';
 import { signPaapiRequest, AmazonCreatorsClient } from '../src/worker/amazon/client';
 import { isSafePublicHttpUrl, safePublicHref } from '../src/worker/lib/url-safety';
 import { parseShortLinkCache, serializeShortLinkCache, shortLinkCacheTtl } from '../src/worker/lib/short-link-cache';
@@ -40,7 +46,9 @@ describe('Per-creator credential encryption', () => {
 
   it('requires ENCRYPTION_KEY outside development', () => {
     expect(() => resolveMasterSecret({ ENVIRONMENT: 'production' })).toThrow(MissingEncryptionKeyError);
-    expect(() => resolveMasterSecret({ ENVIRONMENT: 'production', ENCRYPTION_KEY: 'short' })).toThrow(MissingEncryptionKeyError);
+    expect(() => resolveMasterSecret({ ENVIRONMENT: 'production', ENCRYPTION_KEY: 'short' })).toThrow(
+      MissingEncryptionKeyError
+    );
     expect(resolveMasterSecret({ ENVIRONMENT: 'production', ENCRYPTION_KEY: SECRET })).toBe(SECRET);
     expect(resolveMasterSecret({ ENVIRONMENT: 'development' })).toBeTruthy();
   });
@@ -78,9 +86,13 @@ describe('Amazon client', () => {
 
   it("tags links with the creator's own tracking ID only", () => {
     const tagged = new AmazonCreatorsClient({ partnerTag: 'maya-20', marketplace: 'amazon.com' });
-    expect(tagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe('https://www.amazon.com/dp/B000000000?tag=maya-20');
+    expect(tagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe(
+      'https://www.amazon.com/dp/B000000000?tag=maya-20'
+    );
     const untagged = new AmazonCreatorsClient();
-    expect(untagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe('https://www.amazon.com/dp/B000000000');
+    expect(untagged.buildAffiliateUrl('https://www.amazon.com/dp/B000000000')).toBe(
+      'https://www.amazon.com/dp/B000000000'
+    );
   });
 
   it('marks sample catalog results as not live', async () => {
@@ -135,7 +147,12 @@ describe('Creator-provided page URLs', () => {
   });
 
   it('rejects script, protocol-relative, and parser-confusion URLs', () => {
-    for (const value of ['javascript:alert(1)', '//evil.example/path', '/\\\\evil.example/path', 'data:text/html,hello']) {
+    for (const value of [
+      'javascript:alert(1)',
+      '//evil.example/path',
+      '/\\\\evil.example/path',
+      'data:text/html,hello',
+    ]) {
       expect(safePublicHref(value, 'https://creatorbrain.example'), value).toBe('#');
     }
   });

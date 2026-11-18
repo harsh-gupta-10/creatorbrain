@@ -21,6 +21,9 @@ describe('Feature Test Suite 1: Security Headers & CSP Enforcement', () => {
     expect(htmlRes.headers.get('X-Frame-Options')).toBe('DENY');
     expect(htmlRes.headers.get('X-XSS-Protection')).toBe('1; mode=block');
     expect(htmlRes.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin');
+    expect(htmlRes.headers.get('Cross-Origin-Embedder-Policy')).toBe('credentialless');
+    expect(htmlRes.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
+    expect(htmlRes.headers.get('X-Permitted-Cross-Domain-Policies')).toBe('none');
     expect(htmlRes.headers.get('Strict-Transport-Security')).toContain('max-age=31536000');
 
     const csp = htmlRes.headers.get('Content-Security-Policy') || '';

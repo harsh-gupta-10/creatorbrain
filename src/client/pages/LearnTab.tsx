@@ -38,7 +38,12 @@ export const LearnTab: React.FC = () => {
           ...saved.map((m) => ({
             role: m.role === 'user' ? ('user' as const) : ('tutor' as const),
             text: m.content,
-            time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            time: new Date(m.created_at).toLocaleString([], {
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
           })),
         ]);
       })
@@ -272,7 +277,13 @@ export const LearnTab: React.FC = () => {
                       >
                         <span className="w-5 shrink-0 flex justify-end">
                           {isCompleted ? (
-                            <Check {...ICON} className="text-positive" aria-hidden={false} role="img" aria-label="Completed" />
+                            <Check
+                              {...ICON}
+                              className="text-positive"
+                              aria-hidden={false}
+                              role="img"
+                              aria-label="Completed"
+                            />
                           ) : (
                             <span className="meta">{idx + 1}</span>
                           )}
@@ -327,11 +338,17 @@ export const LearnTab: React.FC = () => {
           {/* Tutor */}
           <section className="lg:col-span-5 card h-[620px] flex flex-col overflow-hidden" aria-labelledby="tutor-title">
             <div className="px-4 h-12 border-b border-line flex items-center justify-between">
-              <h2 id="tutor-title" className="font-medium text-fg">Tutor</h2>
+              <h2 id="tutor-title" className="font-medium text-fg">
+                Tutor
+              </h2>
               <span className="meta">Uses your Brain</span>
             </div>
 
-            <div className="px-4 py-3 border-b border-line flex items-center gap-2 overflow-x-auto" role="group" aria-label="Suggested questions">
+            <div
+              className="px-4 py-3 border-b border-line flex items-center gap-2 overflow-x-auto"
+              role="group"
+              aria-label="Suggested questions"
+            >
               {['How do I keep viewers past the first minute', 'Amazon disclosure rules', 'Review my hooks'].map(
                 (chip) => (
                   <button

@@ -110,7 +110,12 @@ export const ContentStudioTab: React.FC = () => {
             ...saved.map((m) => ({
               role: m.role === 'user' ? ('user' as const) : ('agent' as const),
               text: m.content,
-              time: new Date(m.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+              time: new Date(m.created_at).toLocaleString([], {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
             })),
           ]);
         })
@@ -262,9 +267,7 @@ ${a.content}
     try {
       const updated = { ...selectedProject, status: newStatus };
       setSelectedProject(updated);
-      setProjects((prev) =>
-        prev.map((p) => (p.id === selectedProject.id ? { ...p, status: newStatus } : p))
-      );
+      setProjects((prev) => prev.map((p) => (p.id === selectedProject.id ? { ...p, status: newStatus } : p)));
     } catch (err: unknown) {
       console.error('Failed to update status:', err);
     }
@@ -355,7 +358,9 @@ ${a.content}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         <div className="lg:col-span-5 h-[620px] panel flex flex-col overflow-hidden">
           <div className="h-12 px-4 border-b border-line flex items-center justify-between">
-            <h2 id="studio-agent-title" className="text-[13px] font-medium text-fg">Studio agent</h2>
+            <h2 id="studio-agent-title" className="text-[13px] font-medium text-fg">
+              Studio agent
+            </h2>
             <span className="meta">Researches, drafts and checks</span>
           </div>
 
@@ -439,7 +444,11 @@ ${a.content}
               if (i < 0) return;
               e.preventDefault();
               const next =
-                e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+                e.key === 'Home'
+                  ? 0
+                  : e.key === 'End'
+                    ? tabs.length - 1
+                    : (i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
               tabs[next].focus();
               tabs[next].click();
             }}
@@ -485,61 +494,70 @@ ${a.content}
             aria-labelledby={`asset-tab-${activeAssetType}`}
             className="flex-1 min-h-0 flex flex-col"
           >
-          <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h2 className="text-[15px] font-medium text-fg truncate">{currentAsset?.title || activeAssetType}</h2>
-              <p className="text-[12px] leading-4 text-fg-3 mt-1">Drafted from your past videos and captions</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => setIsEditing(!isEditing)} className="btn btn-ghost btn-sm" aria-pressed={isEditing}>
-                <Edit3 {...ICON} />
-                {isEditing ? 'Cancel' : 'Edit'}
-              </button>
-              {isEditing && (
-                <button onClick={handleSaveAssetEdit} disabled={isSaving} aria-busy={isSaving} className="btn btn-primary btn-sm">
-                  {isSaving ? <Spinner /> : <Save {...ICON} />}
-                  Save
+            <div className="px-4 py-3 border-b border-line flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="text-[15px] font-medium text-fg truncate">{currentAsset?.title || activeAssetType}</h2>
+                <p className="text-[12px] leading-4 text-fg-3 mt-1">Drafted from your past videos and captions</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="btn btn-ghost btn-sm"
+                  aria-pressed={isEditing}
+                >
+                  <Edit3 {...ICON} />
+                  {isEditing ? 'Cancel' : 'Edit'}
                 </button>
-              )}
-              <button
-                onClick={() => handleCopyAsset(editableContent, activeAssetType)}
-                className="btn btn-secondary btn-sm"
-              >
-                {copiedType === activeAssetType ? (
-                  <>
-                    <Check {...ICON} className="text-positive" />
-                    <span role="status">Copied</span>
-                  </>
-                ) : (
-                  <>
-                    <Copy {...ICON} />
-                    Copy
-                  </>
+                {isEditing && (
+                  <button
+                    onClick={handleSaveAssetEdit}
+                    disabled={isSaving}
+                    aria-busy={isSaving}
+                    className="btn btn-primary btn-sm"
+                  >
+                    {isSaving ? <Spinner /> : <Save {...ICON} />}
+                    Save
+                  </button>
                 )}
-              </button>
+                <button
+                  onClick={() => handleCopyAsset(editableContent, activeAssetType)}
+                  className="btn btn-secondary btn-sm"
+                >
+                  {copiedType === activeAssetType ? (
+                    <>
+                      <Check {...ICON} className="text-positive" />
+                      <span role="status">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy {...ICON} />
+                      Copy
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div className="flex-1 p-4 overflow-y-auto">
-            {isEditing ? (
-              <textarea
-                value={editableContent}
-                onChange={(e) => setEditableContent(e.target.value)}
-                aria-label="Asset content"
-                className="input h-full font-mono text-[13px] resize-none"
-              />
-            ) : editableContent ? (
-              <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
-                {editableContent}
-              </pre>
-            ) : (
-              <EmptyState
-                icon={<FileText {...ICON} />}
-                title="Nothing drafted yet"
-                description="Ask the studio agent to draft this asset"
-              />
-            )}
-          </div>
+            <div className="flex-1 p-4 overflow-y-auto">
+              {isEditing ? (
+                <textarea
+                  value={editableContent}
+                  onChange={(e) => setEditableContent(e.target.value)}
+                  aria-label="Asset content"
+                  className="input h-full font-mono text-[13px] resize-none"
+                />
+              ) : editableContent ? (
+                <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
+                  {editableContent}
+                </pre>
+              ) : (
+                <EmptyState
+                  icon={<FileText {...ICON} />}
+                  title="Nothing drafted yet"
+                  description="Ask the studio agent to draft this asset"
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -551,48 +569,48 @@ ${a.content}
           backdropClassName="bg-fg/30"
           className="panel w-full max-w-md p-6 shadow-[0_8px_24px_rgb(0_0_0/0.12)]"
         >
-            <h2 id="new-project-title" className="text-[16px] font-medium text-fg mb-4">
-              New video project
-            </h2>
-            <form onSubmit={handleCreateNewProject} className="space-y-4">
-              <div>
-                <label className="field-label" htmlFor="new-project-name">
-                  Title
-                </label>
-                <input
-                  id="new-project-name"
-                  type="text"
-                  required
-                  aria-required="true"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Vivo T3 Pro 5G review"
-                  className="input"
-                />
-              </div>
-              <div>
-                <label className="field-label" htmlFor="new-project-brief">
-                  Brief
-                </label>
-                <textarea
-                  id="new-project-brief"
-                  rows={3}
-                  value={newBrief}
-                  onChange={(e) => setNewBrief(e.target.value)}
-                  placeholder="8-minute review comparing battery life and cameras for students"
-                  className="input"
-                />
-              </div>
-              {modalError && <ErrorNote>{modalError}</ErrorNote>}
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowNewModal(false)} className="btn btn-ghost">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  Create project
-                </button>
-              </div>
-            </form>
+          <h2 id="new-project-title" className="text-[16px] font-medium text-fg mb-4">
+            New video project
+          </h2>
+          <form onSubmit={handleCreateNewProject} className="space-y-4">
+            <div>
+              <label className="field-label" htmlFor="new-project-name">
+                Title
+              </label>
+              <input
+                id="new-project-name"
+                type="text"
+                required
+                aria-required="true"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Vivo T3 Pro 5G review"
+                className="input"
+              />
+            </div>
+            <div>
+              <label className="field-label" htmlFor="new-project-brief">
+                Brief
+              </label>
+              <textarea
+                id="new-project-brief"
+                rows={3}
+                value={newBrief}
+                onChange={(e) => setNewBrief(e.target.value)}
+                placeholder="8-minute review comparing battery life and cameras for students"
+                className="input"
+              />
+            </div>
+            {modalError && <ErrorNote>{modalError}</ErrorNote>}
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button type="button" onClick={() => setShowNewModal(false)} className="btn btn-ghost">
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">
+                Create project
+              </button>
+            </div>
+          </form>
         </Dialog>
       )}
     </div>

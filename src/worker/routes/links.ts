@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
-import { CreateShortLinkSchema } from '../../shared/types';
-import type { ShortLink, LinkClick } from '../../shared/types';
+import { CreateShortLinkSchema, type ShortLink, type LinkClick } from '../../shared/types';
 import { isSafePublicHttpUrl } from '../lib/url-safety';
 import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
 
@@ -27,14 +26,10 @@ linkRoutes.post('/create', async (c) => {
     return c.json({ error: parsed.error.issues[0]?.message || 'Invalid link data' }, 400);
   }
 
-  const { destination_url, title, utm_source, utm_medium, utm_campaign, expires_at } =
-    parsed.data;
+  const { destination_url, title, utm_source, utm_medium, utm_campaign, expires_at } = parsed.data;
 
   if (!isSafePublicHttpUrl(destination_url)) {
-    return c.json(
-      { error: 'Invalid or prohibited destination URL. Only public http/https domains allowed.' },
-      400
-    );
+    return c.json({ error: 'Invalid or prohibited destination URL. Only public http/https domains allowed.' }, 400);
   }
 
   if (expires_at && Date.parse(expires_at) <= Date.now()) {
@@ -97,15 +92,15 @@ linkRoutes.get('/:id', async (c) => {
   const creator = c.get('creator');
 
   const linkId = c.req.param('id');
-  const link = await c.env.DB
-    .prepare('SELECT * FROM short_links WHERE id = ? AND creator_id = ?')
+  const link = await c.env.DB.prepare('SELECT * FROM short_links WHERE id = ? AND creator_id = ?')
     .bind(linkId, creator.id)
     .first<ShortLink>();
 
   if (!link) return c.json({ error: 'Short link not found' }, 404);
 
-  const clicksRes = await c.env.DB
-    .prepare('SELECT * FROM link_clicks WHERE short_link_id = ? ORDER BY created_at DESC LIMIT 100')
+  const clicksRes = await c.env.DB.prepare(
+    'SELECT * FROM link_clicks WHERE short_link_id = ? ORDER BY created_at DESC LIMIT 100'
+  )
     .bind(linkId)
     .all<LinkClick>();
 

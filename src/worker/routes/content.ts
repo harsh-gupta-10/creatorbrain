@@ -49,7 +49,7 @@ contentRoutes.get('/:id', async (c) => {
   const creator = c.get('creator');
   const row = await c.env.DB.prepare('SELECT * FROM content_items WHERE id = ? AND creator_id = ?')
     .bind(c.req.param('id'), creator.id)
-    .first<Record<string, any>>();
+    .first<Record<string, unknown>>();
   if (!row) return c.json({ error: 'Not found' }, 404);
   const parse = (v: string | null, fallback: unknown) => {
     try {
@@ -61,10 +61,13 @@ contentRoutes.get('/:id', async (c) => {
   return c.json({
     item: {
       ...row,
-      transcript: parse(row.transcript, []),
-      tags: parse(row.tags_json, []),
-      analysis: parse(row.analysis_json, null),
-      thumbnail_analysis: parse(row.thumbnail_analysis_json, null),
+      transcript: parse(typeof row.transcript === 'string' ? row.transcript : null, []),
+      tags: parse(typeof row.tags_json === 'string' ? row.tags_json : null, []),
+      analysis: parse(typeof row.analysis_json === 'string' ? row.analysis_json : null, null),
+      thumbnail_analysis: parse(
+        typeof row.thumbnail_analysis_json === 'string' ? row.thumbnail_analysis_json : null,
+        null
+      ),
       transcript_json: undefined,
       analysis_json: undefined,
       thumbnail_analysis_json: undefined,

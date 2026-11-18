@@ -19,7 +19,8 @@ export function parseStoredQuestions(json: string): StoredQuizQuestion[] | null 
   try {
     const parsed: unknown = JSON.parse(json);
     const result = StoredQuestionsSchema.safeParse(parsed);
-    if (!result.success || result.data.some((question) => question.correctIndex >= question.options.length)) return null;
+    if (!result.success || result.data.some((question) => question.correctIndex >= question.options.length))
+      return null;
     return result.data;
   } catch {
     return null;
@@ -29,7 +30,9 @@ export function parseStoredQuestions(json: string): StoredQuizQuestion[] | null 
 /** Do not expose answer keys or explanations until the quiz is completed. */
 export function questionsForClient(questions: StoredQuizQuestion[], completed: boolean): string {
   if (completed) return JSON.stringify(questions);
-  return JSON.stringify(questions.map(({ correctIndex: _correctIndex, explanation: _explanation, ...question }) => question));
+  return JSON.stringify(
+    questions.map(({ correctIndex: _correctIndex, explanation: _explanation, ...question }) => question)
+  );
 }
 
 export function parseQuizSubmission(value: unknown): Record<string, number> | null {
@@ -39,6 +42,9 @@ export function parseQuizSubmission(value: unknown): Record<string, number> | nu
 
 export function scoreQuiz(questions: StoredQuizQuestion[], answers: Record<string, number>): number | null {
   if (Object.keys(answers).length !== questions.length) return null;
-  if (questions.some((question) => answers[question.id] === undefined || answers[question.id] >= question.options.length)) return null;
+  if (
+    questions.some((question) => answers[question.id] === undefined || answers[question.id] >= question.options.length)
+  )
+    return null;
   return questions.reduce((score, question) => score + Number(answers[question.id] === question.correctIndex), 0);
 }

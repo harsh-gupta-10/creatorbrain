@@ -12,8 +12,7 @@ import {
   runComplianceChecker,
 } from '../agents/definitions/studioAndResearch';
 import { AmazonCreatorsClient } from '../amazon/client';
-import { StudioChatSchema } from '../../shared/types';
-import type { Project, ProjectAsset, Product, ShortLink } from '../../shared/types';
+import { StudioChatSchema, type Project, type ProjectAsset, type Product, type ShortLink } from '../../shared/types';
 import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
 
 export const studioRoutes = new Hono<AppEnv>();
@@ -84,8 +83,7 @@ studioRoutes.put('/assets/:id', async (c) => {
   const assetId = c.req.param('id');
   const { content, title } = await c.req.json();
 
-  const existing = await c.env.DB
-    .prepare('SELECT * FROM assets WHERE id = ? AND creator_id = ?')
+  const existing = await c.env.DB.prepare('SELECT * FROM assets WHERE id = ? AND creator_id = ?')
     .bind(assetId, creator.id)
     .first<ProjectAsset>();
 
@@ -94,8 +92,7 @@ studioRoutes.put('/assets/:id', async (c) => {
   const now = new Date().toISOString();
 
   // Create new version in asset_versions
-  const versionRes = await c.env.DB
-    .prepare('SELECT count(*) as cnt FROM asset_versions WHERE asset_id = ?')
+  const versionRes = await c.env.DB.prepare('SELECT count(*) as cnt FROM asset_versions WHERE asset_id = ?')
     .bind(assetId)
     .first<{ cnt: number }>();
 
@@ -103,16 +100,12 @@ studioRoutes.put('/assets/:id', async (c) => {
   const versionId = `v_${assetId}_${nextVer}`;
 
   await c.env.DB.batch([
-    c.env.DB
-      .prepare(
-        'INSERT INTO asset_versions (id, asset_id, version_number, content, prompt_trigger, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-      )
-      .bind(versionId, assetId, nextVer, content, 'Manual user edit', now),
-    c.env.DB
-      .prepare(
-        'UPDATE assets SET content = ?, title = ?, current_version_id = ?, updated_at = ? WHERE id = ?'
-      )
-      .bind(content, title || existing.title, versionId, now, assetId),
+    c.env.DB.prepare(
+      'INSERT INTO asset_versions (id, asset_id, version_number, content, prompt_trigger, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(versionId, assetId, nextVer, content, 'Manual user edit', now),
+    c.env.DB.prepare(
+      'UPDATE assets SET content = ?, title = ?, current_version_id = ?, updated_at = ? WHERE id = ?'
+    ).bind(content, title || existing.title, versionId, now, assetId),
   ]);
 
   return c.json({ success: true, versionId, nextVer });
@@ -203,7 +196,10 @@ studioRoutes.post('/chat', async (c) => {
       title: `${product.title.slice(0, 50)} (Project Deal)`,
       utm_source: 'youtube',
       utm_medium: 'description',
-      utm_campaign: project.title.toLowerCase().replace(/[^a-z0-9]/g, '-').slice(0, 30),
+      utm_campaign: project.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '-')
+        .slice(0, 30),
       total_clicks: 0,
       created_at: new Date().toISOString(),
     };
@@ -213,7 +209,6 @@ studioRoutes.post('/chat', async (c) => {
     if (c.env.KV && cacheTtl) {
       await c.env.KV.put(`link:${shortSlug}`, serializeShortLinkCache(shortLink), { expirationTtl: cacheTtl });
     }
-
   }
 
   // Step 4: Compliance Checker
@@ -228,7 +223,11 @@ studioRoutes.post('/chat', async (c) => {
     { type: 'shorts_caption' as const, title: 'YouTube Shorts Caption', content: generated.shortsCaption },
     { type: 'instagram_caption' as const, title: 'Instagram Reel Caption', content: generated.instagramCaption },
     { type: 'script_outline' as const, title: '8-Minute Script Outline', content: generated.scriptOutline },
-    { type: 'thumbnail_ideas' as const, title: '3-Word Thumbnail Concepts & Prompts', content: generated.thumbnailIdeas },
+    {
+      type: 'thumbnail_ideas' as const,
+      title: '3-Word Thumbnail Concepts & Prompts',
+      content: generated.thumbnailIdeas,
+    },
     { type: 'community_post' as const, title: 'YouTube Community Tab Poll', content: generated.communityPost },
     {
       type: 'compliance_report' as const,
@@ -272,7 +271,11 @@ Flags: ${compliance.flags.length === 0 ? 'None. Fully compliant with Amazon Oper
 
   await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
     { role: 'user', content: message },
-    { role: 'assistant', content: reply, meta: { product: product ? { title: product.title, asin: product.asin } : null, shortLink: shortUrl } },
+    {
+      role: 'assistant',
+      content: reply,
+      meta: { product: product ? { title: product.title, asin: product.asin } : null, shortLink: shortUrl },
+    },
   ]);
 
   return c.json({

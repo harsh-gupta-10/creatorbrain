@@ -10,9 +10,14 @@
 
 import { z } from 'zod';
 import type { AIRouter } from '../../ai/router';
-import type { CreatorDNA } from '../../../shared/types';
-import { CreatorDNASchema } from '../../../shared/types';
-import { fetchYouTubeChannel, fetchChannelWithDataApi, ChannelNotFoundError, type DataApiVideo, type FetchedVideo } from '../../content/youtube';
+import { CreatorDNASchema, type CreatorDNA } from '../../../shared/types';
+import {
+  fetchYouTubeChannel,
+  fetchChannelWithDataApi,
+  ChannelNotFoundError,
+  type DataApiVideo,
+  type FetchedVideo,
+} from '../../content/youtube';
 import { analyzeContentItem, pendingItems, type VideoAnalysis } from '../../content/analyze';
 import type { Env } from '../../env';
 import { ANALYSIS_LANGUAGE_RULE } from '../../lib/language';
@@ -41,7 +46,7 @@ interface CreatorRow {
   monetization_json?: string | null;
 }
 
-interface ContentRow {
+export interface ContentRow {
   id: string;
   platform: string;
   title: string;
@@ -130,7 +135,15 @@ export async function refreshYouTubeContent(
            avatar_url = COALESCE(?, avatar_url), subscribers = COALESCE(?, subscribers), updated_at = ?
          WHERE id = ?`
       )
-      .bind(channel.channelId, channel.title, channel.url, channel.avatarUrl ?? null, channel.subscribers ?? null, ts, creatorId)
+      .bind(
+        channel.channelId,
+        channel.title,
+        channel.url,
+        channel.avatarUrl ?? null,
+        channel.subscribers ?? null,
+        ts,
+        creatorId
+      )
   );
 
   await db.batch(stmts);
@@ -248,7 +261,9 @@ interface Stats {
 }
 
 const STOP = new Set(
-  'the a an and or but of to in on for with is it this that my your i you we our at by from vs how what why when best new review video top hindi english'.split(' ')
+  'the a an and or but of to in on for with is it this that my your i you we our at by from vs how what why when best new review video top hindi english'.split(
+    ' '
+  )
 );
 
 export function computeStats(items: ContentRow[]): Stats {
@@ -270,7 +285,10 @@ export function computeStats(items: ContentRow[]): Stats {
     medianViews: views.length ? views[Math.floor(views.length / 2)] : 0,
     questionShare: titles.filter((t) => t.includes('?')).length / Math.max(1, titles.length),
     numberShare: titles.filter((t) => /\d/.test(t)).length / Math.max(1, titles.length),
-    topWords: [...words.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([w]) => w),
+    topWords: [...words.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([w]) => w),
     best: byViews.slice(0, 3),
     worst: byViews.slice(-3).reverse(),
     uploadsPerMonth: Math.round((items.length / Math.max(spanDays, 1)) * 30 * 10) / 10,
@@ -312,7 +330,8 @@ function heuristicStudy(creator: CreatorRow, stats: Stats, monetization: Monetiz
   if (monetization.amazon) {
     gaps.push({
       label: 'Affiliate disclosure placement',
-      description: 'Keep the Amazon disclosure in the first three lines of every description that carries a tagged link',
+      description:
+        'Keep the Amazon disclosure in the first three lines of every description that carries a tagged link',
       category: 'Compliance',
     });
   }
@@ -333,7 +352,9 @@ function heuristicStudy(creator: CreatorRow, stats: Stats, monetization: Monetiz
 
   return {
     topics: stats.topWords.slice(0, 6),
-    strengths: strengths.length ? strengths : [{ label: 'Consistent publishing', description: `${stats.count} recent uploads studied` }],
+    strengths: strengths.length
+      ? strengths
+      : [{ label: 'Consistent publishing', description: `${stats.count} recent uploads studied` }],
     gaps: gaps.slice(0, 4),
     dna: {
       voice: {
@@ -355,7 +376,9 @@ function heuristicStudy(creator: CreatorRow, stats: Stats, monetization: Monetiz
       },
       audience: {
         primary_demographic: `Viewers interested in ${stats.topWords.slice(0, 3).join(', ') || creator.niche || 'your niche'}`,
-        buying_intent: monetization.amazon ? 'Product-led, worth testing with tagged links' : 'Unknown until links are tracked',
+        buying_intent: monetization.amazon
+          ? 'Product-led, worth testing with tagged links'
+          : 'Unknown until links are tracked',
       },
     },
   };
@@ -393,7 +416,11 @@ export async function stepVideo(
   const result = await analyzeContentItem(db, env, router, next);
   const row = await db.prepare('SELECT title FROM content_items WHERE id = ?').bind(next).first<{ title: string }>();
   const remaining = await pendingItems(db, creatorId, 1);
-  return { analyzedTitle: row?.title, more: remaining.length > 0 && done + 1 < DEEP_PER_STUDY, failed: result.status === 'failed' };
+  return {
+    analyzedTitle: row?.title,
+    more: remaining.length > 0 && done + 1 < DEEP_PER_STUDY,
+    failed: result.status === 'failed',
+  };
 }
 
 function parseAnalysis(raw?: string | null): VideoAnalysis | null {
@@ -418,7 +445,10 @@ function tally(values: string[], max = 6): string[] {
     e.n++;
     m.set(key, e);
   }
-  return [...m.values()].sort((a, b) => b.n - a.n).slice(0, max).map((e) => e.label);
+  return [...m.values()]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, max)
+    .map((e) => e.label);
 }
 
 // ------------------------------------------------------------------
@@ -463,8 +493,7 @@ async function stepSynthesize(db: D1Database, router: AIRouter, creator: Creator
         [
           {
             role: 'system',
-            content:
-              `You are a channel strategist studying a creator's real recent content. Be specific to the titles given. Never invent numbers that are not in the data. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
+            content: `You are a channel strategist studying a creator's real recent content. Be specific to the titles given. Never invent numbers that are not in the data. ${ANALYSIS_LANGUAGE_RULE} Return JSON only.`,
           },
           {
             role: 'user',
@@ -503,7 +532,9 @@ Give 2 to 3 strengths and 2 to 3 gaps.`,
   {
     const latin = (t: string) => !/[\u0900-\u097F]/.test(t);
     const notTemplate = (t: string) => !/pattern with|e\.g\.|\[placeholder\]/i.test(t);
-    const named = new Set(analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase()));
+    const named = new Set(
+      analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase())
+    );
     study.dna.voice.catchphrases = study.dna.voice.catchphrases.filter(
       (c) => c && latin(c) && notTemplate(c) && !named.has(c.toLowerCase())
     );
@@ -516,38 +547,72 @@ Give 2 to 3 strengths and 2 to 3 gaps.`,
   // Fill voice and visual traits straight from the per-video breakdowns
   if (studied) {
     const d = study.dna;
-    const productNames = new Set(analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase()));
-    const catchphrases = tally(analyses.flatMap((x) => x.a.catchphrases), 8)
+    const productNames = new Set(
+      analyses.flatMap((x) => [...x.a.products_mentioned, ...x.a.topics]).map((v) => v.toLowerCase())
+    );
+    const catchphrases = tally(
+      analyses.flatMap((x) => x.a.catchphrases),
+      8
+    )
       .filter((c) => !productNames.has(c.toLowerCase()))
       .slice(0, 5);
-    const hooks = tally(analyses.map((x) => x.a.hook.type), 2);
+    const hooks = tally(
+      analyses.map((x) => x.a.hook.type),
+      2
+    );
     const overlays = analyses.map((x) => x.a.thumbnail.text_overlay).filter((t) => t && !/^none$/i.test(t));
     study.dna = {
       ...d,
       voice: {
         ...d.voice,
-        catchphrases: d.voice.catchphrases.length ? d.voice.catchphrases : catchphrases.filter((c) => !/[\u0900-\u097F]/.test(c)),
-        pace: /not measured/i.test(d.voice.pace) ? tally(analyses.map((x) => x.a.pacing), 1)[0] || d.voice.pace : d.voice.pace,
-        tone: /titles only/i.test(d.voice.tone) ? tally(analyses.map((x) => x.a.tone), 1)[0] || d.voice.tone : d.voice.tone,
+        catchphrases: d.voice.catchphrases.length
+          ? d.voice.catchphrases
+          : catchphrases.filter((c) => !/[\u0900-\u097F]/.test(c)),
+        pace: /not measured/i.test(d.voice.pace)
+          ? tally(
+              analyses.map((x) => x.a.pacing),
+              1
+            )[0] || d.voice.pace
+          : d.voice.pace,
+        tone: /titles only/i.test(d.voice.tone)
+          ? tally(
+              analyses.map((x) => x.a.tone),
+              1
+            )[0] || d.voice.tone
+          : d.voice.tone,
         hook_formula: hooks.length ? `Mostly ${hooks.join(' and ')} openings` : d.voice.hook_formula,
       },
       visual: {
         ...d.visual,
-        thumbnail_palette: d.visual.thumbnail_palette.length ? d.visual.thumbnail_palette : tally(analyses.flatMap((x) => x.a.thumbnail.colors), 4),
-        composition: /not analyzed/i.test(d.visual.composition) ? tally(analyses.map((x) => x.a.thumbnail.composition), 1)[0] || d.visual.composition : d.visual.composition,
+        thumbnail_palette: d.visual.thumbnail_palette.length
+          ? d.visual.thumbnail_palette
+          : tally(
+              analyses.flatMap((x) => x.a.thumbnail.colors),
+              4
+            ),
+        composition: /not analyzed/i.test(d.visual.composition)
+          ? tally(
+              analyses.map((x) => x.a.thumbnail.composition),
+              1
+            )[0] || d.visual.composition
+          : d.visual.composition,
         text_overlay_words: overlays.length
           ? Math.round(overlays.reduce((n, t) => n + t.split(/\s+/).length, 0) / overlays.length)
           : d.visual.text_overlay_words,
       },
     };
-    if (!study.topics.length) study.topics = tally(analyses.flatMap((x) => x.a.topics), 6);
+    if (!study.topics.length)
+      study.topics = tally(
+        analyses.flatMap((x) => x.a.topics),
+        6
+      );
   }
 
   const dna: CreatorDNA = CreatorDNASchema.parse(study.dna);
   await writeBrain(db, creator.id, dna, study, items, stats, analyses);
 
   await db
-    .prepare('UPDATE creators SET dna_summary = ?, niche = COALESCE(NULLIF(niche, \'\'), ?), updated_at = ? WHERE id = ?')
+    .prepare("UPDATE creators SET dna_summary = ?, niche = COALESCE(NULLIF(niche, ''), ?), updated_at = ? WHERE id = ?")
     .bind(JSON.stringify(dna), study.topics[0] || '', now(), creator.id)
     .run();
 
@@ -570,14 +635,64 @@ async function writeBrain(
   const evidence = JSON.stringify(items.slice(0, 10).map((i) => i.id));
   const bestEvidence = JSON.stringify(stats.best.map((i) => i.id));
 
-  type N = { id: string; type: string; label: string; description: string; confidence: number; evidence: string; itemId?: string };
+  type N = {
+    id: string;
+    type: string;
+    label: string;
+    description: string;
+    confidence: number;
+    evidence: string;
+    itemId?: string;
+  };
   const nodes: N[] = [
-    { id: uid('node'), type: 'Style', label: dna.voice.tone, description: `Pace: ${dna.voice.pace}`, confidence: 0.8, evidence },
-    { id: uid('node'), type: 'Style', label: dna.voice.hook_formula, description: 'How your openings and titles hook viewers', confidence: 0.75, evidence },
-    { id: uid('node'), type: 'Audience', label: dna.audience.primary_demographic, description: dna.audience.buying_intent, confidence: 0.7, evidence },
-    ...study.strengths.map((s) => ({ id: uid('node'), type: 'Strength', label: s.label, description: s.description, confidence: 0.85, evidence: bestEvidence })),
-    ...study.gaps.map((g) => ({ id: uid('node'), type: 'Gap', label: g.label, description: g.description, confidence: 0.7, evidence })),
-    ...study.topics.slice(0, 5).map((t) => ({ id: uid('node'), type: 'Topic', label: t, description: 'Recurring topic in your recent content', confidence: 0.8, evidence })),
+    {
+      id: uid('node'),
+      type: 'Style',
+      label: dna.voice.tone,
+      description: `Pace: ${dna.voice.pace}`,
+      confidence: 0.8,
+      evidence,
+    },
+    {
+      id: uid('node'),
+      type: 'Style',
+      label: dna.voice.hook_formula,
+      description: 'How your openings and titles hook viewers',
+      confidence: 0.75,
+      evidence,
+    },
+    {
+      id: uid('node'),
+      type: 'Audience',
+      label: dna.audience.primary_demographic,
+      description: dna.audience.buying_intent,
+      confidence: 0.7,
+      evidence,
+    },
+    ...study.strengths.map((s) => ({
+      id: uid('node'),
+      type: 'Strength',
+      label: s.label,
+      description: s.description,
+      confidence: 0.85,
+      evidence: bestEvidence,
+    })),
+    ...study.gaps.map((g) => ({
+      id: uid('node'),
+      type: 'Gap',
+      label: g.label,
+      description: g.description,
+      confidence: 0.7,
+      evidence,
+    })),
+    ...study.topics.slice(0, 5).map((t) => ({
+      id: uid('node'),
+      type: 'Topic',
+      label: t,
+      description: 'Recurring topic in your recent content',
+      confidence: 0.8,
+      evidence,
+    })),
   ];
 
   const audience = nodes[2];
@@ -587,17 +702,34 @@ async function writeBrain(
     ...strengths.map((s) => ({ source: s.id, target: audience.id, relation: 'STRONG_AT', weight: 0.85 })),
     ...nodes
       .filter((n) => n.type === 'Gap')
-      .map((g, i) => ({ source: g.id, target: (strengths[i % Math.max(1, strengths.length)] || audience).id, relation: 'NEEDS_WORK', weight: 0.7 })),
-    ...nodes.filter((n) => n.type === 'Topic').map((t) => ({ source: t.id, target: audience.id, relation: 'RELATES_TO', weight: 0.6 })),
+      .map((g, i) => ({
+        source: g.id,
+        target: (strengths[i % Math.max(1, strengths.length)] || audience).id,
+        relation: 'NEEDS_WORK',
+        weight: 0.7,
+      })),
+    ...nodes
+      .filter((n) => n.type === 'Topic')
+      .map((t) => ({ source: t.id, target: audience.id, relation: 'RELATES_TO', weight: 0.6 })),
   ];
 
   // More topics: anything covered by two or more studied videos joins the Brain
   const knownTopics = new Set(topicNodes0(nodes).map((t) => t.label.toLowerCase()));
-  for (const t of tally(analyses.flatMap((x) => x.a.topics), 12)) {
+  for (const t of tally(
+    analyses.flatMap((x) => x.a.topics),
+    12
+  )) {
     const covered = analyses.filter((x) => x.a.topics.some((v) => v.toLowerCase() === t.toLowerCase())).length;
     if (covered >= 2 && !knownTopics.has(t.toLowerCase()) && knownTopics.size < 12) {
       knownTopics.add(t.toLowerCase());
-      nodes.push({ id: uid('node'), type: 'Topic', label: t, description: `Covered in ${covered} studied videos`, confidence: 0.6 + covered / Math.max(analyses.length, 1) / 3, evidence: '[]' });
+      nodes.push({
+        id: uid('node'),
+        type: 'Topic',
+        label: t,
+        description: `Covered in ${covered} studied videos`,
+        confidence: 0.6 + covered / Math.max(analyses.length, 1) / 3,
+        evidence: '[]',
+      });
     }
   }
 
@@ -639,17 +771,27 @@ async function writeBrain(
     nodes.push(vid);
     const haystack = `${item.title} ${a.topics.join(' ')}`.toLowerCase();
     for (const t of topicNodes) {
-      if (haystack.includes(t.label.toLowerCase())) edges.push({ source: vid.id, target: t.id, relation: 'COVERS', weight: 0.7 });
+      if (haystack.includes(t.label.toLowerCase()))
+        edges.push({ source: vid.id, target: t.id, relation: 'COVERS', weight: 0.7 });
     }
     if (bestIds.has(item.id)) {
       for (const st of strengths) edges.push({ source: vid.id, target: st.id, relation: 'EVIDENCE_FOR', weight: 0.8 });
     }
     link(vid, trait('Hook', `${a.hook.type} openings`, 'How videos start', 0.7), 'USES', item.id);
     const named = new Set([...a.products_mentioned, ...a.topics].map((v) => v.toLowerCase()));
-    for (const p of a.catchphrases.filter((c) => !named.has(c.toLowerCase().replace(/^["“]|["”]$/g, ''))).slice(0, 3)) link(vid, trait('Phrase', `"${p.replace(/^["“]|["”]$/g, '')}"`, 'Something you say again and again', 0.7), 'SAYS', item.id);
-    for (const pr of a.products_mentioned.slice(0, 4)) link(vid, trait('Product', pr, 'Mentioned in your videos', 0.65), 'MENTIONS', item.id);
-    for (const cta of a.calls_to_action.slice(0, 2)) link(vid, trait('CTA', cta, 'What you ask viewers to do', 0.6), 'ASKS', item.id);
-    if (a.thumbnail.composition) link(vid, trait('Thumbnail', a.thumbnail.composition, 'A thumbnail style you use', 0.65), 'LOOKS_LIKE', item.id);
+    for (const p of a.catchphrases.filter((c) => !named.has(c.toLowerCase().replace(/^["“]|["”]$/g, ''))).slice(0, 3))
+      link(
+        vid,
+        trait('Phrase', `"${p.replace(/^["“]|["”]$/g, '')}"`, 'Something you say again and again', 0.7),
+        'SAYS',
+        item.id
+      );
+    for (const pr of a.products_mentioned.slice(0, 4))
+      link(vid, trait('Product', pr, 'Mentioned in your videos', 0.65), 'MENTIONS', item.id);
+    for (const cta of a.calls_to_action.slice(0, 2))
+      link(vid, trait('CTA', cta, 'What you ask viewers to do', 0.6), 'ASKS', item.id);
+    if (a.thumbnail.composition)
+      link(vid, trait('Thumbnail', a.thumbnail.composition, 'A thumbnail style you use', 0.65), 'LOOKS_LIKE', item.id);
   }
 
   // Keep traits seen in more than one video (or all of them for small channels), strongest first
@@ -698,11 +840,15 @@ async function writeBrain(
     ),
     ...edges.map((e) =>
       db
-        .prepare('INSERT INTO edges (id, creator_id, source_id, target_id, relation, weight, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .prepare(
+          'INSERT INTO edges (id, creator_id, source_id, target_id, relation, weight, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        )
         .bind(uid('edge'), creatorId, e.source, e.target, e.relation, e.weight, ts)
     ),
     db
-      .prepare(`INSERT INTO learnings (id, creator_id, title, insight, source_agent, created_at) VALUES (?, ?, ?, ?, 'Channel Study', ?)`)
+      .prepare(
+        `INSERT INTO learnings (id, creator_id, title, insight, source_agent, created_at) VALUES (?, ?, ?, ?, 'Channel Study', ?)`
+      )
       .bind(
         uid('learn'),
         creatorId,
@@ -750,31 +896,56 @@ const QUIZ_BANK: Record<string, { question: string; options: string[]; correctIn
   },
   Retention: {
     question: 'What belongs in the first five seconds of a video?',
-    options: ['A channel intro', 'A request to subscribe', 'The result or question the title promised', 'Background music only'],
+    options: [
+      'A channel intro',
+      'A request to subscribe',
+      'The result or question the title promised',
+      'Background music only',
+    ],
     correctIndex: 2,
     explanation: 'Opening on the promised payoff keeps viewers who clicked for it.',
   },
   Voice: {
     question: 'What is the safest way to keep your natural voice in a scripted video?',
-    options: ['Read a full script word for word', 'Outline points and speak them in your own words', 'Copy a bigger creator\'s phrasing', 'Avoid recurring phrases'],
+    options: [
+      'Read a full script word for word',
+      'Outline points and speak them in your own words',
+      "Copy a bigger creator's phrasing",
+      'Avoid recurring phrases',
+    ],
     correctIndex: 1,
     explanation: 'An outline keeps structure while the delivery stays yours.',
   },
   SEO: {
     question: 'Which change most helps a video get found in search?',
-    options: ['More hashtags', 'The main search phrase in the first line of the description', 'A longer outro', 'Disabling comments'],
+    options: [
+      'More hashtags',
+      'The main search phrase in the first line of the description',
+      'A longer outro',
+      'Disabling comments',
+    ],
     correctIndex: 1,
     explanation: 'Search weighs the opening of the description and the title most.',
   },
   Compliance: {
     question: 'Where should an Amazon affiliate disclosure go in a YouTube description?',
-    options: ['At the very bottom', 'In the first three lines, before the links', 'Only in the pinned comment', 'It is optional'],
+    options: [
+      'At the very bottom',
+      'In the first three lines, before the links',
+      'Only in the pinned comment',
+      'It is optional',
+    ],
     correctIndex: 1,
     explanation: 'Disclosures must be visible before viewers click a tagged link.',
   },
   Hook: {
     question: 'Which title is more likely to earn a click on mobile?',
-    options: ['My honest and complete thoughts after using it for a while', 'Used it 30 days: 3 things nobody mentions', 'Video #42', 'Watch this'],
+    options: [
+      'My honest and complete thoughts after using it for a while',
+      'Used it 30 days: 3 things nobody mentions',
+      'Video #42',
+      'Watch this',
+    ],
     correctIndex: 1,
     explanation: 'Front-loaded, concrete titles with a number read fastest.',
   },
@@ -824,7 +995,16 @@ async function stepPlan(db: D1Database, creator: CreatorRow): Promise<string> {
           `INSERT INTO lessons (id, creator_id, gap_node_id, order_index, title, category, duration_min, content_markdown, completed, created_at)
            VALUES (?, ?, ?, ?, ?, ?, 5, ?, 0, ?)`
         )
-        .bind(uid('lesson'), creator.id, lessonGapIds.get(cat) || null, i + 1, LESSON_LIBRARY[cat].title, cat, LESSON_LIBRARY[cat].body, ts)
+        .bind(
+          uid('lesson'),
+          creator.id,
+          lessonGapIds.get(cat) || null,
+          i + 1,
+          LESSON_LIBRARY[cat].title,
+          cat,
+          LESSON_LIBRARY[cat].body,
+          ts
+        )
     ),
     db
       .prepare(

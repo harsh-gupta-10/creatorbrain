@@ -75,9 +75,7 @@ export class DBClient {
 
   async completeLesson(creatorId: string, lessonId: string): Promise<void> {
     await this.db
-      .prepare(
-        'UPDATE lessons SET completed = 1, completed_at = ? WHERE id = ? AND creator_id = ?'
-      )
+      .prepare('UPDATE lessons SET completed = 1, completed_at = ? WHERE id = ? AND creator_id = ?')
       .bind(new Date().toISOString(), lessonId, creatorId)
       .run();
   }
@@ -90,15 +88,9 @@ export class DBClient {
     return res.results || [];
   }
 
-  async submitQuizScore(
-    creatorId: string,
-    quizId: string,
-    score: number
-  ): Promise<void> {
+  async submitQuizScore(creatorId: string, quizId: string, score: number): Promise<void> {
     await this.db
-      .prepare(
-        'UPDATE quizzes SET score = ?, status = "completed", completed_at = ? WHERE id = ? AND creator_id = ?'
-      )
+      .prepare('UPDATE quizzes SET score = ?, status = "completed", completed_at = ? WHERE id = ? AND creator_id = ?')
       .bind(score, new Date().toISOString(), quizId, creatorId)
       .run();
   }
@@ -124,9 +116,7 @@ export class DBClient {
     projectId: string
   ): Promise<{ project: Project | null; assets: ProjectAsset[] }> {
     const [projRes, assetsRes] = await this.db.batch([
-      this.db
-        .prepare('SELECT * FROM projects WHERE id = ? AND creator_id = ?')
-        .bind(projectId, creatorId),
+      this.db.prepare('SELECT * FROM projects WHERE id = ? AND creator_id = ?').bind(projectId, creatorId),
       this.db
         .prepare('SELECT * FROM assets WHERE project_id = ? AND creator_id = ? ORDER BY type ASC')
         .bind(projectId, creatorId),
@@ -155,11 +145,7 @@ export class DBClient {
       .run();
   }
 
-  async updateProject(
-    creatorId: string,
-    projectId: string,
-    updates: Partial<Project>
-  ): Promise<void> {
+  async updateProject(creatorId: string, projectId: string, updates: Partial<Project>): Promise<void> {
     const fields: string[] = [];
     const values: unknown[] = [];
 
@@ -259,10 +245,7 @@ export class DBClient {
   }
 
   async getShortLinkBySlug(slug: string): Promise<ShortLink | null> {
-    return await this.db
-      .prepare('SELECT * FROM short_links WHERE slug = ?')
-      .bind(slug)
-      .first<ShortLink>();
+    return await this.db.prepare('SELECT * FROM short_links WHERE slug = ?').bind(slug).first<ShortLink>();
   }
 
   async createShortLink(link: ShortLink): Promise<void> {
@@ -293,7 +276,14 @@ export class DBClient {
   async recordClick(
     shortLinkId: string,
     creatorId: string,
-    meta: { country?: string; device?: string; referrer?: string; ipHash?: string; userAgent?: string; bioBlockId?: string }
+    meta: {
+      country?: string;
+      device?: string;
+      referrer?: string;
+      ipHash?: string;
+      userAgent?: string;
+      bioBlockId?: string;
+    }
   ): Promise<void> {
     const clickId = `click_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     const now = new Date().toISOString();
@@ -317,9 +307,7 @@ export class DBClient {
           meta.userAgent || null,
           now
         ),
-      this.db
-        .prepare('UPDATE short_links SET total_clicks = total_clicks + 1 WHERE id = ?')
-        .bind(shortLinkId),
+      this.db.prepare('UPDATE short_links SET total_clicks = total_clicks + 1 WHERE id = ?').bind(shortLinkId),
     ]);
   }
 
@@ -345,9 +333,7 @@ export class DBClient {
 
     const blocks = blocksRes.results || [];
     // Populate product details for product_card blocks
-    const productIds = blocks
-      .map((b) => b.product_id)
-      .filter((id): id is string => !!id);
+    const productIds = blocks.map((b) => b.product_id).filter((id): id is string => !!id);
 
     if (productIds.length > 0) {
       const placeholders = productIds.map(() => '?').join(',');
@@ -433,10 +419,7 @@ export class DBClient {
       .first<ProviderSettings>();
   }
 
-  async updateProviderSettings(
-    creatorId: string,
-    settings: Partial<ProviderSettings>
-  ): Promise<void> {
+  async updateProviderSettings(creatorId: string, settings: Partial<ProviderSettings>): Promise<void> {
     await this.db
       .prepare(
         `INSERT OR REPLACE INTO provider_settings (
@@ -467,7 +450,10 @@ export class DBClient {
     return res.results || [];
   }
 
-  async importEarnings(creatorId: string, rows: Omit<EarningsReport, 'id' | 'creator_id' | 'created_at'>[]): Promise<number> {
+  async importEarnings(
+    creatorId: string,
+    rows: Omit<EarningsReport, 'id' | 'creator_id' | 'created_at'>[]
+  ): Promise<number> {
     const stmts: D1PreparedStatement[] = [];
     for (const r of rows) {
       stmts.push(
@@ -501,10 +487,29 @@ export class DBClient {
   async deleteCreatorData(creatorId: string): Promise<void> {
     // Every table holding creator data, children first, then the creator row itself
     const tables = [
-      'edges', 'nodes', 'learnings', 'lessons', 'quizzes', 'agent_traces', 'asset_versions_by_creator',
-      'assets', 'projects', 'affiliate_links', 'link_clicks', 'short_links', 'bio_blocks_by_creator', 'bio_pages',
-      'products', 'provider_settings', 'credentials_encrypted', 'earnings_reports', 'content_items',
-      'brand_deals', 'chat_messages', 'analysis_jobs', 'sessions',
+      'edges',
+      'nodes',
+      'learnings',
+      'lessons',
+      'quizzes',
+      'agent_traces',
+      'asset_versions_by_creator',
+      'assets',
+      'projects',
+      'affiliate_links',
+      'link_clicks',
+      'short_links',
+      'bio_blocks_by_creator',
+      'bio_pages',
+      'products',
+      'provider_settings',
+      'credentials_encrypted',
+      'earnings_reports',
+      'content_items',
+      'brand_deals',
+      'chat_messages',
+      'analysis_jobs',
+      'sessions',
     ];
     const stmts = tables.map((t) => {
       if (t === 'asset_versions_by_creator') {

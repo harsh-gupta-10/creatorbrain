@@ -140,15 +140,19 @@ export const AssessTab: React.FC = () => {
                     >
                       <span className="w-5 shrink-0 flex justify-end">
                         {isDone ? (
-                          <Check {...ICON} className="text-positive" aria-hidden={false} role="img" aria-label="Completed" />
+                          <Check
+                            {...ICON}
+                            className="text-positive"
+                            aria-hidden={false}
+                            role="img"
+                            aria-label="Completed"
+                          />
                         ) : (
                           <span className="meta">{idx + 1}</span>
                         )}
                       </span>
                       <span className="flex-1 min-w-0 truncate text-fg">{quiz.title}</span>
-                      <span className="meta shrink-0">
-                        {isDone ? `${quiz.score ?? 0}/${total}` : `${total} q`}
-                      </span>
+                      <span className="meta shrink-0">{isDone ? `${quiz.score ?? 0}/${total}` : `${total} q`}</span>
                     </button>
                   </li>
                 );
@@ -242,9 +246,7 @@ export const AssessTab: React.FC = () => {
                                   <span className="flex items-center gap-3">
                                     <span
                                       className={`w-4 h-4 rounded-full border shrink-0 flex items-center justify-center ${
-                                        isOptionSelected && !hasSubmitted
-                                          ? 'border-accent'
-                                          : 'border-line-strong'
+                                        isOptionSelected && !hasSubmitted ? 'border-accent' : 'border-line-strong'
                                       }`}
                                       aria-hidden="true"
                                     >
@@ -255,10 +257,22 @@ export const AssessTab: React.FC = () => {
                                     {opt}
                                   </span>
                                   {hasSubmitted && isOptionCorrect && (
-                                    <Check {...ICON} className="text-positive shrink-0" aria-hidden={false} role="img" aria-label={isOptionSelected ? 'Your answer, correct' : 'Correct answer'} />
+                                    <Check
+                                      {...ICON}
+                                      className="text-positive shrink-0"
+                                      aria-hidden={false}
+                                      role="img"
+                                      aria-label={isOptionSelected ? 'Your answer, correct' : 'Correct answer'}
+                                    />
                                   )}
                                   {hasSubmitted && isOptionSelected && !isCorrect && (
-                                    <X {...ICON} className="text-negative shrink-0" aria-hidden={false} role="img" aria-label="Your answer, incorrect" />
+                                    <X
+                                      {...ICON}
+                                      className="text-negative shrink-0"
+                                      aria-hidden={false}
+                                      role="img"
+                                      aria-label="Your answer, incorrect"
+                                    />
                                   )}
                                 </button>
                               );
