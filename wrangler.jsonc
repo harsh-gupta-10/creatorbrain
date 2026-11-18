@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "creatorbrain",
+  "name": "creatorbrain-app",
   "account_id": "b1d481965d10a5b83a86f3ba67c2e0ed",
   "main": "src/worker/index.ts",
   "compatibility_date": "2026-11-12",

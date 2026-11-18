@@ -1,10 +1,10 @@
 # CreatorBrain: Agentic Creator OS
 
 > **PromptWars X AgentX 2.0 (Hack2Skill + Google)** — *Open Innovation Track*  
-> **Live Production URL:** [https://creatorbrain.harshgupta24716.workers.dev](https://creatorbrain.harshgupta24716.workers.dev)  
-> **Public Link-in-Bio Demo:** [https://creatorbrain.harshgupta24716.workers.dev/@izoog10](https://creatorbrain.harshgupta24716.workers.dev/@izoog10)  
-> **Free Channel Audit:** [https://creatorbrain.harshgupta24716.workers.dev/audit](https://creatorbrain.harshgupta24716.workers.dev/audit)
-> **GitHub Repository:** [https://github.com/harsh-gupta-10/creatorbrain](https://github.com/harsh-gupta-10/creatorbrain)
+> **Live Production URL:** [https://creatorbrain-app.harshgupta24716.workers.dev](https://creatorbrain-app.harshgupta24716.workers.dev)  
+> **Public Link-in-Bio Demo:** [https://creatorbrain-app.harshgupta24716.workers.dev/@izoog10](https://creatorbrain-app.harshgupta24716.workers.dev/@izoog10)  
+> **Free Channel Audit:** [https://creatorbrain-app.harshgupta24716.workers.dev/audit](https://creatorbrain-app.harshgupta24716.workers.dev/audit)
+> **GitHub Repository:** [https://github.com/harsh-gupta-10/creatorbrain-app](https://github.com/harsh-gupta-10/creatorbrain-app)
 
 ---
 
@@ -266,8 +266,8 @@ CreatorBrain was engineered to achieve maximum marks across all evaluation rubri
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/harsh-gupta-10/creatorbrain.git
-cd creatorbrain
+git clone https://github.com/harsh-gupta-10/creatorbrain-app.git
+cd creatorbrain-app
 npm install
 ```
 
