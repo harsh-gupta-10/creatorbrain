@@ -9,6 +9,7 @@ import {
   describeCredentials,
   MARKETPLACES,
   PARTNER_TAG_RE,
+  normalizeCredentialVersion,
 } from '../amazon/credentials';
 import { SAMPLE_CREATOR_ID } from './auth';
 import { SCRIPT_LANGUAGES } from '../lib/language';
@@ -64,7 +65,14 @@ const MonetizationSchema = z
 // Edit the monetization answers from onboarding. The tracking ID is encrypted, never stored in plain JSON
 settingsRoutes.put('/monetization', async (c) => {
   const creator = c.get('creator');
-  const parsed = MonetizationSchema.safeParse(await c.req.json().catch(() => ({})));
+  const body: unknown = await c.req.json().catch(() => null);
+  const incomeOnly = z.object({ other: z.array(z.string().max(40)).max(8) }).strict().safeParse(body);
+  if (incomeOnly.success) {
+    await c.env.DB.prepare("UPDATE creators SET monetization_json = json_set(COALESCE(monetization_json, '{}'), '$.other', json(?)), updated_at = ? WHERE id = ?")
+      .bind(JSON.stringify(incomeOnly.data.other), new Date().toISOString(), creator.id).run();
+    return c.json({ success: true });
+  }
+  const parsed = MonetizationSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
   const { amazon, partnerTag, marketplace, other } = parsed.data;
 
@@ -118,6 +126,14 @@ const AmazonKeysSchema = z.object({
     .regex(PARTNER_TAG_RE, 'Tracking IDs use 3 to 40 letters, numbers and dashes')
     .optional(),
   marketplace: Marketplace.optional(),
+  credentialId: z.string().trim().min(3).max(256).optional().or(z.literal('')),
+  credentialSecret: z.string().trim().min(20).max(512).optional().or(z.literal('')),
+  credentialVersion: z
+    .string()
+    .trim()
+    .transform((value) => normalizeCredentialVersion(value))
+    .optional(),
+  // Legacy PA-API fields remain accepted for existing integrations during migration.
   accessKey: z
     .string()
     .trim()
@@ -132,7 +148,15 @@ settingsRoutes.put('/amazon', async (c) => {
   const creator = c.get('creator');
   const parsed = AmazonKeysSchema.safeParse(await c.req.json().catch(() => ({})));
   if (!parsed.success) return c.json({ error: parsed.error.issues[0]?.message || 'Check the form' }, 400);
-  const { partnerTag, marketplace, accessKey, secretKey } = parsed.data;
+  const { partnerTag, marketplace, credentialId, credentialSecret, credentialVersion, accessKey, secretKey } = parsed.data;
+  const hasCredentialId = !!credentialId;
+  const hasCredentialSecret = !!credentialSecret;
+  if (hasCredentialId !== hasCredentialSecret) {
+    return c.json({ error: 'Enter both the Credential ID and Credential Secret' }, 400);
+  }
+  if (hasCredentialId && !credentialVersion) {
+    return c.json({ error: 'Choose the credential version shown in Amazon Associates' }, 400);
+  }
   if (!!accessKey !== !!secretKey) {
     return c.json({ error: 'Enter both the access key and the secret key' }, 400);
   }
@@ -140,6 +164,9 @@ settingsRoutes.put('/amazon', async (c) => {
   await saveAmazonCredentials(c.env.DB, c.env, creator.id, {
     partnerTag,
     marketplace,
+    credentialId: credentialId || undefined,
+    credentialSecret: credentialSecret || undefined,
+    credentialVersion,
     // Blank key fields keep the stored keys
     accessKey: accessKey || undefined,
     secretKey: secretKey || undefined,

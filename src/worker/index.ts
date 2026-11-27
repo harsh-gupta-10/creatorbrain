@@ -24,6 +24,7 @@ import { runOrchestrator, runMemoryCurator } from './agents/definitions/tutorAnd
 import type { AppEnv, Env } from './env';
 import { authRateLimit, requireCreator, sameOriginWrites, securityHeaders } from './middleware';
 import { isSafePublicHttpUrl, safePublicHref } from './lib/url-safety';
+import { automaticLinkIcon } from '../shared/bio';
 import {
   parseShortLinkCache,
   serializeShortLinkCache,
@@ -43,6 +44,20 @@ app.use('/api/auth/*', authRateLimit);
 app.use('/api/*', requireCreator);
 
 app.get('/api/health', (c) => c.json({ ok: true }));
+
+// Public, immutable creator icons are served through the Worker so the R2 bucket stays private.
+app.get('/bio-icons/:key', async (c) => {
+  const key = c.req.param('key');
+  if (!/^[0-9a-f-]{36}\.(?:png|jpg|webp)$/i.test(key) || !c.env.BIO_ICONS) return c.notFound();
+  const object = await c.env.BIO_ICONS.get(key);
+  if (!object) return c.notFound();
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set('etag', object.httpEtag);
+  headers.set('cache-control', 'public, max-age=31536000, immutable');
+  headers.set('X-Content-Type-Options', 'nosniff');
+  return new Response(object.body, { headers });
+});
 
 // Mount API route groups
 app.route('/api/auth', authRoutes);
@@ -228,9 +243,12 @@ const handleBioPage = async (c: Context<AppEnv>) => {
       }
 
       if (b.type === 'link') {
+        const customIcon = b.icon_url ? safePublicHref(b.icon_url, origin) : '';
+        const autoIcon = automaticLinkIcon(b.url);
+        const iconUrl = customIcon && customIcon !== '#' ? customIcon : autoIcon ? safePublicHref(autoIcon, origin) : '';
         return `
       <a href="${safeUrl(b.url)}" target="_blank" rel="noopener noreferrer" class="link${b.id === firstLinkId ? ' link-primary' : ''}" data-block="${esc(b.id)}" aria-label="${esc(b.title || 'Link')}">
-        <span class="link-title">${esc(b.title || 'Link')}</span>
+        <span class="link-main">${iconUrl ? `<img class="link-icon" src="${esc(iconUrl)}" alt="" width="24" height="24" loading="lazy" />` : ''}<span class="link-title">${esc(b.title || 'Link')}</span></span>
         ${arrowSvg}
       </a>`;
       }
@@ -347,6 +365,8 @@ const handleBioPage = async (c: Context<AppEnv>) => {
     }
     .link:hover { border-color: var(--accent); }
     .link-primary { border-color: var(--accent); }
+    .link-main { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .link-icon { width: 24px; height: 24px; border-radius: 6px; object-fit: contain; flex-shrink: 0; background: rgba(255,255,255,0.08); }
     .link-title { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .arrow { flex-shrink: 0; color: var(--fg-2); }
     .product {
@@ -400,15 +420,7 @@ const handleBioPage = async (c: Context<AppEnv>) => {
     </footer>
   </div>
 
-  <script>
-    document.addEventListener('click', function (e) {
-      var el = e.target.closest && e.target.closest('[data-block]');
-      if (!el) return;
-      var id = el.getAttribute('data-block');
-      if (navigator.sendBeacon) navigator.sendBeacon('/api/bio/click/' + encodeURIComponent(id));
-      else fetch('/api/bio/click/' + encodeURIComponent(id), { method: 'POST', keepalive: true }).catch(function () {});
-    });
-  </script>
+  <script src="/bio-analytics.js" defer></script>
 </body>
 </html>`;
 

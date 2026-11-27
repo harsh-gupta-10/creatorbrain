@@ -95,7 +95,7 @@ export class AIRouter {
 
   async generateText(
     messages: AIMessage[],
-    options?: AIGenerateOptions & { cacheable?: boolean; preferred?: string }
+    options?: AIGenerateOptions & { cacheable?: boolean; preferred?: string; requireLive?: boolean }
   ): Promise<string> {
     if (options?.creatorId) {
       await this.budgetManager.checkBudget(options.creatorId);
@@ -120,7 +120,7 @@ export class AIRouter {
     if (this.claude && !providers.includes(this.claude)) providers.push(this.claude);
     if (this.openai && !providers.includes(this.openai)) providers.push(this.openai);
     if (this.workersAi && !providers.includes(this.workersAi)) providers.push(this.workersAi);
-    providers.push(this.mock);
+    if (!options?.requireLive) providers.push(this.mock);
 
     let lastError: Error | null = null;
     for (const provider of providers) {

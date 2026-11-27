@@ -6,7 +6,7 @@ import { Logo, Spinner, ErrorNote, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
 interface Props {
-  mode: 'login' | 'signup';
+  mode: 'login' | 'signup' | 'recover';
   session: { loading: boolean; creator: Creator | null; isSample: boolean };
   onAuthed: () => Promise<unknown>;
 }
@@ -19,6 +19,7 @@ const slugify = (v: string) =>
 
 export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
   const isSignup = mode === 'signup';
+  const isRecovery = mode === 'recover';
   const [name, setName] = useState('');
   const [handle, setHandle] = useState('');
   const [handleTouched, setHandleTouched] = useState(false);
@@ -28,11 +29,15 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [recoveryCode, setRecoveryCode] = useState('');
+  const [recovered, setRecovered] = useState(false);
+  const [continuePath, setContinuePath] = useState('/onboarding');
 
   useEffect(() => {
-    document.title = `${isSignup ? 'Create your account' : 'Sign in'} · CreatorBrain`;
+    document.title = `${isSignup ? 'Create your account' : isRecovery ? 'Recover your account' : 'Sign in'} · CreatorBrain`;
     setError('');
-  }, [isSignup]);
+  }, [isSignup, isRecovery]);
 
   // Signed-in real accounts skip this page
   useEffect(() => {
@@ -72,21 +77,50 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
     setSubmitting(true);
     try {
       if (isSignup) {
-        await api.auth.signup({ name, handle, email, password });
-        await onAuthed();
-        navigate('/onboarding', { replace: true });
+        const result = await api.auth.signup({ name, handle, email, password });
+        setRecoveryCodes(result.recoveryCodes);
+      } else if (isRecovery) {
+        await api.auth.recover({ email, code: recoveryCode, password });
+        setRecovered(true);
       } else {
         const res = await api.auth.login({ email, password });
-        await onAuthed();
-        navigate(res.creator.onboarding_status === 'ready' || !res.creator.onboarding_status ? '/app' : '/onboarding', {
-          replace: true,
-        });
+        const target =
+          res.creator.onboarding_status === 'ready' || !res.creator.onboarding_status ? '/app' : '/onboarding';
+        if (res.recoveryCodes?.length) {
+          setContinuePath(target);
+          setRecoveryCodes(res.recoveryCodes);
+        } else {
+          await onAuthed();
+          navigate(target, { replace: true });
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const finishAuthentication = async () => {
+    try {
+      setSubmitting(true);
+      await onAuthed();
+      navigate(continuePath, { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not finish signing in');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const downloadRecoveryCodes = () => {
+    const blob = new Blob([`CreatorBrain recovery codes\n\n${recoveryCodes.join('\n')}\n`], { type: 'text/plain' });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = 'creatorbrain-recovery-codes.txt';
+    link.click();
+    URL.revokeObjectURL(href);
   };
 
   return (
@@ -104,155 +138,238 @@ export const AuthPage: React.FC<Props> = ({ mode, session, onAuthed }) => {
         className="outline-none flex-1 flex items-start md:items-center justify-center px-4 pb-16 pt-8 md:pt-0"
       >
         <div className="w-full max-w-[400px]">
-          <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
-            {isSignup ? 'Create your account' : 'Sign in'}
-          </h1>
-          <p className="mt-2 text-fg-2">
-            {isSignup
-              ? 'Next we will ask about your channel and how you earn, then study your recent uploads'
-              : 'Welcome back. Your Brain kept studying while you were away'}
-          </p>
+          {recoveryCodes.length > 0 ? (
+            <section aria-labelledby="recovery-codes-title">
+              <h1 id="recovery-codes-title" className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
+                Save your recovery codes
+              </h1>
+              <p className="mt-2 text-fg-2">
+                Each code works once to reset your password. Store them somewhere private. CreatorBrain cannot show them
+                again.
+              </p>
+              <ul className="mt-6 grid grid-cols-2 gap-2 rounded-xl border border-line bg-surface p-4 font-mono text-[13px]">
+                {recoveryCodes.map((code) => (
+                  <li key={code}>
+                    <code>{code}</code>
+                  </li>
+                ))}
+              </ul>
+              {error && (
+                <div className="mt-4">
+                  <ErrorNote>{error}</ErrorNote>
+                </div>
+              )}
+              <button type="button" className="btn btn-secondary w-full mt-4" onClick={downloadRecoveryCodes}>
+                Download recovery codes
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-lg w-full mt-3"
+                onClick={finishAuthentication}
+                disabled={submitting}
+                aria-busy={submitting}
+              >
+                {submitting && <Spinner size={14} />}
+                I’ve saved my codes — continue
+              </button>
+            </section>
+          ) : isRecovery && recovered ? (
+            <section aria-labelledby="recovery-success-title">
+              <h1 id="recovery-success-title" className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
+                Password reset
+              </h1>
+              <p className="mt-2 text-fg-2">
+                Your password is updated and other sessions have been signed out. Sign in with your new password.
+              </p>
+              <a {...linkProps('/login')} className="btn btn-primary btn-lg w-full mt-6">
+                Go to sign in
+              </a>
+            </section>
+          ) : (
+            <>
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
+                {isSignup ? 'Create your account' : isRecovery ? 'Recover your account' : 'Sign in'}
+              </h1>
+              <p className="mt-2 text-fg-2">
+                {isSignup
+                  ? 'We’ll help you set up your creator workspace after sign-up.'
+                  : isRecovery
+                    ? 'Enter one of the recovery codes you saved when creating your account.'
+                    : 'Welcome back. Your Brain kept studying while you were away'}
+              </p>
 
-          <form onSubmit={submit} className="mt-8 flex flex-col gap-4" noValidate>
-            {isSignup && (
-              <>
+              <form onSubmit={submit} className="mt-8 flex flex-col gap-4" noValidate>
+                {isSignup && (
+                  <>
+                    <div>
+                      <label htmlFor="name" className="field-label">
+                        Your name
+                      </label>
+                      <input
+                        id="name"
+                        className="input"
+                        autoComplete="name"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="handle" className="field-label">
+                        Handle
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">
+                          @
+                        </span>
+                        <input
+                          id="handle"
+                          className="input pl-7 pr-9"
+                          autoComplete="username"
+                          value={handle}
+                          onChange={(e) => {
+                            setHandleTouched(true);
+                            setHandle(slugify(e.target.value));
+                          }}
+                          aria-describedby="handle-hint"
+                          aria-invalid={handleState === 'taken' || undefined}
+                          required
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">
+                          {handleState === 'checking' && <Spinner size={14} />}
+                          {handleState === 'ok' && <Check {...ICON} className="text-positive" />}
+                        </span>
+                      </div>
+                      <p
+                        id="handle-hint"
+                        aria-live="polite"
+                        className={`field-hint ${handleState === 'taken' ? 'text-negative' : ''}`}
+                      >
+                        {handleState === 'taken'
+                          ? 'That handle is taken'
+                          : `Your public page: ${window.location.host}/@${handle || 'handle'}`}
+                        {handleState === 'ok' && <span className="sr-only"> (available)</span>}
+                      </p>
+                    </div>
+                  </>
+                )}
+
                 <div>
-                  <label htmlFor="name" className="field-label">
-                    Your name
+                  <label htmlFor="email" className="field-label">
+                    Email
                   </label>
                   <input
-                    id="name"
+                    id="email"
+                    type="email"
                     className="input"
-                    autoComplete="name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
                   />
                 </div>
-                <div>
-                  <label htmlFor="handle" className="field-label">
-                    Handle
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">
-                      @
-                    </span>
+
+                {isRecovery && (
+                  <div>
+                    <label htmlFor="recovery-code" className="field-label">
+                      Recovery code
+                    </label>
                     <input
-                      id="handle"
-                      className="input pl-7 pr-9"
-                      autoComplete="username"
-                      value={handle}
-                      onChange={(e) => {
-                        setHandleTouched(true);
-                        setHandle(slugify(e.target.value));
-                      }}
-                      aria-describedby="handle-hint"
-                      aria-invalid={handleState === 'taken' || undefined}
+                      id="recovery-code"
+                      className="input font-mono"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={recoveryCode}
+                      onChange={(e) => setRecoveryCode(e.target.value)}
                       required
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-fg-3" aria-hidden="true">
-                      {handleState === 'checking' && <Spinner size={14} />}
-                      {handleState === 'ok' && <Check {...ICON} className="text-positive" />}
-                    </span>
                   </div>
-                  <p
-                    id="handle-hint"
-                    aria-live="polite"
-                    className={`field-hint ${handleState === 'taken' ? 'text-negative' : ''}`}
-                  >
-                    {handleState === 'taken'
-                      ? 'That handle is taken'
-                      : `Your public page: ${window.location.host}/@${handle || 'handle'}`}
-                    {handleState === 'ok' && <span className="sr-only"> (available)</span>}
-                  </p>
+                )}
+
+                <div>
+                  <label htmlFor="password" className="field-label">
+                    {isRecovery ? 'New password' : 'Password'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="input pr-10"
+                      autoComplete={isSignup || isRecovery ? 'new-password' : 'current-password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      minLength={isSignup || isRecovery ? 12 : undefined}
+                      aria-describedby={isSignup || isRecovery ? 'password-hint' : undefined}
+                      required
+                    />
+                    <button
+                      type="button"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm px-2 h-7"
+                      onClick={() => setShowPassword((v) => !v)}
+                      aria-label="Show password"
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff {...ICON} /> : <Eye {...ICON} />}
+                    </button>
+                  </div>
+                  {(isSignup || isRecovery) && (
+                    <p id="password-hint" className="field-hint">
+                      At least 12 characters
+                    </p>
+                  )}
                 </div>
-              </>
-            )}
 
-            <div>
-              <label htmlFor="email" className="field-label">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                className="input"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+                {error && <ErrorNote>{error}</ErrorNote>}
 
-            <div>
-              <label htmlFor="password" className="field-label">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  className="input pr-10"
-                  autoComplete={isSignup ? 'new-password' : 'current-password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={isSignup ? 8 : undefined}
-                  aria-describedby={isSignup ? 'password-hint' : undefined}
-                  required
-                />
                 <button
-                  type="button"
-                  className="absolute right-1 top-1/2 -translate-y-1/2 btn btn-ghost btn-sm px-2 h-7"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label="Show password"
-                  aria-pressed={showPassword}
+                  type="submit"
+                  className="btn btn-primary btn-lg w-full mt-2"
+                  disabled={submitting}
+                  aria-busy={submitting}
                 >
-                  {showPassword ? <EyeOff {...ICON} /> : <Eye {...ICON} />}
+                  {submitting && <Spinner size={14} />}
+                  {isSignup ? 'Create account' : isRecovery ? 'Reset password' : 'Sign in'}
                 </button>
-              </div>
-              {isSignup && (
-                <p id="password-hint" className="field-hint">
-                  At least 8 characters
-                </p>
-              )}
-            </div>
+              </form>
 
-            {error && <ErrorNote>{error}</ErrorNote>}
-
-            <button
-              type="submit"
-              className="btn btn-primary btn-lg w-full mt-2"
-              disabled={submitting}
-              aria-busy={submitting}
-            >
-              {submitting && <Spinner size={14} />}
-              {isSignup ? 'Create account' : 'Sign in'}
-            </button>
-          </form>
-
-          <p className="mt-6 text-[13px] text-fg-2">
-            {isSignup ? (
-              <>
-                Already have an account?{' '}
-                <a
-                  {...linkProps('/login')}
-                  className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
-                >
-                  Sign in
-                </a>
-              </>
-            ) : (
-              <>
-                New to CreatorBrain?{' '}
-                <a
-                  {...linkProps('/signup')}
-                  className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
-                >
-                  Create an account
-                </a>
-              </>
-            )}
-          </p>
+              <p className={`mt-6 text-[13px] text-fg-2 ${!isSignup && !isRecovery ? 'flex flex-col gap-2' : ''}`}>
+                {isSignup ? (
+                  <>
+                    Already have an account?{' '}
+                    <a
+                      {...linkProps('/login')}
+                      className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
+                    >
+                      Sign in
+                    </a>
+                  </>
+                ) : isRecovery ? (
+                  <>
+                    Remembered your password?{' '}
+                    <a {...linkProps('/login')} className="text-accent-ink underline underline-offset-2">
+                      Sign in
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <a {...linkProps('/recover')} className="text-accent-ink underline underline-offset-2">
+                      Forgot password?
+                    </a>
+                    <span>
+                      New to CreatorBrain?{' '}
+                      <a
+                        {...linkProps('/signup')}
+                        className="text-accent-ink underline underline-offset-2 decoration-accent-ink/40 hover:decoration-accent-ink"
+                      >
+                        Create an account
+                      </a>
+                    </span>
+                  </>
+                )}
+              </p>
+            </>
+          )}
         </div>
       </main>
     </div>

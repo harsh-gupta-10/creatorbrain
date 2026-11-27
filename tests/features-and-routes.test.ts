@@ -19,7 +19,7 @@ describe('Feature Test Suite 1: Security Headers & CSP Enforcement', () => {
     expect(htmlRes.status).toBe(200);
     expect(htmlRes.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(htmlRes.headers.get('X-Frame-Options')).toBe('DENY');
-    expect(htmlRes.headers.get('X-XSS-Protection')).toBe('1; mode=block');
+    expect(htmlRes.headers.get('X-XSS-Protection')).toBe('0');
     expect(htmlRes.headers.get('Cross-Origin-Opener-Policy')).toBe('same-origin');
     expect(htmlRes.headers.get('Cross-Origin-Embedder-Policy')).toBe('credentialless');
     expect(htmlRes.headers.get('Cross-Origin-Resource-Policy')).toBe('same-origin');
@@ -30,6 +30,8 @@ describe('Feature Test Suite 1: Security Headers & CSP Enforcement', () => {
     expect(csp).toContain("object-src 'none'");
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("script-src 'self'");
+    expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).toContain('upgrade-insecure-requests');
 
     const apiRes = await testApp.request('http://creatorbrain.example/api/test-json');

@@ -5,6 +5,7 @@ import type { WorkersAIBinding } from './ai/types';
 export interface Env {
   DB: D1Database;
   KV: KVNamespace;
+  BIO_ICONS?: R2Bucket;
   ASSETS?: Fetcher;
   AI?: WorkersAIBinding;
   AUTH_LIMITER?: { limit(opts: { key: string }): Promise<{ success: boolean }> };

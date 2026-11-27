@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { ErrorNote, ICON, PageHeader, Spinner, formatDate } from '../components/ui';
 
 type SettingsData = Awaited<ReturnType<typeof api.settings.getSettings>>;
-type Section = 'monetization' | 'ai' | 'amazon' | 'delete';
+type Section = 'security' | 'monetization' | 'ai' | 'amazon' | 'delete';
 
 const MARKETPLACES = ['amazon.com', 'amazon.in', 'amazon.co.uk', 'amazon.de', 'amazon.ca'];
 const OTHER_INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
@@ -46,9 +46,6 @@ export const SettingsTab: React.FC = () => {
   const [saved, setSaved] = useState<{ section: Section; text?: string } | null>(null);
 
   // Monetization
-  const [amazonOn, setAmazonOn] = useState(false);
-  const [monTag, setMonTag] = useState('');
-  const [monMarketplace, setMonMarketplace] = useState('amazon.com');
   const [otherIncome, setOtherIncome] = useState<string[]>([]);
   const [savingMon, setSavingMon] = useState(false);
 
@@ -59,14 +56,18 @@ export const SettingsTab: React.FC = () => {
   const [dailyBudgetUsd, setDailyBudgetUsd] = useState<number>(2.0);
   const [savingAi, setSavingAi] = useState(false);
 
-  // Amazon API credentials
+  // Amazon Creators API credentials
   const [partnerTag, setPartnerTag] = useState('');
   const [marketplace, setMarketplace] = useState('amazon.com');
-  const [accessKey, setAccessKey] = useState('');
-  const [secretKey, setSecretKey] = useState('');
+  const [credentialId, setCredentialId] = useState('');
+  const [credentialSecret, setCredentialSecret] = useState('');
+  const [credentialVersion, setCredentialVersion] = useState('');
   const [savingAmazon, setSavingAmazon] = useState(false);
 
   const [deleting, setDeleting] = useState(false);
+  const [securityPassword, setSecurityPassword] = useState('');
+  const [newRecoveryCodes, setNewRecoveryCodes] = useState<string[]>([]);
+  const [savingRecoveryCodes, setSavingRecoveryCodes] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -84,11 +85,9 @@ export const SettingsTab: React.FC = () => {
       setDailyBudgetUsd(res.providerSettings?.daily_budget_usd || 2.0);
       setPartnerTag(res.amazonConfig?.partnerTag || '');
       setMarketplace(res.amazonConfig?.marketplace || 'amazon.com');
+      setCredentialVersion(res.amazonConfig?.credentialVersion || '');
 
       const m = res.monetization || {};
-      setAmazonOn(!!m.amazon);
-      setMonTag(m.partnerTag || res.amazonConfig?.partnerTag || '');
-      setMonMarketplace(m.marketplace || res.amazonConfig?.marketplace || 'amazon.com');
       setOtherIncome(Array.isArray(m.other) ? m.other : []);
     } catch (err: unknown) {
       setLoadError(errMessage(err, 'Could not load settings'));
@@ -114,9 +113,6 @@ export const SettingsTab: React.FC = () => {
       setSavingMon(true);
       setSectionError('monetization', null);
       await api.settings.updateMonetization({
-        amazon: amazonOn,
-        partnerTag: amazonOn ? monTag.trim() : '',
-        marketplace: monMarketplace,
         other: otherIncome,
       });
       await fetchSettings();
@@ -148,19 +144,47 @@ export const SettingsTab: React.FC = () => {
     }
   };
 
+  const handleCreateRecoveryCodes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingRecoveryCodes(true);
+      setSectionError('security', null);
+      const res = await api.auth.createRecoveryCodes(securityPassword);
+      setNewRecoveryCodes(res.recoveryCodes);
+      setSecurityPassword('');
+    } catch (err: unknown) {
+      setSectionError('security', errMessage(err, 'Could not create recovery codes'));
+    } finally {
+      setSavingRecoveryCodes(false);
+    }
+  };
+
+  const downloadRecoveryCodes = () => {
+    const blob = new Blob([`CreatorBrain recovery codes\n\n${newRecoveryCodes.join('\n')}\n`], {
+      type: 'text/plain',
+    });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = 'creatorbrain-recovery-codes.txt';
+    link.click();
+    URL.revokeObjectURL(href);
+  };
+
   const handleSaveAmazon = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setSavingAmazon(true);
       setSectionError('amazon', null);
       await api.settings.updateAmazon({
-        accessKey: accessKey.trim() || undefined,
-        secretKey: secretKey.trim() || undefined,
+        credentialId: credentialId.trim() || undefined,
+        credentialSecret: credentialSecret.trim() || undefined,
+        credentialVersion: credentialVersion || undefined,
         partnerTag: partnerTag.trim(),
         marketplace,
       });
-      setAccessKey('');
-      setSecretKey('');
+      setCredentialId('');
+      setCredentialSecret('');
       await fetchSettings();
       flashSaved('amazon');
     } catch (err: unknown) {
@@ -216,6 +240,51 @@ export const SettingsTab: React.FC = () => {
           <ErrorNote>{loadError}</ErrorNote>
         </div>
       )}
+
+      <SettingsSection
+        title="Account recovery"
+        description="Use one-time recovery codes if you lose access to your password. They are stored as hashes and shown only when created."
+      >
+        <form onSubmit={handleCreateRecoveryCodes} className="card p-5 space-y-4">
+          <div>
+            <label htmlFor="security-password" className="field-label">
+              Confirm your current password
+            </label>
+            <input
+              id="security-password"
+              type="password"
+              autoComplete="current-password"
+              className="input"
+              value={securityPassword}
+              onChange={(e) => setSecurityPassword(e.target.value)}
+              required
+            />
+            <p className="field-hint">Creating a new set invalidates any recovery codes you already have.</p>
+          </div>
+
+          {errors.security && <ErrorNote>{errors.security}</ErrorNote>}
+          <button type="submit" className="btn btn-secondary btn-sm" disabled={savingRecoveryCodes}>
+            {savingRecoveryCodes && <Spinner />}
+            Create new recovery codes
+          </button>
+
+          {newRecoveryCodes.length > 0 && (
+            <div className="border-t border-line pt-4">
+              <p className="text-[13px] text-fg-2">Save these codes somewhere private. They will not be shown again.</p>
+              <ul className="mt-3 grid grid-cols-2 gap-2 rounded-lg bg-raised p-3 font-mono text-[12px]">
+                {newRecoveryCodes.map((code) => (
+                  <li key={code}>
+                    <code>{code}</code>
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="btn btn-ghost btn-sm mt-3" onClick={downloadRecoveryCodes}>
+                Download codes
+              </button>
+            </div>
+          )}
+        </form>
+      </SettingsSection>
 
       {/* Channel */}
       <SettingsSection title="Channel" description="The accounts CreatorBrain studies. Set during onboarding.">
@@ -279,75 +348,9 @@ export const SettingsTab: React.FC = () => {
 
       <SettingsSection
         title="Monetization"
-        description="How you earn from your content. Drafts include affiliate links and disclosures to match."
+        description="Choose your other income sources."
       >
         <form onSubmit={handleSaveMonetization} className="card p-5 space-y-6">
-          <div>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div id="amazon-toggle-label" className="font-medium text-fg">
-                  Amazon Associates
-                </div>
-                <p id="amazon-toggle-desc" className="mt-1 text-[13px] text-fg-2">
-                  Add your tracking ID to product links in scripts and descriptions
-                </p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={amazonOn}
-                aria-labelledby="amazon-toggle-label"
-                aria-describedby="amazon-toggle-desc"
-                onClick={() => setAmazonOn((v) => !v)}
-                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${
-                  amazonOn ? 'bg-accent' : 'bg-[#8a8a8a]'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-[0_1px_2px_rgb(0_0_0/0.2)] transition-transform ${
-                    amazonOn ? 'translate-x-[18px]' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-
-            {amazonOn && (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="mon-tag" className="field-label">
-                    Tracking ID
-                  </label>
-                  <input
-                    id="mon-tag"
-                    type="text"
-                    className="input font-mono"
-                    placeholder="yourname-20"
-                    value={monTag}
-                    onChange={(e) => setMonTag(e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="mon-market" className="field-label">
-                    Marketplace
-                  </label>
-                  <select
-                    id="mon-market"
-                    className="input"
-                    value={monMarketplace}
-                    onChange={(e) => setMonMarketplace(e.target.value)}
-                  >
-                    {MARKETPLACES.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
           <fieldset className="pt-6 border-t border-line">
             <legend className="field-label">Other income</legend>
             <div className="mt-1 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -481,8 +484,8 @@ export const SettingsTab: React.FC = () => {
 
       {/* Amazon API keys */}
       <SettingsSection
-        title="Amazon API keys"
-        description="Optional. With your own Product Advertising API keys, product search uses live prices and stock."
+        title="Amazon affiliate connection"
+        description="Connect Amazon Associates so Studio and Copilot can find products and return links with your tracking ID."
       >
         <form onSubmit={handleSaveAmazon} className="card p-5 space-y-4">
           <div className="flex items-center gap-2 text-[13px]">
@@ -492,10 +495,18 @@ export const SettingsTab: React.FC = () => {
             />
             <span className="text-fg-2">
               {data?.amazonConfig.hasCredentials
-                ? 'Keys stored, encrypted'
-                : 'No keys stored, using the sample catalog'}
+                ? data.amazonConfig.apiType === 'creators'
+                  ? `Creators API connected · ${data.amazonConfig.credentialVersion ? `v${data.amazonConfig.credentialVersion}` : 'version unavailable'}`
+                  : 'Older Product Advertising API keys stored · add Creators API credentials to switch'
+                : 'Not connected · product search uses sample items'}
             </span>
           </div>
+
+          <p className="text-[13px] leading-5 text-fg-2">
+            In Amazon Associates, open <span className="font-medium text-fg">Tools → Creators API</span> and create a
+            credential. Enter its Credential ID, Secret, and Version below. These are different from older PA-API access
+            keys. Your secret is encrypted when saved and is never shown again.
+          </p>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -535,34 +546,53 @@ export const SettingsTab: React.FC = () => {
           </div>
 
           <div>
-            <label htmlFor="amz-access" className="field-label">
-              Access key
+            <label htmlFor="amz-credential-id" className="field-label">
+              Credential ID
             </label>
             <input
-              id="amz-access"
-              type="password"
+              id="amz-credential-id"
+              type="text"
               autoComplete="off"
-              placeholder={data?.amazonConfig.hasCredentials ? 'Stored, enter a new key to replace it' : 'AKIA…'}
-              value={accessKey}
-              onChange={(e) => setAccessKey(e.target.value)}
+              spellCheck={false}
+              placeholder={data?.amazonConfig.apiType === 'creators' ? 'Stored, enter a new ID to replace it' : 'Paste Credential ID'}
+              value={credentialId}
+              onChange={(e) => setCredentialId(e.target.value)}
               className="input font-mono"
             />
           </div>
 
           <div>
-            <label htmlFor="amz-secret" className="field-label">
-              Secret key
+            <label htmlFor="amz-credential-secret" className="field-label">
+              Credential Secret
             </label>
             <input
-              id="amz-secret"
+              id="amz-credential-secret"
               type="password"
               autoComplete="off"
-              placeholder={data?.amazonConfig.hasCredentials ? 'Stored, enter a new key to replace it' : 'Secret key'}
-              value={secretKey}
-              onChange={(e) => setSecretKey(e.target.value)}
+              placeholder={data?.amazonConfig.apiType === 'creators' ? 'Stored, enter a new secret to replace it' : 'Paste Credential Secret'}
+              value={credentialSecret}
+              onChange={(e) => setCredentialSecret(e.target.value)}
               className="input font-mono"
             />
-            <p className="field-hint">Encrypted with AES-GCM. Keys are never logged or sent back to the browser.</p>
+            <p className="field-hint">Encrypted with AES-GCM. The saved secret is never sent back to this page.</p>
+          </div>
+
+          <div>
+            <label htmlFor="amz-credential-version" className="field-label">
+              Credential version
+            </label>
+            <select
+              id="amz-credential-version"
+              value={credentialVersion}
+              onChange={(e) => setCredentialVersion(e.target.value)}
+              className="input"
+            >
+              <option value="">Choose the version shown by Amazon</option>
+              <option value="3.1">v3.1</option>
+              <option value="3.2">v3.2</option>
+              <option value="3.3">v3.3</option>
+            </select>
+            <p className="field-hint">Use the version assigned to this credential, not the SDK version.</p>
           </div>
 
           {errors.amazon && <ErrorNote>{errors.amazon}</ErrorNote>}
@@ -570,7 +600,7 @@ export const SettingsTab: React.FC = () => {
           <div className="flex items-center gap-3">
             <button type="submit" disabled={savingAmazon} aria-busy={savingAmazon} className="btn btn-secondary btn-sm">
               {savingAmazon && <Spinner />}
-              Save keys
+              Save Amazon connection
             </button>
             <SavedNote show={saved?.section === 'amazon'} />
           </div>

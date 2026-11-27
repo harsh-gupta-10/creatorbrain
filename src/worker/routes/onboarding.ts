@@ -21,7 +21,7 @@ export const onboardingRoutes = new Hono<AppEnv>();
 const ProfileSchema = z
   .object({
     niche: z.string().trim().min(2, 'Tell us what your channel is about').max(80),
-    language: z.string().trim().max(60).default('English'),
+    language: z.enum(['English', 'Hindi']).default('English'),
     scriptLanguage: z.enum(SCRIPT_LANGUAGES).default('english'),
     cadence: z.enum(['weekly', 'biweekly', 'monthly', 'irregular']).default('weekly'),
     youtube: z.string().trim().max(200).optional().default(''),

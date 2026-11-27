@@ -16,8 +16,10 @@ import {
   Minus,
   Copy,
   X,
+  Pencil,
 } from 'lucide-react';
 import { api } from '../lib/api';
+import { automaticLinkIcon } from '../../shared/bio';
 import type { Creator, BioPage, BioBlock, BioBlockType } from '../../shared/types';
 import { ICON, PageHeader, SectionTitle, EmptyState, ErrorNote, Spinner, Dialog, formatCount } from '../components/ui';
 
@@ -75,6 +77,25 @@ const blockTypeLabel: Record<BioBlockType, string> = {
   social_links: 'Social links',
   text: 'Text',
   divider: 'Divider',
+};
+
+const LinkBlockIcon: React.FC<{ url?: string; iconUrl?: string; className?: string }> = ({
+  url,
+  iconUrl,
+  className = 'w-8 h-8',
+}) => {
+  const automatic = automaticLinkIcon(url);
+  const source = iconUrl || automatic;
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  return (
+    <span className={`${className} rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0 overflow-hidden`}>
+      {source && source !== failedSource ? (
+        <img src={source} alt="" className="w-full h-full object-contain p-1" onError={() => setFailedSource(source)} />
+      ) : (
+        <Globe {...ICON} />
+      )}
+    </span>
+  );
 };
 
 /** What fans see, drawn inside the phone frame */
@@ -202,7 +223,10 @@ const PhonePreview: React.FC<{ creator?: Creator | null; bioPage: BioPage | null
                 border: `1px solid ${i === 0 ? accent : PAGE.line}`,
               }}
             >
-              <span className="truncate">{b.title || 'Link'}</span>
+              <span className="flex min-w-0 items-center gap-3">
+                <LinkBlockIcon url={b.url} iconUrl={b.icon_url} className="w-7 h-7" />
+                <span className="truncate">{b.title || 'Link'}</span>
+              </span>
               <ArrowUpRight
                 size={14}
                 strokeWidth={1.5}
@@ -244,6 +268,9 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
   const [newBlockType, setNewBlockType] = useState<BioBlockType>('link');
   const [newTitle, setNewTitle] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [newIconUrl, setNewIconUrl] = useState('');
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [iconUploading, setIconUploading] = useState(false);
 
   useEffect(() => {
     loadBioData();
@@ -285,12 +312,34 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
+    if (editingBlockId) {
+      setBlocks((current) =>
+        current.map((block) =>
+          block.id === editingBlockId
+            ? {
+                ...block,
+                title: newTitle.trim(),
+                url: newUrl.trim() || undefined,
+                icon_url: newIconUrl || undefined,
+              }
+            : block
+        )
+      );
+      setShowAddModal(false);
+      setEditingBlockId(null);
+      setNewTitle('');
+      setNewUrl('');
+      setNewIconUrl('');
+      return;
+    }
+
     const newBlock: BioBlock = {
       id: `block_temp_${Date.now()}`,
       bio_page_id: bioPage?.id || 'bio_1',
       type: newBlockType,
       title: newTitle.trim(),
       url: newUrl.trim() || undefined,
+      icon_url: newBlockType === 'link' ? newIconUrl || undefined : undefined,
       order_index: blocks.length,
       is_active: 1,
       clicks_count: 0,
@@ -301,6 +350,60 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
     setShowAddModal(false);
     setNewTitle('');
     setNewUrl('');
+    setNewIconUrl('');
+  };
+
+  const openAddBlock = () => {
+    setEditingBlockId(null);
+    setNewBlockType('link');
+    setNewTitle('');
+    setNewUrl('');
+    setNewIconUrl('');
+    setShowAddModal(true);
+  };
+
+  const openEditLink = (block: BioBlock) => {
+    setEditingBlockId(block.id);
+    setNewBlockType('link');
+    setNewTitle(block.title || '');
+    setNewUrl(block.url || '');
+    setNewIconUrl(block.icon_url || '');
+    setShowAddModal(true);
+  };
+
+  const handleUploadIcon = async (file?: File) => {
+    if (!file) return;
+    setError(null);
+    setIconUploading(true);
+    try {
+      const uploaded = await api.bio.uploadIcon(file);
+      if (newIconUrl && !blocks.some((block) => block.icon_url === newIconUrl)) {
+        await api.bio.deleteUnsavedIcon(newIconUrl).catch(() => undefined);
+      }
+      setNewIconUrl(uploaded.iconUrl);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Could not upload this icon');
+    } finally {
+      setIconUploading(false);
+    }
+  };
+
+  const closeBlockDialog = () => {
+    if (newIconUrl && !blocks.some((block) => block.icon_url === newIconUrl)) {
+      void api.bio.deleteUnsavedIcon(newIconUrl).catch(() => undefined);
+    }
+    setShowAddModal(false);
+    setEditingBlockId(null);
+    setNewTitle('');
+    setNewUrl('');
+    setNewIconUrl('');
+  };
+
+  const useSiteIcon = () => {
+    if (newIconUrl && !blocks.some((block) => block.icon_url === newIconUrl)) {
+      void api.bio.deleteUnsavedIcon(newIconUrl).catch(() => undefined);
+    }
+    setNewIconUrl('');
   };
 
   const handleSaveChanges = async () => {
@@ -453,7 +556,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
               title="Blocks"
               meta={blocks.length || undefined}
               action={
-                <button onClick={() => setShowAddModal(true)} className="btn btn-secondary btn-sm">
+                <button type="button" onClick={openAddBlock} className="btn btn-secondary btn-sm">
                   <Plus {...ICON} />
                   Add block
                 </button>
@@ -477,12 +580,16 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                     const blockName = block.title || block.product?.title || blockTypeLabel[block.type];
                     return (
                       <li key={block.id || idx} className="flex items-center gap-3 px-4 py-3">
-                        <span
-                          className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0"
-                          aria-hidden="true"
-                        >
-                          {blockIcon(block.type)}
-                        </span>
+                        {block.type === 'link' ? (
+                          <LinkBlockIcon url={block.url} iconUrl={block.icon_url} />
+                        ) : (
+                          <span
+                            className="w-8 h-8 rounded-[8px] bg-raised text-fg-2 flex items-center justify-center shrink-0"
+                            aria-hidden="true"
+                          >
+                            {blockIcon(block.type)}
+                          </span>
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-2 min-w-0">
                             <span className="text-fg truncate">
@@ -496,7 +603,18 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
+                          {block.type === 'link' && (
+                            <button
+                              type="button"
+                              onClick={() => openEditLink(block)}
+                              className="btn btn-ghost btn-sm !px-2"
+                              aria-label={`Edit ${blockName}`}
+                            >
+                              <Pencil {...ICON} />
+                            </button>
+                          )}
                           <button
+                            type="button"
                             onClick={() => handleMoveBlock(idx, 'up')}
                             disabled={idx === 0}
                             className="btn btn-ghost btn-sm !px-2"
@@ -505,6 +623,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                             <ArrowUp {...ICON} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleMoveBlock(idx, 'down')}
                             disabled={idx === blocks.length - 1}
                             className="btn btn-ghost btn-sm !px-2"
@@ -513,6 +632,7 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
                             <ArrowDown {...ICON} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => handleDeleteBlock(idx)}
                             className="btn btn-ghost btn-sm !px-2 hover:!text-negative"
                             aria-label={`Delete ${blockName}`}
@@ -548,37 +668,39 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
       {/* Add block */}
       {showAddModal && (
         <Dialog
-          onClose={() => setShowAddModal(false)}
+          onClose={closeBlockDialog}
           labelledBy="add-block-title"
           className="panel w-full max-w-md p-6"
           backdropClassName="bg-black/30"
         >
           <div className="flex items-center justify-between mb-4">
             <h2 id="add-block-title" className="text-[15px] font-medium text-fg">
-              Add block
+              {editingBlockId ? 'Edit link' : 'Add block'}
             </h2>
-            <button onClick={() => setShowAddModal(false)} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
+            <button type="button" onClick={closeBlockDialog} className="btn btn-ghost btn-sm !px-2" aria-label="Close">
               <X {...ICON} />
             </button>
           </div>
           <form onSubmit={handleAddBlock} className="space-y-4">
-            <div>
-              <label className="field-label" htmlFor="nb-type">
-                Type
-              </label>
-              <select
-                id="nb-type"
-                value={newBlockType}
-                onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
-                className="input"
-              >
-                <option value="link">Link</option>
-                <option value="product_card">Product card</option>
-                <option value="social_links">Social links</option>
-                <option value="text">Text</option>
-                <option value="divider">Divider</option>
-              </select>
-            </div>
+            {!editingBlockId && (
+              <div>
+                <label className="field-label" htmlFor="nb-type">
+                  Type
+                </label>
+                <select
+                  id="nb-type"
+                  value={newBlockType}
+                  onChange={(e) => setNewBlockType(e.target.value as BioBlockType)}
+                  className="input"
+                >
+                  <option value="link">Link</option>
+                  <option value="product_card">Product card</option>
+                  <option value="social_links">Social links</option>
+                  <option value="text">Text</option>
+                  <option value="divider">Divider</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="field-label" htmlFor="nb-title">
@@ -609,12 +731,47 @@ export const LinkInBioTab: React.FC<LinkInBioTabProps> = ({ creator }) => {
               />
             </div>
 
+            {newBlockType === 'link' && (
+              <div className="space-y-2">
+                <div>
+                  <label className="field-label" htmlFor="nb-icon">
+                    Link icon
+                  </label>
+                  <p className="field-hint mb-2">
+                    We’ll load the site icon from this link automatically. You can upload your own PNG, JPG, or WebP instead.
+                  </p>
+                  <input
+                    id="nb-icon"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    disabled={iconUploading}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = '';
+                      void handleUploadIcon(file);
+                    }}
+                    className="input h-auto py-2"
+                  />
+                </div>
+                {newIconUrl && (
+                  <div className="flex items-center gap-3">
+                    <LinkBlockIcon url={newUrl} iconUrl={newIconUrl} />
+                    <span className="text-[12px] text-fg-2 flex-1">Custom icon ready</span>
+                    <button type="button" onClick={useSiteIcon} className="btn btn-ghost btn-sm">
+                      Use site icon
+                    </button>
+                  </div>
+                )}
+                {iconUploading && <p className="field-hint flex items-center gap-2"><Spinner size={14} /> Uploading icon to R2</p>}
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button type="button" onClick={() => setShowAddModal(false)} className="btn btn-ghost">
+              <button type="button" onClick={closeBlockDialog} className="btn btn-ghost">
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary">
-                Add block
+              <button type="submit" disabled={iconUploading} className="btn btn-primary">
+                {editingBlockId ? 'Save link' : 'Add block'}
               </button>
             </div>
           </form>

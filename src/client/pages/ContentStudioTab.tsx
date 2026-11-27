@@ -1,3 +1,4 @@
+import { ChatLinks } from '../components/ChatLinks';
 import React, { useEffect, useState } from 'react';
 import {
   ArrowUp,
@@ -32,6 +33,8 @@ const ASSET_ICONS: Record<AssetType, LucideIcon> = {
   shorts_caption: Film,
   instagram_caption: Camera,
   script_outline: FileCode,
+  full_script: FileCode,
+  short_script: FileCode,
   thumbnail_ideas: ImageIcon,
   community_post: HelpCircle,
   compliance_report: ShieldCheck,
@@ -166,7 +169,8 @@ export const ContentStudioTab: React.FC = () => {
 
       if (res.assets) {
         setAssets(res.assets);
-        const cur = res.assets.find((a) => a.type === activeAssetType);
+        const cur = res.assets.find((a) => a.type === (res.updatedAsset || activeAssetType));
+        if (cur) setActiveAssetType(cur.type);
         if (cur) setEditableContent(cur.content);
       }
     } catch (err: unknown) {
@@ -395,7 +399,7 @@ ${a.content}
                   ) : (
                     <div className="text-fg-2 whitespace-pre-wrap">
                       <span className="sr-only">Studio agent: </span>
-                      {msg.text}
+                      <ChatLinks text={msg.text} />
                     </div>
                   )}
                   <span className="meta">{msg.time}</span>
@@ -405,11 +409,19 @@ ${a.content}
             {isGenerating && (
               <div className="flex items-center gap-2 text-[13px] text-fg-3" role="status">
                 <Spinner />
-                Researching products, drafting and checking disclosures
+                Working on your request…
               </div>
             )}
           </div>
 
+          <div className="flex flex-wrap gap-1 px-3 pb-2" aria-label="Suggested requests">
+            {[
+              ['Affiliate link', 'Find an Amazon affiliate link for the product in this project.'],
+              ['Short script', 'Write a 45-second script for this project in my voice.'],
+              ['Full script', 'Write a full spoken script for this project in my voice.'],
+            ].map(([label, prompt]) => <button key={label} type="button" className="btn btn-secondary btn-sm"
+              disabled={!selectedProjectId || isGenerating} onClick={() => setChatInput(prompt)}>{label}</button>)}
+          </div>
           <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">
             <input
               type="text"
@@ -433,7 +445,7 @@ ${a.content}
 
         <div className="lg:col-span-7 h-[620px] panel flex flex-col overflow-hidden">
           <div
-            className="border-b border-line p-2 overflow-x-auto flex items-center gap-1"
+            className="border-b border-line p-2 flex flex-wrap items-center gap-1"
             role="tablist"
             aria-label="Project assets"
             onKeyDown={(e) => {
@@ -460,6 +472,8 @@ ${a.content}
               { type: 'pinned_comment' as const, label: 'Pinned comment' },
               { type: 'shorts_caption' as const, label: 'Shorts' },
               { type: 'instagram_caption' as const, label: 'Instagram' },
+              { type: 'short_script' as const, label: 'Short script' },
+              { type: 'full_script' as const, label: 'Full script' },
               { type: 'script_outline' as const, label: 'Script outline' },
               { type: 'thumbnail_ideas' as const, label: 'Thumbnail' },
               { type: 'community_post' as const, label: 'Community post' },

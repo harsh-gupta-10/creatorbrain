@@ -11,7 +11,7 @@ CreatorBrain is a creator-focused workspace for studying YouTube content, buildi
 - `tests/`: Vitest unit and API tests.
 - `public/`: static public assets and headers.
 
-The Worker uses D1 (`DB`), KV (`KV`), Workers AI (`AI`), and static assets (`ASSETS`). Local runtime and deployment bindings are configured in `wrangler.jsonc`.
+The Worker uses D1 (`DB`), KV (`KV`), Workers AI (`AI`), and static assets (`ASSETS`). The Cloudflare CLI project configuration is in `cloudflare.config.ts`; `wrangler.config.ts` contains build settings for the Wrangler bundler.
 
 ## Where to look
 
@@ -52,8 +52,10 @@ The Worker uses D1 (`DB`), KV (`KV`), Workers AI (`AI`), and static assets (`ASS
 ## Useful commands
 
 - `npm run dev` — start Vite development server; API routes proxy to the local Worker.
-- `npm run dev:worker` — run Wrangler Worker locally.
-- `npm run db:migrate:local` — apply D1 migrations locally.
+- `npm run dev:worker` — run the Worker locally with the Cloudflare CLI.
+- `npm run db:migrate:local` — apply D1 migrations to the local database.
+- `npm run db:migrate:remote` — apply D1 migrations to the configured remote database.
+- `npm run deploy` — build and deploy with the Cloudflare CLI.
 - `npm run typecheck` — run TypeScript checks.
 - `npm test` — run Vitest.
 - `npm run build` — build the client assets.

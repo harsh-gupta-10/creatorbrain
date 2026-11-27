@@ -4,18 +4,33 @@ import { MOCK_AMAZON_PRODUCTS } from './fixtures';
 /**
  * Amazon product lookup for one creator.
  *
- * Live mode uses the Product Advertising API 5.0 (SearchItems) signed with AWS SigV4,
- * with the creator's own access key, secret key and partner tag. Without keys, or when
- * Amazon rejects a request, it returns a small sample catalog that is always marked
- * `is_mock = 1` so the UI never presents sample prices as live ones.
+ * Live mode prefers the Creators API (OAuth 2.0) using each creator's credential ID,
+ * secret, version, and partner tag. Existing PA-API 5 credentials remain supported.
+ * Without valid credentials, or when Amazon rejects a request, it returns a small
+ * sample catalog marked `is_mock = 1` so the UI never presents sample prices as live.
  */
 
 export interface AmazonCredentials {
   accessKey?: string;
   secretKey?: string;
+  credentialId?: string;
+  credentialSecret?: string;
+  credentialVersion?: '3.1' | '3.2' | '3.3';
   partnerTag: string;
   marketplace?: string;
 }
+
+interface CachedToken {
+  token: string;
+  expiresAt: number;
+}
+
+const TOKEN_ENDPOINTS = {
+  '3.1': 'https://api.amazon.com/auth/o2/token',
+  '3.2': 'https://api.amazon.co.uk/auth/o2/token',
+  '3.3': 'https://api.amazon.co.jp/auth/o2/token',
+} as const;
+const tokenCache = new Map<string, CachedToken>();
 
 const HOSTS: Record<string, { host: string; region: string; currency: string }> = {
   'amazon.com': { host: 'webservices.amazon.com', region: 'us-east-1', currency: 'USD' },
@@ -95,7 +110,11 @@ export class AmazonCreatorsClient {
     this.credentials = credentials;
     this.marketplace =
       credentials?.marketplace && HOSTS[credentials.marketplace] ? credentials.marketplace : 'amazon.com';
-    this.live = !!(credentials?.accessKey && credentials?.secretKey && credentials?.partnerTag);
+    const hasCreatorsCredentials = !!(
+      credentials?.credentialId && credentials.credentialSecret && credentials.credentialVersion
+    );
+    const hasLegacyCredentials = !!(credentials?.accessKey && credentials?.secretKey);
+    this.live = !!credentials?.partnerTag && (hasCreatorsCredentials || hasLegacyCredentials);
   }
 
   isMock(): boolean {
@@ -112,6 +131,36 @@ export class AmazonCreatorsClient {
 
   private timestamp(): string {
     return new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
+  }
+
+  private async getCreatorsAccessToken(): Promise<string> {
+    const { credentialId, credentialSecret, credentialVersion } = this.credentials || {};
+    if (!credentialId || !credentialSecret || !credentialVersion) throw new Error('Creators API credentials are incomplete');
+    const key = await sha256(JSON.stringify([credentialId, credentialSecret, credentialVersion]));
+    const cached = tokenCache.get(key);
+    if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
+
+    const response = await fetch(TOKEN_ENDPOINTS[credentialVersion], {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'client_credentials',
+        client_id: credentialId,
+        client_secret: credentialSecret,
+        scope: 'creatorsapi::default',
+      }),
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      access_token?: string;
+      expires_in?: number;
+      error_description?: string;
+    };
+    if (!response.ok || !data.access_token) {
+      throw new Error(data.error_description || `Amazon token request failed (${response.status})`);
+    }
+    const lifetimeMs = Math.max(60, Math.min(data.expires_in || 3600, 3600)) * 1000;
+    tokenCache.set(key, { token: data.access_token, expiresAt: Date.now() + lifetimeMs });
+    return data.access_token;
   }
 
   private sample(creatorId: string, query?: string): Product[] {
@@ -131,6 +180,9 @@ export class AmazonCreatorsClient {
 
   async searchItems(keywords: string, creatorId: string): Promise<Product[]> {
     if (!this.live) return this.sample(creatorId, keywords);
+    if (this.credentials?.credentialId && this.credentials.credentialSecret && this.credentials.credentialVersion) {
+      return this.creatorsItems({ keywords: keywords.slice(0,200), itemCount: 10 }, creatorId);
+    }
 
     const { host, region, currency } = HOSTS[this.marketplace];
     const path = '/paapi5/searchitems';
@@ -203,9 +255,99 @@ export class AmazonCreatorsClient {
     }
   }
 
+  private async creatorsItems(query: {keywords: string; itemCount: number} | {itemIds: string[]; itemIdType: 'ASIN'}, creatorId: string): Promise<Product[]> {
+    const { currency } = HOSTS[this.marketplace];
+    const marketplace = `www.${this.marketplace}`;
+    const body = JSON.stringify({
+      ...query,
+      partnerTag: this.credentials!.partnerTag,
+      marketplace,
+      resources: [
+        'images.primary.large',
+        'itemInfo.title',
+        'itemInfo.features',
+        'offersV2.listings.price',
+        'offersV2.listings.availability',
+      ],
+    });
+
+    try {
+      const accessToken = await this.getCreatorsAccessToken();
+      const operation = 'itemIds' in query ? 'getItems' : 'searchItems';
+      const response = await fetch(`https://creatorsapi.amazon/catalog/v1/${operation}`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+          'x-marketplace': marketplace,
+        },
+        body,
+      });
+      interface CreatorsItem {
+        asin?: string;
+        itemInfo?: {
+          title?: { displayValue?: string };
+          features?: { displayValues?: string[] };
+        };
+        detailPageURL?: string;
+        images?: { primary?: { large?: { url?: string } } };
+        offersV2?: {
+          listings?: Array<{
+            price?: { money?: { displayAmount?: string; currency?: string } };
+            availability?: { message?: string; type?: string };
+          }>;
+        };
+      }
+      interface CreatorsSearchResponse {
+        errors?: Array<{ message?: string }>;
+        searchResult?: { items?: CreatorsItem[] };
+        itemsResult?: { items?: CreatorsItem[] };
+      }
+      const data = (await response.json().catch(() => ({}))) as CreatorsSearchResponse;
+      if (!response.ok) {
+        throw new Error(data.errors?.[0]?.message || `Amazon returned ${response.status}`);
+      }
+      const now = new Date().toISOString();
+      return (data.itemsResult?.items || data.searchResult?.items || [])
+        .filter((item): item is CreatorsItem & { asin: string } => !!item.asin)
+        .map((item): Product => {
+          const listing = item.offersV2?.listings?.[0];
+          const availability = listing?.availability?.message ||
+            listing?.availability?.type?.toLowerCase().replaceAll('_', ' ') || 'Check availability';
+          return {
+            id: `prod_${item.asin.toLowerCase()}`,
+            creator_id: creatorId,
+            asin: item.asin,
+            title: item.itemInfo?.title?.displayValue || item.asin,
+            price_str: listing?.price?.money?.displayAmount || 'See price on Amazon',
+            price_timestamp: this.timestamp(),
+            currency: listing?.price?.money?.currency || currency,
+            image_url: item.images?.primary?.large?.url || '',
+            product_url: item.detailPageURL || `https://www.${this.marketplace}/dp/${item.asin}`,
+            features_json: JSON.stringify(item.itemInfo?.features?.displayValues || []),
+            specs_json: '{}',
+            pros_cons_json: JSON.stringify({ pros: [], cons: [] }),
+            is_mock: 0,
+            availability,
+            last_checked_at: now,
+            created_at: now,
+          };
+        });
+    } catch (err: unknown) {
+      this.lastError = err instanceof Error ? err.message : 'Amazon Creators API request failed';
+      console.warn('[Amazon] Creators API search failed, showing sample catalog:', this.lastError);
+      return 'keywords' in query ? this.sample(creatorId,query.keywords) : [];
+    }
+  }
+
   async getItems(asins: string[], creatorId: string): Promise<Product[]> {
     if (!this.live) return this.sample(creatorId).filter((p) => asins.includes(p.asin));
-    return this.searchItems(asins[0] || '', creatorId);
+    if (!asins.length) return [];
+    if (this.credentials?.credentialId && this.credentials.credentialSecret && this.credentials.credentialVersion) {
+      return this.creatorsItems({ itemIds: asins.slice(0,10), itemIdType: 'ASIN' }, creatorId);
+    }
+    const results = await this.searchItems(asins[0], creatorId);
+    return results.filter(product => asins.includes(product.asin));
   }
 
   /** Adds the creator's tracking ID. Without one the URL is returned untouched */

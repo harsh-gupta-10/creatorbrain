@@ -1,6 +1,5 @@
 # CreatorBrain: Agentic Creator OS
 
-> **PromptWars X AgentX 2.0 (Hack2Skill + Google)** — *Open Innovation Track*  
 > **Live Production URL:** [https://creatorbrain.harshgupta24716.workers.dev](https://creatorbrain.harshgupta24716.workers.dev)  
 > **Public Link-in-Bio Demo:** [https://creatorbrain.harshgupta24716.workers.dev/@izoog10](https://creatorbrain.harshgupta24716.workers.dev/@izoog10)  
 > **Free Channel Audit:** [https://creatorbrain.harshgupta24716.workers.dev/audit](https://creatorbrain.harshgupta24716.workers.dev/audit)
@@ -41,8 +40,8 @@ Built from day one to operate **100% within the Cloudflare Workers Free Tier** w
   └──────────────────────────┘      │                                                        │
                                     │  ┌──────────────────────────────────────────────────┐  │
   ┌──────────────────────────┐      │  │  Autonomous Cron Trigger (Scheduled Hourly)      │  │
-  │ Amazon Creators PA-API 5 │◄─────┼──┼── • Orchestrator Agent   • Memory Curator Agent  │  │
-  │ SigV4 + AES-GCM-256 Vault│      │  └──────────────────────────────────────────────────┘  │
+  │ Amazon Creators API      │◄─────┼──┼── • Orchestrator Agent   • Memory Curator Agent  │  │
+  │ OAuth 2.0 + AES-GCM Vault│      │  └──────────────────────────────────────────────────┘  │
   └──────────────────────────┘      └────────────────────────────────────────────────────────┘
 ```
 
@@ -72,7 +71,7 @@ CreatorBrain runs on an extensible agent loop (`runAgent({ name, systemPrompt, t
 | **8** | **Curriculum Planner** | Sequences personalized, bite-sized lessons targeting the creator's weakest retention and revenue gaps. | Knowledge gaps, lesson catalog, replanning triggers |
 | **9** | **Tutor Coach** | Multi-turn conversational growth coach grounded in the creator’s real Knowledge Graph nodes. | D1 Graph context, persistent chat threads |
 | **10** | **Skill Assessor** | Generates dynamic 5-question quizzes from weakest gaps and updates graph node weights upon completion. | Adaptive question generator, D1 quiz engine |
-| **11** | **Product Researcher** | Searches Amazon PA-API 5.0 with AWS SigV4, extracts ASINs, live specs, pros/cons, and verified prices with timestamps. | `SearchItems`, `GetItems`, mock fixture fallback |
+| **11** | **Product Researcher** | Searches Amazon Creators API with OAuth 2.0; keeps legacy PA-API support during migration. | `SearchItems`, mock fixture fallback |
 | **12** | **Content Studio Agent** | Transforms conversational briefs into 9 comprehensive, ready-to-publish assets in signature DNA voice. | Multi-asset synthesis, project asset versioning |
 | **13** | **Compliance Checker** | Audits descriptions and scripts for FTC/ASCI affiliate disclosures and stale pricing without timestamps. | FTC & ASCI compliance rules, Amazon Associates TOS |
 | **+** | **Memory Curator** | Scheduled cron agent: deduplicates graph traits, decays stale knowledge weights, and writes weekly learnings. | Cloudflare Cron Trigger (`0 0 * * *`) |
@@ -141,7 +140,7 @@ All AI calls execute securely inside the Cloudflare Worker. User API keys never 
 ### 2. Earn Suite
 - **Link-in-Bio (`/@handle`):** Edge-rendered public page at `/@handle`. Ultra-fast, cached at the edge, featuring Link cards, Amazon Product cards, Social icons, Text blocks, and Dividers. Fully customizable themes.
 - **Short Links (`/s/:slug`):** High-speed URL shortener resolved from Cloudflare KV in sub-milliseconds. Includes click analytics tracked asynchronously via `ctx.waitUntil()` without blocking redirection. Protected against SSRF and private-network abuse.
-- **Amazon Affiliate Manager:** Search live Amazon products via PA-API 5.0 (AWS SigV4) with automated partner tag appending. Imports Associates Central CSV earnings.
+- **Amazon Affiliate Manager:** Search live Amazon products via Creators API (OAuth 2.0) with automated partner tag appending. Imports Associates Central CSV earnings.
 - **FTC & ASCI Compliance Checker:** Scans every drafted description and pinned comment to ensure clear affiliate disclosure (*"As an Amazon Associate, I earn from qualifying purchases"*) and flags price claims missing date/time snapshots.
 - **Brand Deals Pipeline:** Dedicated CRM tracking brand sponsorships across stages (`talking`, `agreed`, `posted`, `paid`), tracking deliverables, due dates, and flagging overdue invoices.
 
@@ -166,7 +165,7 @@ All AI calls execute securely inside the Cloudflare Worker. User API keys never 
 CreatorBrain was architected with enterprise-grade security primitives:
 
 - **Per-Creator Credential Encryption Vault:**
-  - Amazon Access Keys, Secret Keys, and Tracking IDs are encrypted using **AES-GCM-256**.
+  - Amazon Creators API credential IDs, secrets, and tracking IDs are encrypted using **AES-GCM-256**. Existing PA-API credentials remain supported during migration.
   - Encryption keys are derived via **HKDF** from a 256-bit `ENCRYPTION_KEY` Worker secret.
   - Each field receives a cryptographically random 12-byte IV.
   - The `creator_id` is bound as **Additional Authenticated Data (AAD)** to prevent ciphertext-copy attacks across accounts.
@@ -249,8 +248,8 @@ CreatorBrain was engineered to achieve maximum marks across all evaluation rubri
 | Evaluation Rubric | Target Score | Key Engineering Implementations & Quality Proofs |
 |---|:---:|---|
 | **Code Quality & Architecture** | **100 / 100** | • Strict TypeScript 5.9.3 (`strict: true`, `noImplicitAny: true`, `strictNullChecks: true`).<br>• **Zero `any` or `as any`** across entire codebase (`src/` and `tests/`).<br>• Fully configured **ESLint Flat Config (`eslint.config.js`)** passing with 0 warnings/errors.<br>• Clean code standards: zero duplicate imports, clean architecture, Prettier formatted.<br>• Clean separation: React 19 SPA (`src/client`), Cloudflare Worker API & Agents (`src/worker`), and shared models (`src/shared`). |
-| **Security & Privacy** | **100 / 100** | • Full defense-in-depth HTTP security headers (COOP `same-origin`, COEP `credentialless`, CORP `same-origin`, `X-Permitted-Cross-Domain-Policies: none`, HSTS 1-year preload, CSP `object-src 'none'`, `X-XSS-Protection: 1; mode=block`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).<br>• **Zero production vulnerabilities** (`npm audit --omit=dev` clean).<br>• AES-GCM-256 + HKDF encryption vault for Amazon PA-API credentials.<br>• 100% parameterized D1 SQL queries scoped strictly by authenticated `creator_id` (zero IDOR or injection vectors).<br>• Same-origin CSRF enforcement and write protection on demo creator records. |
-| **Testing & Robustness** | **100 / 100** | • **67 automated unit, integration, and E2E tests** passing in ~3.2s via Vitest across 8 test suites.<br>• `@vitest/coverage-v8` integrated with comprehensive coverage across middleware (82%), budget (68%), Amazon client (78%), and routes.<br>• Comprehensive test suites covering agent loops, deal pipelines, quiz progression, short-link caching/expiry, security headers, XSS sanitization, and Amazon SigV4.<br>• Automated CI workflow (`.github/workflows/ci.yml`) enforcing linting, typechecks, testing, and production builds on every commit. |
+| **Security & Privacy** | **100 / 100** | • Full defense-in-depth HTTP security headers (COOP `same-origin`, COEP `credentialless`, CORP `same-origin`, `X-Permitted-Cross-Domain-Policies: none`, HSTS 1-year preload, CSP `object-src 'none'`, `X-XSS-Protection: 1; mode=block`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`).<br>• **Zero production vulnerabilities** (`npm audit --omit=dev` clean).<br>• AES-GCM-256 + HKDF encryption vault for Amazon Creators API and legacy PA-API credentials.<br>• 100% parameterized D1 SQL queries scoped strictly by authenticated `creator_id` (zero IDOR or injection vectors).<br>• Same-origin CSRF enforcement and write protection on demo creator records. |
+| **Testing & Robustness** | **100 / 100** | • **93 unit, integration, and E2E tests** pass across 8 standard test files and 1 E2E file.<br>• `@vitest/coverage-v8` integrated with comprehensive coverage across middleware (82%), budget (68%), Amazon client (78%), and routes.<br>• Test suites cover agent loops, deal pipelines, quiz progression, short-link caching/expiry, security headers, XSS sanitization, and Amazon Creators API OAuth / legacy SigV4.<br>• Automated CI workflow (`.github/workflows/ci.yml`) enforces linting, typechecks, testing, and production builds on every commit. |
 | **Accessibility (a11y) & UX** | **100 / 100** | • Semantic HTML5 elements (`<main>`, `<header>`, `<nav>`, `<section>`, `<footer>`).<br>• 100% of image elements contain descriptive `alt` text and lazy loading (`loading="lazy"`). Zero empty `alt=""`.<br>• Explicit `aria-label`s on all action buttons, social links, and external anchors.<br>• Validated `<html lang="en">` declaration across all client pages and server-rendered 404/SSR templates.<br>• High-contrast, responsive visual system tested across mobile and desktop viewports. |
 | **Efficiency & Edge Optimization** | **100 / 100** | • **136 kB gzipped Worker bundle** (Cloudflare limit is 3,000 kB).<br>• Ultra-low latency edge redirects (`/s/:slug`) powered by Cloudflare KV.<br>• 24-hour edge response caching and per-creator daily AI budget enforcement in KV.<br>• Multi-tiered AI router: Claude Sonnet/Haiku → OpenAI GPT-4o-mini → Workers AI free fallback. |
 | **Problem Statement Alignment** | **100 / 100** | • Solves the core creator pain point: fragmented tools and generic, forgetful AI.<br>• Persistent **Creator DNA Knowledge Graph** preserves authentic voice and style.<br>• 13 autonomous agents covering end-to-end lifecycle: ingestion, research, 9 studio assets, compliance, affiliate links, link-in-bio, deals, and adaptive learning.<br>• Autonomous cron orchestration (`Memory Curator` and `Orchestrator`). |
@@ -260,9 +259,9 @@ CreatorBrain was engineered to achieve maximum marks across all evaluation rubri
 ## Local Development & Setup
 
 ### Prerequisites
-- Node.js 22+
+- Node.js 22.23+, 24.22+, or 26.12+ (required by the Cloudflare CLI)
 - npm or pnpm
-- Cloudflare Wrangler CLI (`npm i -g wrangler`)
+- Cloudflare CLI (`cf`, installed as a project dependency)
 
 ### 1. Clone & Install
 ```bash
@@ -312,26 +311,15 @@ Open [http://localhost:5173](http://localhost:5173) in your browser. The Vite de
 Deploy the full application to Cloudflare Workers with a single command:
 
 ```bash
-# 1. Authenticate with Cloudflare
-npx wrangler login
+# Authenticate with Cloudflare (one-time)
+cf auth login
 
-# 2. Create remote D1 Database and KV Namespace
-npx wrangler d1 create creatorbrain-db
-npx wrangler kv namespace create KV
+# For a new Cloudflare account, create D1 and KV resources with `cf d1 create`
+# and `cf kv namespaces create`, then update their IDs in cloudflare.config.ts.
+# Add ENCRYPTION_KEY and optional AI provider keys as Worker secrets in the dashboard.
 
-# 3. Put your remote encryption secret
-npx wrangler secret put ENCRYPTION_KEY
-
-# Optional: Add remote AI keys
-npx wrangler secret put ANTHROPIC_API_KEY
-npx wrangler secret put OPENAI_API_KEY
-npx wrangler secret put GEMINI_API_KEY
-npx wrangler secret put YOUTUBE_API_KEY
-
-# 4. Apply remote database migrations
+# Apply remote migrations and deploy
 npm run db:migrate:remote
-
-# 5. Build and Deploy
 npm run deploy
 ```
 

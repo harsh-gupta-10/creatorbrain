@@ -117,32 +117,50 @@ export async function runAssessorQuizScoring(options: {
  * Memory Curator Agent (Cron): Merges duplicates, decays stale traits, writes weekly "what I learned"
  */
 export async function runMemoryCurator(creatorId: string, db: D1Database): Promise<string> {
+  const best = await db
+    .prepare(
+      'SELECT id, title, views FROM content_items WHERE creator_id=? AND views > 0 ORDER BY views DESC, id LIMIT 1'
+    )
+    .bind(creatorId)
+    .first<{ id: string; title: string; views: number }>();
+  if (!best) return 'Study a video with a recorded view count to start tracking channel learnings.';
+  const insight = `“${best.title}” leads your imported library with ${best.views.toLocaleString()} recorded views.`;
   const now = new Date().toISOString();
-  const insight = `Weekly synthesis: Pinned comments with direct short links converted 40% higher than description-only links. Continuing to emphasize 4-minute pattern interrupts to protect watch-time curve.`;
-
   await db
     .prepare(
-      `INSERT INTO learnings (id, creator_id, title, insight, source_agent, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO learnings(id, creator_id, title, insight, source_agent, created_at)
+    VALUES (?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET insight=excluded.insight, created_at=excluded.created_at`
     )
-    .bind(`learn_cron_${Date.now()}`, creatorId, 'Weekly Autonomous Synthesis', insight, 'Memory Curator', now)
+    .bind(`learn_top_${creatorId}_${best.id}`, creatorId, 'Most-viewed imported video', insight, 'Memory Curator', now)
     .run();
-
   return insight;
 }
 
-/**
- * Orchestrator Agent (Cron entry point): Evaluates channel health and writes Next Best Action to dashboard
- */
 export async function runOrchestrator(
-  _creatorId: string,
-  _db: D1Database
+  creatorId: string,
+  db: D1Database
 ): Promise<{ nextBestAction: string; recommendedAgents: string[] }> {
-  const nextBestAction =
-    'Record a 45-second teardown Short for Motorola Edge 50 Fusion to recapture lost student viewers from the minute-4 dip.';
-
-  return {
-    nextBestAction,
-    recommendedAgents: ['Content Studio Agent', 'Compliance Checker', 'Memory Curator'],
-  };
+  const project = await db
+    .prepare("SELECT title FROM projects WHERE creator_id=? AND status <> 'Published' ORDER BY updated_at DESC LIMIT 1")
+    .bind(creatorId)
+    .first<{ title: string }>();
+  if (project)
+    return {
+      nextBestAction: `Open “${project.title}” in Studio and draft its next recording script.`,
+      recommendedAgents: ['Short script writer', 'Full script writer'],
+    };
+  const recent = await db
+    .prepare('SELECT title FROM content_items WHERE creator_id=? ORDER BY published_at DESC LIMIT 1')
+    .bind(creatorId)
+    .first<{ title: string }>();
+  return recent
+    ? {
+        nextBestAction: `Compare the opening of “${recent.title}” with a competitor’s recent uploads before drafting your follow-up.`,
+        recommendedAgents: ['Competitor study', 'Title coach'],
+      }
+    : {
+        nextBestAction:
+          'Study your YouTube channel to give your agents examples of your titles, descriptions and voice.',
+        recommendedAgents: [],
+      };
 }

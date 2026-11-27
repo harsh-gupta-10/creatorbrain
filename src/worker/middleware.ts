@@ -45,7 +45,7 @@ export const requireCreator: MiddlewareHandler<AppEnv> = async (c, next) => {
   await next();
 };
 
-/** Per-IP rate limit for sign-in and sign-up, using the Workers Rate Limiting binding when present */
+/** Per-IP rate limit for authentication mutations, using the Workers Rate Limiting binding when present */
 export const authRateLimit: MiddlewareHandler<AppEnv> = async (c, next) => {
   if (c.req.method === 'POST' && c.env.AUTH_LIMITER) {
     const ip = c.req.header('CF-Connecting-IP') || 'local';
@@ -64,7 +64,7 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   h.set('X-Content-Type-Options', 'nosniff');
   h.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   h.set('X-Frame-Options', 'DENY');
-  h.set('X-XSS-Protection', '1; mode=block');
+  h.set('X-XSS-Protection', '0');
   h.set('Cross-Origin-Opener-Policy', 'same-origin');
   h.set('Cross-Origin-Embedder-Policy', 'credentialless');
   h.set('X-Permitted-Cross-Domain-Policies', 'none');
@@ -78,7 +78,7 @@ export const securityHeaders: MiddlewareHandler<AppEnv> = async (c, next) => {
   if ((h.get('Content-Type') || '').includes('text/html')) {
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: https:",

@@ -66,7 +66,7 @@ interface TabItem {
   id: TabId;
   label: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
-  group: 'Create' | 'Earn' | 'Brain';
+  group: 'Create' | 'Tools' | 'Brain';
 }
 
 const TABS: TabItem[] = [
@@ -74,10 +74,10 @@ const TABS: TabItem[] = [
   { id: 'copilot', label: 'Copilot', icon: MessageSquare, group: 'Create' },
   { id: 'studio', label: 'Studio', icon: Clapperboard, group: 'Create' },
   { id: 'tools', label: 'Quick tools', icon: Wand2, group: 'Create' },
-  { id: 'bio', label: 'Link in bio', icon: Link2, group: 'Earn' },
-  { id: 'links', label: 'Short links', icon: Link, group: 'Earn' },
-  { id: 'amazon', label: 'Amazon', icon: ShoppingBag, group: 'Earn' },
-  { id: 'deals', label: 'Brand deals', icon: Handshake, group: 'Earn' },
+  { id: 'bio', label: 'Link in bio', icon: Link2, group: 'Tools' },
+  { id: 'links', label: 'Short links', icon: Link, group: 'Tools' },
+  { id: 'amazon', label: 'Amazon', icon: ShoppingBag, group: 'Tools' },
+  { id: 'deals', label: 'Brand deals', icon: Handshake, group: 'Tools' },
   { id: 'library', label: 'Library', icon: Library, group: 'Brain' },
   { id: 'brain', label: 'Brain', icon: Network, group: 'Brain' },
   { id: 'learn', label: 'Lessons', icon: GraduationCap, group: 'Brain' },
@@ -128,8 +128,9 @@ export const App: React.FC = () => {
     return <AuditPage session={session} />;
   }
 
-  if (path === '/login' || path === '/signup') {
-    return <AuthPage mode={path === '/signup' ? 'signup' : 'login'} session={session} onAuthed={refreshSession} />;
+  if (path === '/login' || path === '/signup' || path === '/recover') {
+    const mode = path === '/signup' ? 'signup' : path === '/recover' ? 'recover' : 'login';
+    return <AuthPage mode={mode} session={session} onAuthed={refreshSession} />;
   }
 
   if (path === '/onboarding' || path.startsWith('/app')) {
@@ -257,7 +258,7 @@ const AppShell: React.FC<{
     );
   };
 
-  const groups: TabItem['group'][] = ['Create', 'Earn', 'Brain'];
+  const groups: TabItem['group'][] = ['Create', 'Tools', 'Brain'];
   const initials = creator.name
     .split(/\s+/)
     .map((p) => p[0])

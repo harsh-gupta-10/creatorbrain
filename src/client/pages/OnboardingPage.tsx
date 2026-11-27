@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Check, ArrowLeft, ArrowRight, SquarePlay, Camera } from 'lucide-react';
+import { Check, ArrowLeft, ArrowRight, SquarePlay, Camera, Languages } from 'lucide-react';
 import { api, type OnboardingProfile } from '../lib/api';
-import { SCRIPT_LANGUAGE_OPTIONS } from '../components/ScriptLanguagePicker';
 import { Logo, Spinner, ErrorNote, ICON, SkipLink } from '../components/ui';
 import type { Creator } from '../../shared/types';
 
@@ -10,11 +9,12 @@ interface Props {
   onComplete: () => void;
 }
 
-type Step = 'channel' | 'earn' | 'goals';
+type Step = 'language' | 'channel' | 'earn' | 'goals';
 const STEPS: { id: Step; label: string; hint: string }[] = [
-  { id: 'channel', label: 'Your channel', hint: 'Where you publish' },
-  { id: 'earn', label: 'How you earn', hint: 'Affiliate and other income' },
-  { id: 'goals', label: 'Goals', hint: 'What to focus on' },
+  { id: 'language', label: 'Language', hint: 'How you create' },
+  { id: 'channel', label: 'Your channel', hint: 'What we should study' },
+  { id: 'earn', label: 'Earnings', hint: 'Optional setup' },
+  { id: 'goals', label: 'Your focus', hint: 'What you want to improve' },
 ];
 
 const INCOME = ['Brand sponsorships', 'Own products or courses', 'Memberships', 'Other affiliate programs'];
@@ -33,18 +33,22 @@ const Choice: React.FC<{
   onChange: () => void;
   type?: 'checkbox' | 'radio';
   name?: string;
+  disabled?: boolean;
   children: React.ReactNode;
   description?: string;
-}> = ({ checked, onChange, type = 'checkbox', name, children, description }) => (
+}> = ({ checked, onChange, type = 'checkbox', name, disabled = false, children, description }) => (
   <label
-    className={`flex items-start gap-3 p-3 rounded-[10px] border cursor-pointer transition-colors ${
-      checked ? 'border-accent bg-accent-soft' : 'border-line-strong bg-surface hover:bg-raised'
+    className={`flex items-start gap-3 p-3 rounded-[10px] border transition-colors ${disabled ? 'cursor-not-allowed opacity-55' : 'cursor-pointer'} ${
+      checked
+        ? 'border-accent bg-accent-soft'
+        : `border-line-strong bg-surface ${disabled ? '' : 'hover:bg-raised'}`
     }`}
   >
     <input
       type={type}
       name={name}
       checked={checked}
+      disabled={disabled}
       onChange={onChange}
       className="mt-[2px] accent-[#2f5bea] w-4 h-4"
     />
@@ -56,7 +60,7 @@ const Choice: React.FC<{
 );
 
 export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
-  const [step, setStep] = useState<Step>('channel');
+  const [step, setStep] = useState<Step>('language');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
@@ -64,8 +68,8 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
 
   const [profile, setProfile] = useState<OnboardingProfile>({
     niche: creator.niche || '',
-    language: creator.content_language || 'English',
-    scriptLanguage: (creator.script_language as OnboardingProfile['scriptLanguage']) || 'english',
+    language: creator.content_language?.toLowerCase().includes('hindi') ? 'Hindi' : 'English',
+    scriptLanguage: creator.script_language === 'hindi' ? 'hindi' : 'english',
     cadence: (creator.upload_cadence as OnboardingProfile['cadence']) || 'weekly',
     youtube: creator.youtube_input || '',
     instagram: creator.instagram_handle || '',
@@ -78,6 +82,12 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
 
   const set = <K extends keyof OnboardingProfile>(key: K, value: OnboardingProfile[K]) =>
     setProfile((p) => ({ ...p, [key]: value }));
+  const chooseContentLanguage = (language: OnboardingProfile['language']) =>
+    setProfile((current) => ({
+      ...current,
+      language,
+      scriptLanguage: language === 'English' ? 'english' : current.scriptLanguage,
+    }));
   const toggle = (key: 'otherIncome' | 'goals', value: string) =>
     setProfile((p) => ({
       ...p,
@@ -101,6 +111,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
 
   const next = async () => {
     setError('');
+    if (step === 'language') return setStep('channel');
     if (step === 'channel') {
       if (profile.niche.trim().length < 2) return setError('Tell us what your channel is about');
       const captions = captionsText
@@ -180,11 +191,83 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
         </ol>
 
         <section className="min-w-0 max-w-[600px]">
+          {step === 'language' && (
+            <div className="rise-in">
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">
+                What language do you create in?
+              </h1>
+              <p className="mt-2 text-fg-2">
+                We use this to understand your videos. You can choose a different language for your drafts.
+              </p>
+
+              <fieldset className="mt-8">
+                <legend className="field-label">Choose your content language</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Choice
+                    type="radio"
+                    name="content-language"
+                    checked={profile.language === 'English'}
+                    onChange={() => chooseContentLanguage('English')}
+                    description="I speak or publish mainly in English"
+                  >
+                    English
+                  </Choice>
+                  <Choice
+                    type="radio"
+                    name="content-language"
+                    checked={profile.language === 'Hindi'}
+                    onChange={() => chooseContentLanguage('Hindi')}
+                    description="I speak or publish mainly in Hindi"
+                  >
+                    Hindi
+                  </Choice>
+                </div>
+              </fieldset>
+
+              {profile.language === 'Hindi' ? (
+                <fieldset className="mt-8 rise-in">
+                  <legend className="field-label">What language should your scripts use?</legend>
+                  <p className="field-hint mb-3">Choose English or Hindi written in Devanagari.</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Choice
+                      type="radio"
+                      name="draft-language"
+                      checked={profile.scriptLanguage === 'english'}
+                      onChange={() => set('scriptLanguage', 'english')}
+                      description="Scripts and titles in English"
+                    >
+                      English
+                    </Choice>
+                    <Choice
+                      type="radio"
+                      name="draft-language"
+                      checked={profile.scriptLanguage === 'hindi'}
+                      onChange={() => set('scriptLanguage', 'hindi')}
+                      description="Scripts and titles in Hindi"
+                    >
+                      हिंदी
+                    </Choice>
+                  </div>
+                  <p className="field-hint mt-3 flex items-start gap-2">
+                    <Languages {...ICON} className="mt-0.5 shrink-0" />
+                    This sets your generated drafts. CreatorBrain menus and channel insights stay in English; you can
+                    change your writing language later in Settings.
+                  </p>
+                </fieldset>
+              ) : (
+                <p className="field-hint mt-4">
+                  Your drafts will be in English. You can change this later in Settings.
+                </p>
+              )}
+            </div>
+          )}
+
           {step === 'channel' && (
             <div className="rise-in">
-              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">Where do you publish</h1>
+              <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">What should we study?</h1>
               <p className="mt-2 text-fg-2">
-                We read your public uploads to learn how you title, hook and talk. Nothing is posted on your behalf
+                Add your YouTube channel, or paste Instagram captions. CreatorBrain only reads your content; it never
+                posts for you.
               </p>
 
               <div className="mt-8 flex flex-col gap-6">
@@ -227,25 +310,26 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
 
                 <div>
                   <label htmlFor="captions" className="field-label">
-                    Recent Instagram captions <span className="text-fg-3 font-normal">optional</span>
+                    Recent Instagram captions{' '}
+                    <span className="text-fg-3 font-normal">{profile.youtube.trim() ? 'optional' : 'needed without YouTube'}</span>
                   </label>
                   <textarea
                     id="captions"
                     aria-describedby="captions-hint"
                     className="input min-h-[112px]"
-                    placeholder="Paste 3 to 10 captions, with a blank line between each"
+                    placeholder="Paste a few captions, separated by a blank line"
                     value={captionsText}
                     onChange={(e) => setCaptionsText(e.target.value)}
                   />
                   <p id="captions-hint" className="field-hint">
-                    Instagram has no public feed, so pasted captions are how we learn your Reels voice
+                    An Instagram handle alone does not give us your posts. Add captions if you want us to study Instagram content.
                   </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label htmlFor="niche" className="field-label">
-                      What is your channel about
+                      What do you create?
                     </label>
                     <input
                       id="niche"
@@ -253,17 +337,6 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       placeholder="Budget phone reviews, home cooking, personal finance"
                       value={profile.niche}
                       onChange={(e) => set('niche', e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="lang" className="field-label">
-                      Language you create in
-                    </label>
-                    <input
-                      id="lang"
-                      className="input"
-                      value={profile.language}
-                      onChange={(e) => set('language', e.target.value)}
                     />
                   </div>
                   <div>
@@ -282,26 +355,6 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                       <option value="irregular">No set rhythm</option>
                     </select>
                   </div>
-                  <fieldset className="sm:col-span-2">
-                    <legend className="field-label">Write my scripts and titles in</legend>
-                    <div className="grid gap-2 sm:grid-cols-2">
-                      {SCRIPT_LANGUAGE_OPTIONS.map((o) => (
-                        <Choice
-                          key={o.value}
-                          type="radio"
-                          name="script-language"
-                          checked={profile.scriptLanguage === o.value}
-                          onChange={() => set('scriptLanguage', o.value)}
-                          description={o.hint}
-                        >
-                          {o.label}
-                        </Choice>
-                      ))}
-                    </div>
-                    <p className="field-hint">
-                      You can film in Hindi and still read drafts in English. Insights are always in English
-                    </p>
-                  </fieldset>
                 </div>
               </div>
             </div>
@@ -374,6 +427,19 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                   </div>
                 </div>
               )}
+              {profile.amazon.enabled && (
+                <button
+                  type="button"
+                  className="mt-4 text-[13px] text-fg-2 underline underline-offset-2 hover:text-fg"
+                  onClick={() => {
+                    set('amazon', { ...profile.amazon, enabled: false });
+                    setError('');
+                    setStep('goals');
+                  }}
+                >
+                  I don’t have my tracking ID yet — set up Amazon later
+                </button>
+              )}
 
               <fieldset className="mt-8">
                 <legend className="field-label">Other income</legend>
@@ -396,7 +462,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
             <div className="rise-in">
               <h1 className="text-[28px] leading-[36px] font-medium tracking-[-0.01em]">What should we focus on</h1>
               <p id="goals-hint" className="mt-2 text-fg-2">
-                Pick up to three. Lessons and suggestions lean toward these
+                Pick up to three. Lessons and suggestions lean toward these. {profile.goals.length}/3 selected.
               </p>
               <fieldset className="mt-8" aria-describedby="goals-hint">
                 <legend className="sr-only">Goals</legend>
@@ -405,6 +471,7 @@ export const OnboardingPage: React.FC<Props> = ({ creator, onComplete }) => {
                     <Choice
                       key={g}
                       checked={profile.goals.includes(g)}
+                      disabled={!profile.goals.includes(g) && profile.goals.length >= 3}
                       onChange={() => {
                         if (!profile.goals.includes(g) && profile.goals.length >= 3) return;
                         toggle('goals', g);

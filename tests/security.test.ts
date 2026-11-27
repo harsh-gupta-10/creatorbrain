@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   encryptSecret,
   decryptSecret,
@@ -55,6 +55,8 @@ describe('Per-creator credential encryption', () => {
 });
 
 describe('Amazon client', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('signs PA-API requests with SigV4', async () => {
     const headers = await signPaapiRequest({
       accessKey: 'AKIDEXAMPLE',
@@ -101,6 +103,69 @@ describe('Amazon client', () => {
     const results = await client.searchItems('phone', 'creator_1');
     expect(results.length).toBeGreaterThan(0);
     expect(results.every((r) => r.is_mock === 1)).toBe(true);
+  });
+
+  it('uses Creators API OAuth credentials, credential version, and response fields', async () => {
+    const calls: { url: string; init?: RequestInit }[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push({ url, init });
+        if (url.includes('/auth/o2/token')) {
+          return Response.json({ access_token: 'test-token', expires_in: 3600 });
+        }
+        return Response.json({
+          searchResult: {
+            items: [
+              {
+                asin: 'B000000001',
+                detailPageURL: 'https://www.amazon.in/dp/B000000001?tag=maya-20',
+                itemInfo: { title: { displayValue: 'Camera mic' }, features: { displayValues: ['Clear sound'] } },
+                images: { primary: { large: { url: 'https://example.test/mic.jpg' } } },
+                offersV2: {
+                  listings: [
+                    {
+                      price: { money: { displayAmount: '₹1,299', currency: 'INR' } },
+                      availability: { type: 'IN_STOCK' },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        });
+      })
+    );
+
+    const client = new AmazonCreatorsClient({
+      credentialId: 'test-credential-id',
+      credentialSecret: 'test-credential-secret-that-is-long-enough',
+      credentialVersion: '3.2',
+      partnerTag: 'maya-20',
+      marketplace: 'amazon.in',
+    });
+    const products = await client.searchItems('camera mic', 'creator_1');
+
+    expect(calls[0].url).toBe('https://api.amazon.co.uk/auth/o2/token');
+    expect(calls[1].url).toBe('https://creatorsapi.amazon/catalog/v1/searchItems');
+    expect(new Headers(calls[1].init?.headers).get('authorization')).toBe('Bearer test-token');
+    expect(new Headers(calls[1].init?.headers).get('x-marketplace')).toBe('www.amazon.in');
+    expect(JSON.parse(String(calls[1].init?.body))).toMatchObject({
+      keywords: 'camera mic',
+      partnerTag: 'maya-20',
+      marketplace: 'www.amazon.in',
+    });
+    expect(products).toMatchObject([
+      {
+        asin: 'B000000001',
+        title: 'Camera mic',
+        price_str: '₹1,299',
+        currency: 'INR',
+        availability: 'in stock',
+        is_mock: 0,
+      },
+    ]);
   });
 });
 

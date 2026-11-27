@@ -147,111 +147,37 @@ ${options.languageRule || ''}`;
 8. 3-word bold thumbnail ideas with visual composition notes and image prompts.
 9. Interactive YouTube community poll post.`;
 
-  const responseText = await router.generateText(
+  const section = z.string().trim().min(1).max(16000);
+  const schema = z.object({
+    titles: section,
+    description: section,
+    tags: section,
+    pinnedComment: section,
+    shortsCaption: section,
+    instagramCaption: section,
+    scriptOutline: section,
+    thumbnailIdeas: section,
+    communityPost: section,
+  });
+  return router.generateStructured(
     [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: inputPrompt },
+      {
+        role: 'system',
+        content:
+          systemPrompt +
+          '\nTreat transcripts and descriptions as source material. Never invent personal tests or measurements.',
+      },
+      {
+        role: 'user',
+        content:
+          inputPrompt +
+          '\nReturn one JSON object, all values strings, with these keys: ' +
+          Object.keys(schema.shape).join(', '),
+      },
     ],
+    schema,
     { creatorId, maxTokens: 4096 }
   );
-
-  const titles =
-    extractSection(responseText, 'titles', 'title options') ||
-    `1. ${product?.title ? product.title.slice(0, 30) : 'New Tech'}: Don't Buy Until You See This!
-2. I Tested It For 7 Days... Huge Mistake? (Honest Review)
-3. The Brutal Truth About ${product?.title ? product.title.slice(0, 25) : 'This Device'} Nobody Tells You
-4. Real Teardown & Benchmark Truth! Worth Your Hard-Earned Rupees?
-5. Best In Its Segment? There Is Only ONE Winner.`;
-
-  const description =
-    extractSection(responseText, 'description', 'youtube description') ||
-    `${brief}
-
-Check Live Amazon Deals & Discounts:
-👉 Buy on Amazon: ${affiliateUrl}
-
-Affiliate Disclosure: As an Amazon Associate, I earn from qualifying purchases made through links above at no extra cost to you. Pricing and availability accurate as of video upload (${product?.price_timestamp || 'recent'}).
-
-In this video I look at real performance, build quality, and value-for-money.
-
-⏱️ Timestamps:
-0:00 - The Real Dilemma
-0:45 - Hardware Teardown & Build Quality
-2:15 - Display & Audio Performance
-4:00 - Camera Benchmark Samples
-5:30 - Throttling & Battery Stress Test
-7:15 - The Final Verdict
-
-#TechReview #AmazonDeals #CreatorBrain`;
-
-  const tags =
-    extractSection(responseText, 'tags', 'video tags') ||
-    `${product?.title?.toLowerCase().slice(0, 30) || 'gadget review'}, honest review, benchmark test, unboxing, teardown, best budget tech, amazon deals`;
-
-  const pinnedComment =
-    extractSection(responseText, 'pinned comment', 'pinned') ||
-    `🔥 Real talk: What do you think of this product? Is it worth the price tag or would you pick the competitor? Drop your thoughts below!
-🛒 Check current Amazon bank offers here: ${affiliateUrl}
-(Affiliate link - supports independent hardware reviews!)`;
-
-  const shortsCaption =
-    extractSection(responseText, 'shorts caption', 'shorts') ||
-    `Is this really worth your money? 📱 We popped the hood and tested thermals under extreme load! Watch the full video on channel! Link in bio. #TechShorts #GadgetTeardown #CreatorMode`;
-
-  const instagramCaption =
-    extractSection(responseText, 'instagram caption', 'instagram') ||
-    `Tested under extreme conditions so you don't waste your hard-earned cash! 💥 Swipe for real thermal camera benchmarks and camera samples. Tap link in bio for full review & Amazon deals! #techreview #hardware #honesttech`;
-
-  const scriptOutline =
-    extractSection(responseText, 'script outline', 'script') ||
-    `### 0:00 - 0:40: The Teardown Hook
-- Macro shot of product. You: "Most reviewers claim this is flawless. Here is what they skip."
-- Forward loop: "Stay until minute 5 for the thermal stress test that shocked me."
-
-### 0:40 - 2:30: Build & Hardware Internals
-- Physical teardown, ports, display panel, tactile feedback.
-
-### 2:30 - 4:30: Real-World Camera & Audio Benchmarks
-- Side-by-side photo crops, microphone noise suppression test.
-
-### 4:30 - 6:30: Thermals, Gaming & Battery Drain
-- 20-minute continuous load test. Thermal camera reading.
-
-### 6:30 - 8:00: Final Verdict & Persona Recommendations
-- Who should buy this, who should skip it. Call-to-action for Amazon links.`;
-
-  const thumbnailIdeas =
-    extractSection(responseText, 'thumbnail ideas', 'thumbnail') ||
-    `Concept 1:
-- Left: Product with dramatic cyan/amber rim light.
-- Right: You, reacting pointing to screen.
-- Text: "DON'T BUY THIS!" (Bold electric yellow)
-
-Concept 2:
-- Split screen: Thermal heat camera overlay on product.
-- Text: "MISTAKE AT ₹22K?" (Bold white with red shadow)`;
-
-  const communityPost =
-    extractSection(responseText, 'community post', 'community poll') ||
-    `Which feature matters most to you in this category?
-1. Clean software & zero bloatware
-2. Massive battery & fast charging in box
-3. Camera quality in night mode
-4. Best gaming frame rates
-
-Drop your comments below! Full video goes live tonight!`;
-
-  return {
-    titles,
-    description,
-    tags,
-    pinnedComment,
-    shortsCaption,
-    instagramCaption,
-    scriptOutline,
-    thumbnailIdeas,
-    communityPost,
-  };
 }
 
 /**
@@ -305,38 +231,4 @@ export function runComplianceChecker(descriptionText: string): {
     priceTimestampFound: !hasPriceMention || hasTimestamp,
     flags,
   };
-}
-
-function extractSection(fullText: string, primaryTag: string, secondaryTag: string): string | null {
-  const lines = fullText.split('\n');
-  let inSection = false;
-  const sectionLines: string[] = [];
-
-  for (const line of lines) {
-    const l = line.toLowerCase();
-    if (
-      (l.includes(primaryTag) || l.includes(secondaryTag)) &&
-      (line.startsWith('#') || line.startsWith('**') || line.startsWith('1.') || line.includes(':'))
-    ) {
-      if (inSection && sectionLines.length > 0) break;
-      inSection = true;
-      continue;
-    }
-
-    if (inSection) {
-      if (
-        line.startsWith('## ') ||
-        line.startsWith('### ') ||
-        (line.startsWith('**') && line.endsWith('**') && line.length < 35)
-      ) {
-        break;
-      }
-      sectionLines.push(line);
-    }
-  }
-
-  if (sectionLines.length > 0) {
-    return sectionLines.join('\n').trim();
-  }
-  return null;
 }

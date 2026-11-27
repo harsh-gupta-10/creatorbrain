@@ -1,17 +1,21 @@
+import { requestedAgent } from '../agents/saved';
 import { Hono } from 'hono';
-import { appendToThread } from '../lib/chats';
+import { appendToThread, loadThread } from '../lib/chats';
 import { draftLanguageRule } from '../lib/language';
 import { creatorDna } from '../lib/dna';
 import { amazonClientFor } from '../amazon/credentials';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { AIRouter } from '../ai/router';
+import { runContentStudioAgent, runComplianceChecker } from '../agents/definitions/studioAndResearch';
 import {
-  runProductResearcher,
-  runContentStudioAgent,
-  runComplianceChecker,
-} from '../agents/definitions/studioAndResearch';
-import { AmazonCreatorsClient } from '../amazon/client';
+  planChat,
+  conversationContext,
+  compose,
+  draftLabels,
+  affiliateLookup,
+  channelEvidence,
+} from '../agents/workspace';
 import { StudioChatSchema, type Project, type ProjectAsset, type Product, type ShortLink } from '../../shared/types';
 import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
 
@@ -127,53 +131,92 @@ studioRoutes.post('/chat', async (c) => {
   const { projectId, message, productAsin } = parsed.data;
   const dbClient = new DBClient(c.env.DB);
   const router = new AIRouter(c.env);
-  const amazon = await amazonClientFor(c.env.DB, c.env, creator.id);
 
-  const { project } = await dbClient.getProjectWithAssets(creator.id, projectId);
+  const { project, assets } = await dbClient.getProjectWithAssets(creator.id, projectId);
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
-  // Parse Creator DNA
-  const dna = creatorDna(creator);
-
-  // Step 1: Resolve Product with Product Researcher
-  let product: Product | null = null;
-  const amazonClient = new AmazonCreatorsClient();
-
-  if (productAsin) {
-    const items = await amazonClient.getItems([productAsin], creator.id);
-    product = items[0] || null;
-  } else if (
-    message.toLowerCase().includes('motorola') ||
-    message.toLowerCase().includes('vivo') ||
-    message.toLowerCase().includes('mac mini') ||
-    message.toLowerCase().includes('phone') ||
-    message.toLowerCase().includes('headphone')
-  ) {
-    product = await runProductResearcher(message, creator.id, router, c.env.DB, amazon);
+  const history = await loadThread(c.env.DB, creator.id, `studio:${projectId}`, 6);
+  const context = conversationContext(history, project);
+  const report = await requestedAgent(c.env, creator, message, context);
+  if (report) {
+    await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
+      { role: 'user', content: message },
+      { role: 'assistant', content: report },
+    ]);
+    return c.json({ reply: report, project, assets, product: null, shortLink: null });
   }
-
-  // Save product to library if found
-  if (product) {
-    await dbClient.saveProduct(product);
-    await dbClient.updateProject(creator.id, projectId, {
-      primary_product_id: product.id,
+  const plan = productAsin
+    ? { action: 'link' as const, product: productAsin }
+    : await planChat(router, creator.id, message, context);
+  const attached = project.primary_product_id
+    ? await c.env.DB.prepare('SELECT * FROM products WHERE id = ? AND creator_id = ?')
+        .bind(project.primary_product_id, creator.id)
+        .first<Product>()
+    : null;
+  const query = plan.product || attached?.asin || project.title;
+  if (plan.action !== 'bundle') {
+    const lookup = plan.action === 'link' || plan.product ? await affiliateLookup(c.env, creator.id, query) : null;
+    const match = lookup?.matches.length === 1 ? lookup.matches[0] : null;
+    if (match) {
+      const product = { ...match, id: `prod_${creator.id}_${match.asin}` };
+      await dbClient.saveProduct(product);
+      await dbClient.updateProject(creator.id, projectId, { primary_product_id: product.id });
+    }
+    const type = plan.action;
+    const previous = assets.find((a) => a.type === type);
+    const source = [
+      previous?.content.slice(0, 8000),
+      type === 'compliance_report' ? assets.find((a) => a.type === 'description')?.content : '',
+      lookup?.reply,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    const reply =
+      type === 'link' ? lookup!.reply : await compose(c.env, creator, router, message, context, type, source);
+    const updatedAsset = type === 'chat' || type === 'link' ? undefined : type;
+    if (updatedAsset) {
+      await c.env.DB.batch(
+        versionedDraft(
+          c.env.DB,
+          creator.id,
+          projectId,
+          previous?.id || `asset_${projectId}_${updatedAsset}`,
+          updatedAsset,
+          draftLabels[updatedAsset],
+          reply,
+          message
+        )
+      );
+    }
+    await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
+      { role: 'user', content: message },
+      { role: 'assistant', content: reply },
+    ]);
+    return c.json({
+      reply,
+      updatedAsset,
+      product: match,
+      shortLink: null,
+      ...(await dbClient.getProjectWithAssets(creator.id, projectId)),
     });
   }
 
+  const dna = creatorDna(creator);
+  const amazon = await amazonClientFor(c.env.DB, c.env, creator.id);
+  const amazonClient = amazon;
+  const product = attached && !attached.is_mock ? attached : null;
   // Step 2: Content Studio Agent generates or refines all assets
   const generated = await runContentStudioAgent({
     amazon,
     languageRule: draftLanguageRule(creator),
-    usesAmazon: (() => {
-      try {
-        return JSON.parse(creator.monetization_json || '{}').amazon === true;
-      } catch {
-        return false;
-      }
-    })(),
+    usesAmazon: !!amazon.getPartnerTag(),
     creatorId: creator.id,
     projectId,
-    brief: `${project.brief} - Refinement: ${message}`,
+    brief: JSON.stringify({
+      context,
+      request: message,
+      evidence: await channelEvidence(c.env.DB, creator.id, project.title),
+    }),
     product,
     dna,
     router,
@@ -183,7 +226,7 @@ studioRoutes.post('/chat', async (c) => {
   // Step 3: Link Agent creates tracked Amazon affiliate link + short link + bio block
   let shortSlug = '';
   let taggedUrl = '';
-  if (product) {
+  if (product && amazon.getPartnerTag()) {
     taggedUrl = amazonClient.buildAffiliateUrl(product.product_url);
     shortSlug = `${product.asin.toLowerCase()}-${Math.random().toString(36).slice(2, 5)}`;
 
@@ -192,7 +235,7 @@ studioRoutes.post('/chat', async (c) => {
       creator_id: creator.id,
       slug: shortSlug,
       destination_url: taggedUrl,
-      destination_domain: 'amazon.in',
+      destination_domain: amazon.getMarketplace(),
       title: `${product.title.slice(0, 50)} (Project Deal)`,
       utm_source: 'youtube',
       utm_medium: 'description',
@@ -232,28 +275,27 @@ studioRoutes.post('/chat', async (c) => {
     {
       type: 'compliance_report' as const,
       title: 'Compliance Audit Report',
-      content: `STATUS: ${compliance.passed ? 'PASS (100% Compliant)' : 'ATTENTION REQUIRED'}
+      content: `STATUS: ${compliance.passed ? 'No issues flagged by these checks' : 'ATTENTION REQUIRED'}
 Disclosure Present: ${compliance.disclosureFound ? 'YES' : 'NO'}
 Price Timestamp Present: ${compliance.priceTimestampFound ? 'YES' : 'NO'}
-Flags: ${compliance.flags.length === 0 ? 'None. Fully compliant with Amazon Operating Agreement & FTC Guidelines.' : compliance.flags.join('\n- ')}`,
+Flags: ${compliance.flags.length === 0 ? 'None flagged.' : compliance.flags.join('\n- ')}`,
     },
   ];
 
-  for (const a of assetTypes) {
-    const assetId = `asset_${projectId}_${a.type}`;
-    const assetObj: ProjectAsset = {
-      id: assetId,
-      project_id: projectId,
-      creator_id: creator.id,
-      type: a.type,
-      current_version_id: `v_${assetId}_1`,
-      title: a.title,
-      content: a.content,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    await dbClient.saveAsset(assetObj);
-  }
+  await c.env.DB.batch(
+    assetTypes.flatMap((asset) =>
+      versionedDraft(
+        c.env.DB,
+        creator.id,
+        projectId,
+        assets.find((existing) => existing.type === asset.type)?.id || `asset_${projectId}_${asset.type}`,
+        asset.type,
+        asset.title,
+        asset.content,
+        message
+      )
+    )
+  );
 
   // Reload updated assets
   const updatedData = await dbClient.getProjectWithAssets(creator.id, projectId);
@@ -287,3 +329,31 @@ Flags: ${compliance.flags.length === 0 ? 'None. Fully compliant with Amazon Oper
     project: updatedData.project,
   });
 });
+
+function versionedDraft(
+  db: D1Database,
+  creatorId: string,
+  projectId: string,
+  id: string,
+  type: ProjectAsset['type'],
+  title: string,
+  content: string,
+  message: string
+) {
+  const version = crypto.randomUUID();
+  const now = new Date().toISOString();
+  return [
+    db
+      .prepare(
+        `INSERT INTO assets (id, project_id, creator_id, type, title, content, current_version_id, created_at, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET content=excluded.content, current_version_id=excluded.current_version_id, updated_at=excluded.updated_at`
+      )
+      .bind(id, projectId, creatorId, type, title, content, version, now, now),
+    db
+      .prepare(
+        `INSERT INTO asset_versions (id, asset_id, version_number, content, prompt_trigger, created_at)
+          SELECT ?, ?, COALESCE(MAX(version_number),0)+1, ?, ?, ? FROM asset_versions WHERE asset_id=?`
+      )
+      .bind(version, id, content, message, now, id),
+  ];
+}

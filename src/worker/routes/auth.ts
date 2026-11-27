@@ -17,6 +17,7 @@ const SESSION_DAYS = 30;
 // Workers caps PBKDF2 at 100k iterations; 100k also stays inside the free tier CPU budget
 const PBKDF2_ITERATIONS = 100_000;
 const LEGACY_SALT = 'creatorbrain_auth_salt_2026';
+const RECOVERY_CODE_COUNT = 8;
 
 function toBase64(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes));
@@ -25,6 +26,14 @@ function toBase64(bytes: Uint8Array): string {
 function randomToken(bytes = 32): string {
   const buf = crypto.getRandomValues(new Uint8Array(bytes));
   return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+function hashRecoveryCode(code: string): Promise<ArrayBuffer> {
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(code.trim().toLowerCase()));
+}
+
+function bytesToHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 async function derive(password: string, salt: string, iterations: number): Promise<string> {
@@ -116,7 +125,7 @@ function publicCreator(creator: Creator | null) {
 const SignupSchema = z.object({
   name: z.string().trim().min(2, 'Enter your name').max(80),
   email: z.string().trim().toLowerCase().email('Enter a valid email'),
-  password: z.string().min(8, 'Use at least 8 characters').max(200),
+  password: z.string().min(12, 'Use at least 12 characters').max(200),
   handle: z
     .string()
     .trim()
@@ -127,6 +136,12 @@ const SignupSchema = z.object({
 const LoginSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email'),
   password: z.string().min(1, 'Enter your password'),
+});
+
+const RecoverySchema = z.object({
+  email: z.string().trim().toLowerCase().email(),
+  code: z.string().trim().min(32).max(40),
+  password: z.string().min(12).max(200),
 });
 
 authRoutes.get('/me', async (c) => {
@@ -178,6 +193,10 @@ authRoutes.post('/signup', async (c) => {
   const passwordHash = await derive(password, salt, PBKDF2_ITERATIONS);
   const storedSalt = `${PBKDF2_ITERATIONS}:${salt}`;
   const now = new Date().toISOString();
+  const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () => randomToken(16));
+  const recoveryRows = await Promise.all(
+    recoveryCodes.map(async (code) => ({ code, hash: bytesToHex(await hashRecoveryCode(code)) }))
+  );
 
   await db.batch([
     db
@@ -195,11 +214,16 @@ authRoutes.post('/signup', async (c) => {
         ) VALUES (?, ?, ?, 'minimal-dark', ?, '', '#5b7cfa', '#111214', 1, 0, ?, ?)`
       )
       .bind(`bio_${id}`, id, handle, name, now, now),
+    ...recoveryRows.map(({ hash }) =>
+      db
+        .prepare('INSERT INTO account_recovery_codes (code_hash, creator_id, created_at) VALUES (?, ?, ?)')
+        .bind(hash, id, now)
+    ),
   ]);
 
   await startSession(c, id);
   const creator = await dbClient.getCreator(id);
-  return c.json({ success: true, creator: publicCreator(creator) });
+  return c.json({ success: true, creator: publicCreator(creator), recoveryCodes });
 });
 
 authRoutes.post('/login', async (c) => {
@@ -217,8 +241,105 @@ authRoutes.post('/login', async (c) => {
     return c.json({ error: 'Email or password is incorrect' }, 401);
   }
 
+  const unusedCodes = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS count FROM account_recovery_codes WHERE creator_id = ? AND used_at IS NULL'
+  )
+    .bind(row.id)
+    .first<{ count: number }>();
+  let recoveryCodes: string[] | undefined;
+  if (!unusedCodes?.count) {
+    // Older accounts and accounts that used every code receive a fresh set after password verification.
+    recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () => randomToken(16));
+    const recoveryRows = await Promise.all(recoveryCodes.map(async (code) => bytesToHex(await hashRecoveryCode(code))));
+    await c.env.DB.batch(
+      recoveryRows.map((hash) =>
+        c.env.DB.prepare(
+          'INSERT OR IGNORE INTO account_recovery_codes (code_hash, creator_id, created_at) VALUES (?, ?, ?)'
+        ).bind(hash, row.id, new Date().toISOString())
+      )
+    );
+  }
+
   await startSession(c, row.id);
-  return c.json({ success: true, creator: publicCreator(row) });
+  return c.json({ success: true, creator: publicCreator(row), ...(recoveryCodes ? { recoveryCodes } : {}) });
+});
+
+authRoutes.post('/recover', async (c) => {
+  const parsed = RecoverySchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: 'Recovery details are invalid or already used' }, 400);
+
+  const { email, password } = parsed.data;
+  const code = parsed.data.code.trim().toLowerCase();
+  if (!/^[a-f0-9]{32}$/.test(code)) {
+    return c.json({ error: 'Recovery details are invalid or already used' }, 400);
+  }
+
+  const db = c.env.DB;
+  const now = new Date().toISOString();
+  const claim = `${now}:${randomToken(8)}`;
+  const codeHash = bytesToHex(await hashRecoveryCode(code));
+  const salt = randomToken(16);
+  const passwordHash = await derive(password, salt, PBKDF2_ITERATIONS);
+  const results = await db.batch([
+    db
+      .prepare(
+        `UPDATE account_recovery_codes SET used_at = ?
+         WHERE code_hash = ? AND used_at IS NULL
+           AND creator_id = (SELECT id FROM creators WHERE email = ? AND id != ?)`
+      )
+      .bind(claim, codeHash, email, SAMPLE_CREATOR_ID),
+    db
+      .prepare(
+        `UPDATE creators SET password_hash = ?, password_salt = ?, updated_at = ?
+         WHERE email = ? AND id != ? AND id = (
+           SELECT creator_id FROM account_recovery_codes WHERE code_hash = ? AND used_at = ?
+         )`
+      )
+      .bind(passwordHash, `${PBKDF2_ITERATIONS}:${salt}`, now, email, SAMPLE_CREATOR_ID, codeHash, claim),
+    db
+      .prepare(
+        `DELETE FROM sessions WHERE creator_id = (
+           SELECT creator_id FROM account_recovery_codes WHERE code_hash = ? AND used_at = ?
+         )`
+      )
+      .bind(codeHash, claim),
+  ]);
+
+  if (!results[0]?.meta.changes) {
+    return c.json({ error: 'Recovery details are invalid or already used' }, 400);
+  }
+  return c.json({ success: true });
+});
+
+authRoutes.post('/recovery-codes', async (c) => {
+  const session = await getSession(c.env.DB, getCookie(c, SESSION_COOKIE));
+  if (!session.creator || session.isSample) return c.json({ error: 'Sign in to continue' }, 401);
+
+  const parsed = z.object({ password: z.string().min(1).max(200) }).safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: 'Enter your current password to continue' }, 400);
+  const row = await c.env.DB.prepare('SELECT password_hash, password_salt FROM creators WHERE id = ?')
+    .bind(session.creator.id)
+    .first<{ password_hash?: string | null; password_salt?: string | null }>();
+  if (!row || !(await verifyPassword(parsed.data.password, row))) {
+    return c.json({ error: 'Your current password is incorrect' }, 401);
+  }
+
+  const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () => randomToken(16));
+  const now = new Date().toISOString();
+  const creatorId = session.creator.id;
+  const recoveryRows = await Promise.all(recoveryCodes.map(async (code) => bytesToHex(await hashRecoveryCode(code))));
+  await c.env.DB.batch([
+    c.env.DB.prepare('DELETE FROM account_recovery_codes WHERE creator_id = ?').bind(creatorId),
+    ...recoveryRows.map((hash) =>
+      c.env.DB.prepare('INSERT INTO account_recovery_codes (code_hash, creator_id, created_at) VALUES (?, ?, ?)').bind(
+        hash,
+        creatorId,
+        now
+      )
+    ),
+  ]);
+
+  return c.json({ recoveryCodes });
 });
 
 authRoutes.post('/logout', async (c) => {

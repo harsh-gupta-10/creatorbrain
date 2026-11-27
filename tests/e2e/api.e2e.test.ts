@@ -101,6 +101,55 @@ describe('Auth', () => {
     expect(me.isSample).toBe(false);
   });
 
+  it('issues one-time recovery codes, resets the password, and invalidates sessions', async () => {
+    const api = client();
+    const { res, email } = await signup(api);
+    const body = (await res.json()) as { recoveryCodes: string[] };
+    expect(body.recoveryCodes).toHaveLength(8);
+    expect(new Set(body.recoveryCodes).size).toBe(8);
+
+    const recovery = await client()('/api/auth/recover', {
+      method: 'POST',
+      json: { email, code: body.recoveryCodes[0], password: 'new-correct-horse-10' },
+    });
+    expect(recovery.status).toBe(200);
+    const meAfterReset = (await (await api('/api/auth/me')).json()) as { authenticated: boolean };
+    expect(meAfterReset.authenticated).toBe(false);
+
+    const replay = await client()('/api/auth/recover', {
+      method: 'POST',
+      json: { email, code: body.recoveryCodes[0], password: 'another-correct-horse-11' },
+    });
+    expect(replay.status).toBe(400);
+
+    const loggedInClient = client();
+    const login = await loggedInClient('/api/auth/login', {
+      method: 'POST',
+      json: { email, password: 'new-correct-horse-10' },
+    });
+    expect(login.status).toBe(200);
+
+    const rotate = await loggedInClient('/api/auth/recovery-codes', {
+      method: 'POST',
+      json: { password: 'new-correct-horse-10' },
+    });
+    expect(rotate.status).toBe(200);
+    const rotated = (await rotate.json()) as { recoveryCodes: string[] };
+    expect(rotated.recoveryCodes).toHaveLength(8);
+
+    const oldCode = await client()('/api/auth/recover', {
+      method: 'POST',
+      json: { email, code: body.recoveryCodes[1], password: 'another-correct-horse-11' },
+    });
+    expect(oldCode.status).toBe(400);
+
+    const newCode = await client()('/api/auth/recover', {
+      method: 'POST',
+      json: { email, code: rotated.recoveryCodes[0], password: 'another-correct-horse-11' },
+    });
+    expect(newCode.status).toBe(200);
+  });
+
   it('rejects a duplicate handle', async () => {
     const a = client();
     const { handle } = await signup(a);
@@ -385,12 +434,66 @@ describe('Amazon credentials', () => {
     expect(link.taggedUrl).toBe('https://www.amazon.com/dp/B000000001?tag=maya-20');
   });
 
+  it('stores Creators API credentials encrypted and keeps the version visible without returning secrets', async () => {
+    const api = client();
+    await signup(api);
+    const credentialId = 'amzn1.application-oa2-client.example1234';
+    const credentialSecret = 'fake-creator-api-secret-for-test-only-123456';
+    const save = await api('/api/settings/amazon', {
+      method: 'PUT',
+      json: {
+        partnerTag: 'maya-20',
+        marketplace: 'amazon.in',
+        credentialId,
+        credentialSecret,
+        credentialVersion: 'v3.2',
+      },
+    });
+    expect(save.status).toBe(200);
+    const saved = (await save.json()) as {
+      hasCredentials: boolean;
+      apiType: string;
+      credentialIdHint: string;
+      credentialVersion: string;
+    };
+    expect(saved.hasCredentials).toBe(true);
+    expect(saved.apiType).toBe('creators');
+    expect(saved.credentialIdHint).toBe('••••1234');
+    expect(saved.credentialVersion).toBe('3.2');
+    expect(JSON.stringify(saved)).not.toContain(credentialId);
+    expect(JSON.stringify(saved)).not.toContain(credentialSecret);
+
+    const settings = await (await api('/api/settings')).json();
+    expect(JSON.stringify(settings)).not.toContain(credentialId);
+    expect(JSON.stringify(settings)).not.toContain(credentialSecret);
+  });
+
   it('rejects half a key pair and non-Amazon links', async () => {
     const api = client();
     await signup(api);
     expect((await api('/api/settings/amazon', { method: 'PUT', json: { accessKey: FAKE_ACCESS_KEY } })).status).toBe(
       400
     );
+    expect(
+      (
+        await api('/api/settings/amazon', {
+          method: 'PUT',
+          json: { partnerTag: 'maya-20', credentialId: 'amzn1.application-oa2-client.example' },
+        })
+      ).status
+    ).toBe(400);
+    expect(
+      (
+        await api('/api/settings/amazon', {
+          method: 'PUT',
+          json: {
+            partnerTag: 'maya-20',
+            credentialId: 'amzn1.application-oa2-client.example',
+            credentialSecret: 'fake-creator-api-secret-for-test-only-123456',
+          },
+        })
+      ).status
+    ).toBe(400);
     expect(
       (await api('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'https://evil.example/x' } })).status
     ).toBe(400);
@@ -411,6 +514,30 @@ describe('Amazon credentials', () => {
 });
 
 describe('Public creator page', () => {
+  it('stores uploaded bio icons in creator-scoped R2 and serves them through the Worker', async () => {
+    const owner = client();
+    await signup(owner);
+    const form = new FormData();
+    form.set('file', new Blob([Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10])], { type: 'image/png' }), 'icon.png');
+    const uploaded = await owner('/api/bio/icons', { method: 'POST', body: form });
+    expect(uploaded.status).toBe(200);
+    const { iconUrl } = (await uploaded.json()) as { iconUrl: string };
+    expect(iconUrl).toMatch(/^\/bio-icons\/[0-9a-f-]{36}\.png$/i);
+
+    const image = await fetch(`${base}${iconUrl}`);
+    expect(image.status).toBe(200);
+    expect(image.headers.get('content-type')).toBe('image/png');
+    expect(image.headers.get('x-content-type-options')).toBe('nosniff');
+
+    const other = client();
+    await signup(other);
+    await other('/api/bio/icons', { method: 'DELETE', json: { iconUrl } });
+    expect((await fetch(`${base}${iconUrl}`)).status).toBe(200);
+
+    await owner('/api/bio/icons', { method: 'DELETE', json: { iconUrl } });
+    expect((await fetch(`${base}${iconUrl}`)).status).toBe(404);
+  });
+
   it('escapes creator-controlled text', async () => {
     const api = client();
     const { handle } = await signup(api);
@@ -424,5 +551,33 @@ describe('Public creator page', () => {
     expect(html).not.toContain('<script>alert(1)</script>');
     expect(html).not.toContain('<img src=x onerror');
     expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('<script src="/bio-analytics.js" defer></script>');
+    expect(res.headers.get('Content-Security-Policy')).toContain("script-src 'self'");
+  });
+});
+
+describe('Creator agents', () => {
+  it('keeps saved briefs private and rejects unsupported competitor targets', async () => {
+    const owner=client(), other=client();
+    await signup(owner);
+    await signup(other);
+    const config={kind:'competitor',name:'Opening lines',focus:'Compare gadget review hooks',channel:'@example'};
+    expect((await owner('/api/agents/saved',{method:'POST',json:{...config,channel:'https://example.com/'}})).status).toBe(400);
+    const response=await owner('/api/agents/saved',{method:'POST',json:config});
+    expect(response.status).toBe(201);
+    const {agent}=await response.json() as {agent:{id:string}};
+    expect(await (await other('/api/agents/saved')).json()).toEqual({agents:[]});
+    expect((await other('/api/agents/saved/'+agent.id+'/run',{method:'POST'})).status).toBe(404);
+    expect(await (await owner('/api/agents/saved')).json()).toMatchObject({agents:[config]});
+  });
+
+  it('answers a project affiliate request without credentials or modifying drafts', async () => {
+    const owner=client();
+    await signup(owner);
+    const created=await owner('/api/studio/projects',{method:'POST',json:{title:'USB hub',brief:'Review a compact USB hub'}});
+    const {project}=await created.json() as {project:{id:string}};
+    const res=await owner('/api/studio/chat',{method:'POST',json:{projectId:project.id,message:'Get its Amazon affiliate link',productAsin:'B012345678'}});
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({assets:[],reply:expect.stringContaining('Connect your tracking ID')});
   });
 });

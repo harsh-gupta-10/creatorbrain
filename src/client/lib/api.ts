@@ -1,3 +1,4 @@
+import type { AgentConfig, SavedAgent } from '../../shared/agents';
 import type {
   Creator,
   CreatorDNA,
@@ -27,10 +28,11 @@ export interface Monetization {
 }
 
 export type ScriptLanguage = 'english' | 'hinglish' | 'hindi' | 'match';
+export type OnboardingContentLanguage = 'English' | 'Hindi';
 
 export interface OnboardingProfile {
   niche: string;
-  language: string;
+  language: OnboardingContentLanguage;
   scriptLanguage: ScriptLanguage;
   cadence: 'weekly' | 'biweekly' | 'monthly' | 'irregular';
   youtube: string;
@@ -245,14 +247,21 @@ export const api = {
     sample: () =>
       fetchJson<{ success: boolean; isSample: boolean; creator: Creator }>('/api/auth/sample', { method: 'POST' }),
     login: (body: { email: string; password: string }) =>
-      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/login', {
+      fetchJson<{ success: boolean; creator: Creator; recoveryCodes?: string[] }>('/api/auth/login', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
     signup: (body: { name: string; handle: string; email: string; password: string }) =>
-      fetchJson<{ success: boolean; creator: Creator }>('/api/auth/signup', {
+      fetchJson<{ success: boolean; creator: Creator; recoveryCodes: string[] }>('/api/auth/signup', {
         method: 'POST',
         body: JSON.stringify(body),
+      }),
+    recover: (body: { email: string; code: string; password: string }) =>
+      fetchJson<{ success: boolean }>('/api/auth/recover', { method: 'POST', body: JSON.stringify(body) }),
+    createRecoveryCodes: (password: string) =>
+      fetchJson<{ recoveryCodes: string[] }>('/api/auth/recovery-codes', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
       }),
     handleAvailable: (handle: string) =>
       fetchJson<{ available: boolean }>(`/api/auth/handle-available?handle=${encodeURIComponent(handle)}`),
@@ -307,7 +316,8 @@ export const api = {
         reply: string;
         product: Product | null;
         shortLink: string | null;
-        compliance: Record<string, unknown>;
+        updatedAsset?: ProjectAsset['type'];
+        compliance?: Record<string, unknown>;
         assets: ProjectAsset[];
         project: Project;
       }>('/api/studio/chat', { method: 'POST', body: JSON.stringify(body) }),
@@ -320,6 +330,23 @@ export const api = {
       fetchJson<{ success: boolean; blocks: BioBlock[] }>('/api/bio/blocks', {
         method: 'PUT',
         body: JSON.stringify({ blocks }),
+      }),
+    uploadIcon: async (file: File) => {
+      const body = new FormData();
+      body.set('file', file);
+      const response = await fetch(`${BASE_URL}/api/bio/icons`, {
+        method: 'POST',
+        body,
+        credentials: 'include',
+      });
+      const result = (await response.json().catch(() => ({}))) as { success?: boolean; iconUrl?: string; error?: string };
+      if (!response.ok || !result.iconUrl) throw new ApiError(result.error || 'Could not upload icon', response.status);
+      return { iconUrl: result.iconUrl };
+    },
+    deleteUnsavedIcon: (iconUrl: string) =>
+      fetchJson<{ success: boolean }>('/api/bio/icons', {
+        method: 'DELETE',
+        body: JSON.stringify({ iconUrl }),
       }),
   },
   links: {
@@ -406,6 +433,10 @@ export const api = {
       }),
   },
   agents: {
+    list: () => fetchJson<{agents:SavedAgent[]}>('/api/agents/saved'),
+    create: (config:AgentConfig) => fetchJson<{agent:SavedAgent}>('/api/agents/saved',{method:'POST',body:JSON.stringify(config)}),
+    run: (id:string) => fetchJson<{agent:SavedAgent}>(`/api/agents/saved/${id}/run`,{method:'POST'}),
+    remove: (id:string) => fetchJson(`/api/agents/saved/${id}`,{method:'DELETE'}),
     getTraces: () => fetchJson<{ traces: AgentTrace[] }>('/api/agents/traces'),
     runNow: () =>
       fetchJson<{ success: boolean; nextBestAction: string; learning: string; traces: AgentTrace[] }>(
@@ -419,7 +450,15 @@ export const api = {
         availableProviders: { claude: boolean; openai: boolean; gemini: boolean; workersAi: boolean };
         providerSettings: ProviderSettings;
         currentDailyUsageUsd: number;
-        amazonConfig: { hasCredentials: boolean; partnerTag: string; marketplace: string; accessKeyHint?: string };
+        amazonConfig: {
+          hasCredentials: boolean;
+          apiType: 'creators' | 'paapi' | null;
+          partnerTag: string;
+          marketplace: string;
+          credentialIdHint?: string;
+          credentialVersion?: string;
+          accessKeyHint?: string;
+        };
         creator: Creator;
         monetization: Monetization;
         goals: string[];
@@ -429,13 +468,24 @@ export const api = {
         method: 'PUT',
         body: JSON.stringify(body),
       }),
-    updateAmazon: (body: { accessKey?: string; secretKey?: string; partnerTag: string; marketplace?: string }) =>
+    updateAmazon: (body: {
+      credentialId?: string;
+      credentialSecret?: string;
+      credentialVersion?: string;
+      accessKey?: string;
+      secretKey?: string;
+      partnerTag: string;
+      marketplace?: string;
+    }) =>
       fetchJson<{
         success: boolean;
         message: string;
         hasCredentials: boolean;
+        apiType: 'creators' | 'paapi' | null;
         partnerTag: string;
         marketplace: string;
+        credentialIdHint?: string;
+        credentialVersion?: string;
       }>('/api/settings/amazon', { method: 'PUT', body: JSON.stringify(body) }),
     updatePreferences: (body: { scriptLanguage?: ScriptLanguage; contentLanguage?: string }) =>
       fetchJson<{ success: boolean; scriptLanguage: ScriptLanguage; contentLanguage: string }>(
@@ -446,7 +496,7 @@ export const api = {
         }
       ),
     updateMonetization: (body: Monetization) =>
-      fetchJson<{ success: boolean; monetization: Monetization }>('/api/settings/monetization', {
+      fetchJson<{ success: boolean; monetization?: Monetization }>('/api/settings/monetization', {
         method: 'PUT',
         body: JSON.stringify(body),
       }),

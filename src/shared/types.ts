@@ -235,6 +235,8 @@ export type AssetType =
   | 'pinned_comment'
   | 'shorts_caption'
   | 'instagram_caption'
+  | 'short_script'
+  | 'full_script'
   | 'script_outline'
   | 'thumbnail_ideas'
   | 'community_post'
@@ -368,6 +370,8 @@ export interface BioBlock {
   url?: string;
   product_id?: string;
   content_json?: string;
+  /** Parsed from content_json for icon display; the database still stores content_json. */
+  icon_url?: string;
   is_active: number;
   clicks_count: number;
   created_at: string;
@@ -429,8 +433,8 @@ export const UpdateProjectSchema = z.object({
 
 export const StudioChatSchema = z.object({
   projectId: z.string(),
-  message: z.string().min(1),
-  productAsin: z.string().optional(),
+  message: z.string().trim().min(1).max(8000),
+  productAsin: z.string().regex(/^[A-Z0-9]{10}$/i).optional(),
 });
 
 export const ToolGeneratorSchema = z.object({

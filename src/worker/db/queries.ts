@@ -14,6 +14,7 @@ import type {
   ProviderSettings,
   EarningsReport,
 } from '../../shared/types';
+import { bioIconUrlFromContent, contentWithBioIcon } from '../../shared/bio';
 
 // Never hand password material to routes; public lookups also drop the email
 function stripSecrets(row: Creator | null, keepEmail = true): Creator | null {
@@ -332,6 +333,7 @@ export class DBClient {
       .all<BioBlock>();
 
     const blocks = blocksRes.results || [];
+    for (const block of blocks) block.icon_url = bioIconUrlFromContent(block.content_json);
     // Populate product details for product_card blocks
     const productIds = blocks.map((b) => b.product_id).filter((id): id is string => !!id);
 
@@ -401,7 +403,7 @@ export class DBClient {
             b.title || null,
             b.url || null,
             b.product_id || null,
-            b.content_json || null,
+            contentWithBioIcon(b.content_json, b.icon_url),
             b.is_active ?? 1,
             b.clicks_count || 0,
             b.created_at || new Date().toISOString()

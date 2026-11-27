@@ -13,6 +13,7 @@ export const LearnTab: React.FC = () => {
   const [completedCount, setCompletedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState(false);
+  const [lessonStatus, setLessonStatus] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   // Tutor chat state
@@ -62,8 +63,12 @@ export const LearnTab: React.FC = () => {
       setLessons(res.lessons || []);
       setCompletedCount(res.completedCount || 0);
       setProgressPercent(res.progressPercent || 0);
-      if (res.lessons?.length > 0 && !selectedLessonId) {
-        setSelectedLessonId(res.lessons[0].id);
+      if (res.lessons?.length > 0) {
+        const selectionExists = res.lessons.some((lesson) => lesson.id === selectedLessonId);
+        if (!selectionExists) {
+          const firstIncomplete = res.lessons.find((lesson) => lesson.completed === 0);
+          setSelectedLessonId((firstIncomplete || res.lessons[0]).id);
+        }
       }
     } catch (err) {
       console.error('Failed to load lessons:', err);
@@ -85,7 +90,12 @@ export const LearnTab: React.FC = () => {
 
       // Move to the next lesson that is not done yet
       const next = (res.lessons || []).find((l) => l.completed === 0);
-      if (next) setSelectedLessonId(next.id);
+      if (next) {
+        setSelectedLessonId(next.id);
+        setLessonStatus(`Lesson marked complete. Up next: ${next.title}.`);
+      } else {
+        setLessonStatus('Lesson marked complete. You have finished all your lessons.');
+      }
     } catch (err) {
       console.error('Failed to complete lesson:', err);
       setError(err instanceof Error ? err.message : 'Could not mark the lesson complete');
@@ -235,6 +245,9 @@ export const LearnTab: React.FC = () => {
           ) : undefined
         }
       />
+      <p className="sr-only" role="status" aria-live="polite">
+        {lessonStatus}
+      </p>
 
       {error && (
         <div className="mb-6">

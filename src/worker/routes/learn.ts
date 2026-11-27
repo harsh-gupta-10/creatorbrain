@@ -5,7 +5,7 @@ import { creatorDna } from '../lib/dna';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
 import { AIRouter } from '../ai/router';
-import { runTutorChat, runCurriculumPlanner } from '../agents/definitions/tutorAndCurriculum';
+import { runTutorChat } from '../agents/definitions/tutorAndCurriculum';
 
 export const learnRoutes = new Hono<AppEnv>();
 
@@ -27,13 +27,9 @@ learnRoutes.post('/lessons/:id/complete', async (c) => {
   const lessonId = c.req.param('id');
   const dbClient = new DBClient(c.env.DB);
   await dbClient.completeLesson(creator.id, lessonId);
+  const lessons = await dbClient.getLessons(creator.id);
 
-  // Trigger Curriculum Planner to evaluate re-planning
-  const graph = await dbClient.getBrainGraph(creator.id);
-  const router = new AIRouter(c.env);
-  const refreshedLessons = await runCurriculumPlanner(creator.id, graph, router, c.env.DB);
-
-  return c.json({ success: true, lessons: refreshedLessons });
+  return c.json({ success: true, lessons });
 });
 
 learnRoutes.post('/tutor', async (c) => {

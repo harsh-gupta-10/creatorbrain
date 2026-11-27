@@ -4,6 +4,26 @@ import { DBClient } from '../db/queries';
 
 import { runOrchestrator, runMemoryCurator } from '../agents/definitions/tutorAndCurriculum';
 
+import type { SavedAgent } from '../../shared/agents';
+import { z } from 'zod';
+import { runSavedAgent, AgentRunError } from '../agents/saved';
+
+export const agentConfig = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    kind: z.enum(['competitor', 'titles', 'short_script', 'full_script']),
+    focus: z.string().trim().min(1).max(1200),
+    channel: z.string().trim().max(220).default(''),
+  })
+  .refine(
+    (v) =>
+      v.kind !== 'competitor' ||
+      /^(?:(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:channel\/UC[\w-]{22}|@[\w.-]+)\/?|@[\w.-]+|UC[\w-]{22})$/i.test(
+        v.channel
+      ),
+    { message: 'Enter a YouTube @handle or channel URL.' }
+  );
+
 export const agentsRoutes = new Hono<AppEnv>();
 
 // Get agent traces timeline
@@ -32,11 +52,11 @@ agentsRoutes.post('/run-now', async (c) => {
       ) VALUES (?, ?, 'Orchestrator', 'Evaluate channel growth bottlenecks & update next best action', 1, 1, 'evaluateChannelHealth', ?, ?, ?, 'success', ?)`
   )
     .bind(
-      `trace_run_${Date.now()}`,
+      crypto.randomUUID(),
       creator.id,
       JSON.stringify({ creatorId: creator.id }),
       JSON.stringify(orchestratorResult),
-      `Orchestrator determined next best action: "${orchestratorResult.nextBestAction}". Memory Curator recorded new channel learning.`,
+      `Orchestrator determined next best action: "${orchestratorResult.nextBestAction}".`,
       now
     )
     .run();
@@ -50,4 +70,45 @@ agentsRoutes.post('/run-now', async (c) => {
     learning: learningInsight,
     traces,
   });
+});
+
+const agentFields = 'id, name, kind, focus, channel, report, last_run';
+
+agentsRoutes.get('/saved', async (c) => {
+  const rows = await c.env.DB.prepare(`SELECT ${agentFields} FROM saved_agents WHERE creator_id=? ORDER BY name`)
+    .bind(c.get('creator').id)
+    .all<SavedAgent>();
+  return c.json({ agents: rows.results });
+});
+
+agentsRoutes.post('/saved', async (c) => {
+  const parsed = agentConfig.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) return c.json({ error: parsed.error.issues[0].message }, 400);
+  const { name, kind, focus, channel } = parsed.data;
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare('INSERT INTO saved_agents(id,creator_id,name,kind,focus,channel) VALUES (?,?,?,?,?,?)')
+    .bind(id, c.get('creator').id, name, kind, focus, channel)
+    .run();
+  return c.json({ agent: { id, name, kind, focus, channel, report: null, last_run: null } }, 201);
+});
+
+agentsRoutes.delete('/saved/:id', async (c) => {
+  await c.env.DB.prepare('DELETE FROM saved_agents WHERE creator_id=? AND id=?')
+    .bind(c.get('creator').id, c.req.param('id'))
+    .run();
+  return c.json({ success: true });
+});
+
+agentsRoutes.post('/saved/:id/run', async (c) => {
+  const creator = c.get('creator');
+  const agent = await c.env.DB.prepare(`SELECT ${agentFields} FROM saved_agents WHERE creator_id=? AND id=?`)
+    .bind(creator.id, c.req.param('id'))
+    .first<SavedAgent>();
+  if (!agent) return c.json({ error: 'Agent not found' }, 404);
+  try {
+    return c.json({ agent: await runSavedAgent(c.env, creator, agent, '') });
+  } catch (error) {
+    if (error instanceof AgentRunError) return c.json({ error: error.message }, error.status);
+    throw error;
+  }
 });

@@ -1,0 +1,3 @@
+ALTER TABLE credentials_encrypted ADD COLUMN amazon_creator_credential_id_enc TEXT;
+ALTER TABLE credentials_encrypted ADD COLUMN amazon_creator_credential_secret_enc TEXT;
+ALTER TABLE credentials_encrypted ADD COLUMN amazon_creator_credential_version TEXT;

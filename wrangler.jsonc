@@ -11,12 +11,12 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/s/*", "/@*", "/%40*"]
+    "run_worker_first": ["/api/*", "/bio-icons/*", "/s/*", "/@*", "/%40*"]
   },
   "ai": {
     "binding": "AI"
   },
-  // 10 sign-in or sign-up attempts per IP per minute
+  // 10 authentication mutations per IP per minute
   "ratelimits": [
     {
       "name": "AUTH_LIMITER",
@@ -36,6 +36,12 @@
     {
       "binding": "KV",
       "id": "202e40b4c38c4492aee3e00904d092f3"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BIO_ICONS",
+      "bucket_name": "creatorbrain-bio-icons"
     }
   ],
   "vars": {

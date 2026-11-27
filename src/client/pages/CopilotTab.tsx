@@ -1,3 +1,4 @@
+import { ChatLinks } from '../components/ChatLinks';
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, FolderPlus, Check, Package, Trash2 } from 'lucide-react';
 import { api } from '../lib/api';
@@ -25,7 +26,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     {
       id: 'welcome',
       role: 'assistant',
-      content: `${creator?.name ? `Working from ${creator.name}'s published videos and posts${creator.niche ? ` (${creator.niche})` : ''}.` : 'Working from your published videos and posts.'}\n\nDescribe a video you are considering, a product comparison or a retention problem. I can:\n- Suggest angles and hooks in your voice\n- Look up Amazon specs, prices and ASINs\n- Plan pacing around where viewers usually drop off\n- Turn the idea into a Content Studio project\n\nWhat are you working on?`,
+      content: `${creator?.name ? `Working from ${creator.name}'s published videos and posts${creator.niche ? ` (${creator.niche})` : ''}.` : 'Working from your published videos and posts.'}\n\nDescribe a video you are considering, a product comparison or a retention problem. I can:\n- Suggest angles and hooks in your voice\n- Find live Amazon products and your affiliate links\n- Plan pacing around where viewers usually drop off\n- Turn the idea into a Content Studio project\n\nWhat are you working on?`,
       time: 'Just now',
     },
   ]);
@@ -219,7 +220,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
           </strong>
         );
       }
-      return part;
+      return <ChatLinks key={i} text={part} />;
     });
   };
 

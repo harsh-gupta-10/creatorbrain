@@ -49,6 +49,20 @@ const TYPE_LABEL: Record<NodeType, string> = {
   CTA: 'Calls to action',
 };
 
+const RELATION_LABEL: Record<string, string> = {
+  STRONG_AT: 'is strong at',
+  NEEDS_WORK: 'could improve',
+  LEARNED_FROM: 'learned from',
+  RELATES_TO: 'is related to',
+  COVERS: 'covers',
+  EVIDENCE_FOR: 'supports',
+  USES: 'uses',
+  SAYS: 'says',
+  MENTIONS: 'mentions',
+  LOOKS_LIKE: 'looks like',
+  ASKS: 'asks about',
+};
+
 /** Brain regions as ranges of longitude (around the vertical axis, 0 = front) and latitude */
 type Region = { lon: [number, number]; lat: [number, number]; side?: -1 | 1 };
 const REGIONS: Record<NodeType, Region> = {
@@ -234,6 +248,8 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [hovered, setHovered] = useState<GraphNode | null>(null);
+  const [renderTick, setRenderTick] = useState(0);
+  const drawFrame = useRef<() => void>(() => {});
   const reducedMotion = useMemo(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false, []);
   const [spinning, setSpinning] = useState(!reducedMotion);
   const view = useRef({
@@ -258,6 +274,19 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
       data.edges.flatMap((e) => (e.source_id === id ? [e.target_id] : e.target_id === id ? [e.source_id] : []))
     );
   }, [selected, data.edges]);
+  const connections = useMemo(() => {
+    if (!selected) return [];
+    const nodesById = new Map(data.nodes.map((node) => [node.id, node]));
+    return data.edges
+      .flatMap((edge) => {
+        const isSource = edge.source_id === selected.id;
+        const isTarget = edge.target_id === selected.id;
+        if (!isSource && !isTarget) return [];
+        const node = nodesById.get(isSource ? edge.target_id : edge.source_id);
+        return node ? [{ node, edge }] : [];
+      })
+      .sort((a, b) => b.edge.weight - a.edge.weight);
+  }, [selected, data.edges, data.nodes]);
 
   const select = (n: GraphNode | null) => {
     setSelected(n);
@@ -273,15 +302,25 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
     if (!ctx) return;
     let raf = 0;
     let last = performance.now();
-    let visible = true;
+    let visible = false;
+
+    function scheduleFrame() {
+      if (!raf) raf = requestAnimationFrame(frame);
+    }
 
     const io = new IntersectionObserver(([entry]) => {
       visible = entry.isIntersecting;
-      if (visible) raf = requestAnimationFrame(frame);
+      if (visible) scheduleFrame();
+      else {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
     });
     io.observe(canvas);
+    drawFrame.current = scheduleFrame;
 
     function frame(now: number) {
+      raf = 0;
       const dt = Math.min(64, now - last);
       last = now;
       const v = view.current;
@@ -396,18 +435,18 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
         ctx!.fillText(text, lx, d.y);
       }
 
-      if (visible && (spinning || v.drag)) raf = requestAnimationFrame(frame);
+      if (visible && (spinning || v.drag)) scheduleFrame();
     }
     function isNbVisible(id: string) {
       return neighbors.has(id);
     }
 
-    raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
+      drawFrame.current = () => {};
       io.disconnect();
     };
-  }, [anatomy, nodes, edges, positions, neighbors, selected, hovered, spinning]);
+  }, [anatomy, nodes, edges, positions, neighbors, selected, hovered, spinning, renderTick]);
 
   // Pointer interaction: drag to rotate, click to select, hover for labels
   const pick = (clientX: number, clientY: number) => {
@@ -425,6 +464,7 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     view.current.drag = { x: e.clientX, y: e.clientY, yaw: view.current.yaw, pitch: view.current.pitch };
+    if (!spinning) drawFrame.current();
     setHovered((h) => (h ? { ...h } : h)); // keep the loop running while dragging
   };
   const onPointerMove = (e: React.PointerEvent) => {
@@ -432,7 +472,7 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
     if (d) {
       view.current.yaw = d.yaw + (e.clientX - d.x) * 0.008;
       view.current.pitch = Math.max(-0.9, Math.min(0.9, d.pitch + (e.clientY - d.y) * 0.006));
-      if (!spinning) setHovered((h) => (h ? { ...h } : null)); // trigger a redraw when paused
+      if (!spinning) drawFrame.current();
       return;
     }
     const n = pick(e.clientX, e.clientY);
@@ -456,17 +496,26 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-line">
         <Segmented<Filter> label="Show" value={filter} onChange={setFilter} options={FILTERS} />
         <div className="flex items-center gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={() => setSpinning((s) => !s)} aria-pressed={!spinning}>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setSpinning((s) => !s)}
+            aria-label={spinning ? 'Pause automatic rotation' : 'Resume automatic rotation'}
+          >
             {spinning ? <Pause {...ICON} /> : <Play {...ICON} />}
-            {spinning ? 'Pause' : 'Rotate'}
+            {spinning ? 'Pause rotation' : 'Resume rotation'}
           </button>
           <button
+            type="button"
             className="btn btn-ghost btn-sm"
             onClick={() => {
               view.current.yaw = -1.15;
               view.current.pitch = 0.22;
+              view.current.drag = null;
               setHovered(null);
+              setRenderTick((tick) => tick + 1);
             }}
+            aria-label="Reset brain view"
           >
             <RotateCcw {...ICON} />
             Reset view
@@ -509,13 +558,14 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
           aria-label="Brain nodes"
         >
           {selected ? (
-            <div className="p-4 border-b border-line" role="region" aria-live="polite" aria-label="Selected node">
+            <article className="m-3 p-3 rounded-lg border border-line bg-raised/40" aria-live="polite" aria-label="Selected insight">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2 text-[12px] text-fg-3">
                   <span className="dot" style={{ background: TYPE_COLORS[selected.type] }} aria-hidden="true" />
-                  {TYPE_LABEL[selected.type]}
+                  {TYPE_LABEL[selected.type]} insight
                 </div>
                 <button
+                  type="button"
                   className="btn btn-ghost btn-sm px-2 h-7"
                   onClick={() => select(null)}
                   aria-label="Close node details"
@@ -524,16 +574,39 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
                 </button>
               </div>
               <div className="mt-2 font-medium leading-5">{selected.label}</div>
-              {selected.description && <p className="mt-1 text-[13px] text-fg-2 leading-5">{selected.description}</p>}
+              <p className="mt-1 text-[13px] text-fg-2 leading-5">
+                {selected.description || `CreatorBrain grouped this as a ${TYPE_LABEL[selected.type].toLowerCase()} insight.`}
+              </p>
               <div className="mt-3 flex items-center gap-2">
-                <Meter value={selected.confidence || 0} label="Confidence" />
-                <span className="meta">{Math.round((selected.confidence || 0) * 100)}% confidence</span>
+                <Meter value={selected.confidence || 0} label="How sure CreatorBrain is" />
+                <span className="meta">{Math.round((selected.confidence || 0) * 100)}% sure</span>
               </div>
-              <p className="meta mt-2">{neighbors.size} connections</p>
-            </div>
+              <p className="meta mt-2">Connected to {neighbors.size} {neighbors.size === 1 ? 'item' : 'items'}</p>
+              {connections.length > 0 && (
+                <div className="mt-3 border-t border-line pt-3">
+                  <h4 className="text-[12px] font-medium text-fg">How it connects</h4>
+                  <ul className="mt-2 space-y-1.5">
+                    {connections.slice(0, 6).map(({ node, edge }) => (
+                      <li key={edge.id}>
+                        <button
+                          type="button"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-[12px] text-fg-2 hover:bg-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          onClick={() => select(node)}
+                        >
+                          <span className="text-fg-3">{RELATION_LABEL[edge.relation] || 'is connected to'}</span>{' '}
+                          <span className="font-medium text-fg">{node.label}</span>
+                          <span className="ml-1 text-fg-3">({TYPE_LABEL[node.type].toLowerCase()})</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {connections.length > 6 && <p className="meta mt-2">And {connections.length - 6} more connections</p>}
+                </div>
+              )}
+            </article>
           ) : (
-            <p className="p-4 border-b border-line text-[13px] text-fg-2">
-              Pick a node in the brain or in this list to see what it means and what it connects to
+            <p className="m-3 rounded-lg border border-line bg-raised/40 p-3 text-[13px] text-fg-2">
+              Choose an item to read a plain-language summary and see what it connects to.
             </p>
           )}
           <div className="overflow-y-auto flex-1">
@@ -547,15 +620,24 @@ export const BrainGraph: React.FC<BrainGraphProps> = ({ data, onSelectNode }) =>
                   {list.map((n) => (
                     <li key={n.id}>
                       <button
+                        type="button"
                         onClick={() => select(selected?.id === n.id ? null : n)}
                         onFocus={() => setHovered(n)}
                         onBlur={() => setHovered(null)}
                         aria-pressed={selected?.id === n.id}
-                        className={`w-full text-left px-4 py-[6px] text-[13px] leading-5 truncate transition-colors ${
-                          selected?.id === n.id ? 'bg-raised text-fg' : 'text-fg-2 hover:bg-raised/60 hover:text-fg'
+                        aria-label={`Show details for ${n.label}`}
+                        className={`m-1 w-[calc(100%-0.5rem)] rounded-md border px-3 py-2 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                          selected?.id === n.id
+                            ? 'border-accent/40 bg-raised text-fg'
+                            : 'border-transparent text-fg-2 hover:border-line hover:bg-raised/60 hover:text-fg'
                         }`}
                       >
-                        {n.label}
+                        <span className="block text-[13px] leading-5">{n.label}</span>
+                        {n.description && (
+                          <span className="mt-0.5 block line-clamp-2 text-[11px] leading-4 text-fg-3">
+                            {n.description}
+                          </span>
+                        )}
                       </button>
                     </li>
                   ))}
