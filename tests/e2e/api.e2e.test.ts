@@ -625,3 +625,62 @@ describe('Amazon link and earnings tools', () => {
     expect(await (await owner('/api/amazon/earnings')).json()).toMatchObject({ earnings: [] });
   });
 });
+
+describe('Chat tools', () => {
+  it('shortens the previous Amazon affiliate result, preserves its tag, and tracks the Open Amazon click', async () => {
+    const owner = client();
+    const other = client();
+    await signup(owner);
+    await signup(other);
+    const settings = await owner('/api/settings/amazon', {
+      method: 'PUT', json: { partnerTag: 'fixture-21', marketplace: 'amazon.in' },
+    });
+    expect(settings.status).toBe(200);
+    const { project } = await (await owner('/api/studio/projects', {
+      method: 'POST', json: { title: 'Arduino review', brief: 'Show the board and explain how to get started' },
+    })).json() as { project: { id: string } };
+    const studio = (message: string) => owner('/api/studio/chat', { method: 'POST', json: { message, projectId: project.id } });
+    const destination = 'https://www.amazon.in/dp/B012345678?th=1';
+    const tagged = destination + '&tag=fixture-21';
+    expect(await (await studio(destination)).json()).toMatchObject({ reply: expect.stringContaining(tagged) });
+
+    const created = await studio('i want short link');
+    expect(created.status).toBe(200);
+    const { shortLink } = await created.json() as { shortLink: string };
+    expect(shortLink).toContain('/s/amazon-');
+    expect(await (await studio('Make this a short link')).json()).toMatchObject({ shortLink });
+    const result = await (await owner('/api/links')).json() as { links: { id: string; slug: string; destination_url: string }[] };
+    expect(result.links).toHaveLength(1);
+    expect(result.links[0].destination_url).toBe(tagged);
+
+    const confirmPage = await fetch(shortLink, { redirect: 'manual' });
+    expect(confirmPage.status).toBe(200);
+    expect(await confirmPage.text()).toContain('Open Amazon');
+    const crossOrigin = await fetch(shortLink, { method: 'POST', headers: { Origin: 'https://example.com' }, redirect: 'manual' });
+    expect(crossOrigin.status).toBe(403);
+    expect(await (await studio('/link-stats')).json()).toMatchObject({ reply: expect.stringContaining('0 tracked clicks') });
+    const click = await fetch(shortLink, { method: 'POST', headers: { Origin: base }, redirect: 'manual' });
+    expect(click.status).toBe(303);
+    expect(click.headers.get('Location')).toBe(tagged);
+    await expect.poll(async () => (await (await studio('/link-stats')).json() as {reply: string}).reply)
+      .toContain('1 tracked click');
+    const stats = await other('/api/copilot/chat', { method: 'POST', json: { message: '/link-stats ' + shortLink } });
+    expect(await stats.json()).toMatchObject({ reply: expect.stringContaining('couldn’t find') });
+  });
+
+  it('shortens a public URL in Copilot and keeps private or ambiguous URLs out of Short links', async () => {
+    const owner = client();
+    await signup(owner);
+    const copilot = (message: string) => owner('/api/copilot/chat', { method: 'POST', json: { message } });
+    expect(await (await copilot('/tools')).json()).toMatchObject({ reply: expect.stringContaining('/tool thumbnail') });
+    expect(await (await copilot('/tool hook')).json()).toMatchObject({ reply: expect.stringContaining('Add a topic') });
+    expect(await (await copilot('/shorten http://172.31.0.1/admin')).json()).toMatchObject({ reply: expect.stringContaining('valid public') });
+    expect(await (await copilot('/shorten https://example.com/one https://example.com/two')).json()).toMatchObject({ reply: expect.stringContaining('more than one URL') });
+    const destination = 'https://example.com/one?a=1';
+    expect(await (await copilot('/shorten ' + destination)).json()).toMatchObject({ reply: expect.stringContaining('Saved to Short links') });
+    const { links } = await (await owner('/api/links')).json() as { links: { slug: string; destination_url: string }[] };
+    expect(links).toHaveLength(1);
+    expect(links[0].destination_url).toBe(destination);
+    expect((await fetch(base + '/s/' + links[0].slug, { redirect: 'manual' })).headers.get('Location')).toBe(destination);
+  });
+});

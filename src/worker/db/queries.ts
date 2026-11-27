@@ -254,29 +254,29 @@ export class DBClient {
     return await this.db.prepare('SELECT * FROM short_links WHERE slug = ?').bind(slug).first<ShortLink>();
   }
 
-  async createShortLink(link: ShortLink): Promise<void> {
-    await this.db
-      .prepare(
-        `INSERT INTO short_links (
-          id, creator_id, slug, destination_url, destination_domain, title,
-          utm_source, utm_medium, utm_campaign, expires_at, total_clicks, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        link.id,
-        link.creator_id,
-        link.slug,
-        link.destination_url,
-        link.destination_domain,
-        link.title || null,
-        link.utm_source || null,
-        link.utm_medium || null,
-        link.utm_campaign || null,
-        link.expires_at || null,
-        link.total_clicks,
-        link.created_at
-      )
-      .run();
+  async createShortLink(link: ShortLink, reuse = false): Promise<ShortLink | null> {
+    const existing = `SELECT * FROM short_links WHERE creator_id = ? AND destination_url = ?
+      AND expires_at IS NULL ORDER BY created_at DESC, id DESC LIMIT 1`;
+    const insert = this.db.prepare(
+      `INSERT INTO short_links (
+        id, creator_id, slug, destination_url, destination_domain, title,
+        utm_source, utm_medium, utm_campaign, expires_at, total_clicks, created_at
+      ) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+      WHERE (? = 0 OR NOT EXISTS (${existing})) ON CONFLICT(slug) DO NOTHING`
+    ).bind(
+      link.id, link.creator_id, link.slug, link.destination_url, link.destination_domain,
+      link.title || null, link.utm_source || null, link.utm_medium || null, link.utm_campaign || null,
+      link.expires_at || null, link.total_clicks, link.created_at,
+      Number(reuse), link.creator_id, link.destination_url
+    );
+    if (!reuse) {
+      const result = await insert.run();
+      return result.meta.changes ? link : null;
+    }
+    const [, found] = await this.db.batch<ShortLink>([
+      insert, this.db.prepare(existing).bind(link.creator_id, link.destination_url)
+    ]);
+    return found.results[0] || null;
   }
 
   async recordClick(

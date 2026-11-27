@@ -1,3 +1,4 @@
+import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
 import React, { useState, useRef, useEffect } from 'react';
 import { ArrowUp, FolderPlus, Check, Package, Trash2 } from 'lucide-react';
@@ -414,7 +415,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
             {loading && (
               <div className="flex items-center gap-2 text-[13px] text-fg-3" role="status">
                 <Spinner />
-                Reading your past videos and the Amazon catalog
+                Working on your request…
               </div>
             )}
 
@@ -443,6 +444,10 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               </div>
             )}
 
+            <ChatToolMenu disabled={loading} onChoose={prompt => {
+              setInput(prompt);
+              textareaRef.current?.focus();
+            }} />
             <form
               onSubmit={(e) => {
                 e.preventDefault();

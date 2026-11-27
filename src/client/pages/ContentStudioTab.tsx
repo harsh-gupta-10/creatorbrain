@@ -1,3 +1,4 @@
+import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
 import React, { useEffect, useState } from 'react';
 import {
@@ -421,6 +422,9 @@ ${a.content}
               ['Full script', 'Write a full spoken script for this project in my voice.'],
             ].map(([label, prompt]) => <button key={label} type="button" className="btn btn-secondary btn-sm"
               disabled={!selectedProjectId || isGenerating} onClick={() => setChatInput(prompt)}>{label}</button>)}
+          </div>
+          <div className="px-3 pb-1">
+            <ChatToolMenu disabled={!selectedProjectId || isGenerating} onChoose={setChatInput} />
           </div>
           <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">
             <input

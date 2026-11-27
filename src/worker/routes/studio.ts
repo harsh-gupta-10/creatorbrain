@@ -17,8 +17,10 @@ import {
   explicitAmazonProduct,
   channelEvidence,
 } from '../agents/workspace';
-import { StudioChatSchema, type Project, type ProjectAsset, type Product, type ShortLink } from '../../shared/types';
-import { serializeShortLinkCache, shortLinkCacheTtl } from '../lib/short-link-cache';
+import { StudioChatSchema, type Project, type ProjectAsset, type Product } from '../../shared/types';
+import { saveShortLink } from '../lib/short-links';
+import { tagAmazonProduct } from '../../shared/amazon';
+import { isShortenRequest, runChatTool } from '../agents/chat-tools';
 
 export const studioRoutes = new Hono<AppEnv>();
 
@@ -123,7 +125,7 @@ studioRoutes.put('/assets/:id', async (c) => {
 studioRoutes.post('/chat', async (c) => {
   const creator = c.get('creator');
 
-  const body = await c.req.json();
+  const body = await c.req.json().catch(() => null);
   const parsed = StudioChatSchema.safeParse(body);
   if (!parsed.success) {
     return c.json({ error: parsed.error.issues[0]?.message || 'Invalid parameters' }, 400);
@@ -136,7 +138,7 @@ studioRoutes.post('/chat', async (c) => {
   const { project, assets } = await dbClient.getProjectWithAssets(creator.id, projectId);
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
-  const history = await loadThread(c.env.DB, creator.id, `studio:${projectId}`, 6);
+  const history = await loadThread(c.env.DB, creator.id, `studio:${projectId}`, 12);
   const context = conversationContext(history, project);
   const report = await requestedAgent(c.env, creator, message, context);
   if (report) {
@@ -146,14 +148,28 @@ studioRoutes.post('/chat', async (c) => {
     ]);
     return c.json({ reply: report, project, assets, product: null, shortLink: null });
   }
-  const plan = productAsin
-    ? { action: 'link' as const, product: productAsin }
-    : await planChat(router, creator.id, message, context);
+  const origin = new URL(c.req.url).origin;
   const attached = project.primary_product_id
     ? await c.env.DB.prepare('SELECT * FROM products WHERE id = ? AND creator_id = ?')
         .bind(project.primary_product_id, creator.id)
         .first<Product>()
     : null;
+  const tool = await runChatTool({
+    env: c.env, creator, message, history, origin, topic: project.title,
+    productReference: isShortenRequest(message)
+      ? productAsin || attached?.product_url || explicitAmazonProduct(project.brief || '') || explicitAmazonProduct(project.title)
+      : undefined,
+  });
+  if (tool) {
+    await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
+      { role: 'user', content: message },
+      { role: 'assistant', content: tool.reply, meta: tool.meta },
+    ]);
+    return c.json({ reply: tool.reply, project, assets, product: null, shortLink: tool.shortLink || null });
+  }
+  const plan = productAsin
+    ? { action: 'link' as const, product: productAsin }
+    : await planChat(router, creator.id, message, context);
   const query =
     plan.product || attached?.product_url || explicitAmazonProduct(project.brief || '') ||
     explicitAmazonProduct(project.title) || project.title;
@@ -193,7 +209,7 @@ studioRoutes.post('/chat', async (c) => {
     }
     await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
       { role: 'user', content: message },
-      { role: 'assistant', content: reply },
+      { role: 'assistant', content: reply, meta: { affiliateLinks: lookup?.affiliateLinks } },
     ]);
     return c.json({
       reply,
@@ -206,7 +222,6 @@ studioRoutes.post('/chat', async (c) => {
 
   const dna = creatorDna(creator);
   const amazon = await amazonClientFor(c.env.DB, c.env, creator.id);
-  const amazonClient = amazon;
   const product = attached && !attached.is_mock ? attached : null;
   // Step 2: Content Studio Agent generates or refines all assets
   const generated = await runContentStudioAgent({
@@ -226,36 +241,11 @@ studioRoutes.post('/chat', async (c) => {
     db: c.env.DB,
   });
 
-  // Step 3: Link Agent creates tracked Amazon affiliate link + short link + bio block
-  let shortSlug = '';
-  let taggedUrl = '';
-  if (product && amazon.getPartnerTag()) {
-    taggedUrl = amazonClient.buildAffiliateUrl(product.product_url);
-    shortSlug = `${product.asin.toLowerCase()}-${Math.random().toString(36).slice(2, 5)}`;
-
-    const shortLink: ShortLink = {
-      id: `link_${Date.now()}_${shortSlug}`,
-      creator_id: creator.id,
-      slug: shortSlug,
-      destination_url: taggedUrl,
-      destination_domain: amazon.getMarketplace(),
-      title: `${product.title.slice(0, 50)} (Project Deal)`,
-      utm_source: 'youtube',
-      utm_medium: 'description',
-      utm_campaign: project.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, '-')
-        .slice(0, 30),
-      total_clicks: 0,
-      created_at: new Date().toISOString(),
-    };
-
-    await dbClient.createShortLink(shortLink);
-    const cacheTtl = shortLinkCacheTtl(shortLink.expires_at);
-    if (c.env.KV && cacheTtl) {
-      await c.env.KV.put(`link:${shortSlug}`, serializeShortLinkCache(shortLink), { expirationTtl: cacheTtl });
-    }
-  }
+  const taggedUrl = product && tagAmazonProduct(product.product_url, amazon.getMarketplace(), amazon.getPartnerTag());
+  const shortUrl = taggedUrl ? (await saveShortLink(c.env, creator.id, origin, {
+    destination_url: taggedUrl,
+    title: `${product?.title.slice(0, 112)} (Amazon)`,
+  }, true)).shortUrl : null;
 
   // Step 4: Compliance Checker
   const compliance = runComplianceChecker(generated.description);
@@ -303,12 +293,10 @@ Flags: ${compliance.flags.length === 0 ? 'None flagged.' : compliance.flags.join
   // Reload updated assets
   const updatedData = await dbClient.getProjectWithAssets(creator.id, projectId);
 
-  const origin = new URL(c.req.url).origin;
-  const shortUrl = shortSlug ? `${origin}/s/${shortSlug}` : null;
   const reply = [
     product ? `Researched ${product.title}.` : null,
     'Drafted titles, script outline, description, pinned comment, captions and thumbnail ideas from your Creator DNA.',
-    shortUrl ? `Tracked link: ${shortUrl}.` : null,
+    shortUrl ? `Amazon short link: ${shortUrl}` : null,
     'Compliance check done.',
   ]
     .filter(Boolean)

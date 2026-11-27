@@ -32,6 +32,7 @@ import {
   type CachedShortLink,
 } from './lib/short-link-cache';
 import type { ShortLink } from '../shared/types';
+import { isAmazonDestination } from './lib/short-links';
 
 export type { Env };
 
@@ -81,7 +82,7 @@ app.route('/api/chats', chatRoutes);
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)
 // ==========================================
-app.get('/s/:slug', async (c) => {
+app.on(['GET', 'POST'], '/s/:slug', async (c) => {
   const slug = c.req.param('slug');
   const dbClient = new DBClient(c.env.DB);
   let link: ShortLink | CachedShortLink | null = null;
@@ -138,6 +139,29 @@ app.get('/s/:slug', async (c) => {
   }
 
   const target = link.destination_url;
+  const hostname = new URL(target).hostname;
+  const amazon = isAmazonDestination(hostname);
+  if (amazon && c.req.method === 'GET') {
+    // Click previews and bots can open the short URL without sending a visitor to Amazon.
+    // The hostname comes from a fixed Amazon host list and URL.hostname cannot contain markup.
+    c.header('Cache-Control', 'no-store');
+    return c.html(`<!doctype html><html lang="en"><head><meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      <title>Continue to Amazon · CreatorBrain</title>
+      <style>body{margin:0;background:#fafafa;color:#171717;font:16px system-ui;min-height:100dvh;display:grid;place-items:center}
+      main{margin:24px;padding:32px;max-width:430px;background:white;border:1px solid #ddd;border-radius:16px}
+      p{line-height:1.5}button{padding:12px 16px;background:#171717;color:white;border:0;border-radius:8px;font:inherit;cursor:pointer}</style></head>
+      <body><main><p>CreatorBrain</p><h1>Continue to Amazon</h1>
+      <p>Destination: <strong>${hostname}</strong></p>
+      <p>This link may earn the creator a commission.</p>
+      <form method="post"><button type="submit">Open Amazon</button></form></main></body></html>`);
+  }
+  if (c.req.method === 'POST' && (!amazon || c.req.header('origin') !== new URL(c.req.url).origin)) {
+    return c.text('Open the short link first, then choose Open Amazon.', 403);
+  }
+  if (c.req.method === 'HEAD') {
+    return c.body(null, 200);
+  }
 
   // Record click analytics via waitUntil (zero latency penalty)
   {
@@ -161,8 +185,7 @@ app.get('/s/:slug', async (c) => {
     }
   }
 
-  // Transparent 302 redirect
-  return c.redirect(target, 302);
+  return c.redirect(target, amazon ? 303 : 302);
 });
 
 // ==========================================

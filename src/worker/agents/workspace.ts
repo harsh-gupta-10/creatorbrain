@@ -93,7 +93,7 @@ export async function affiliateLookup(
   env: Env,
   creatorId: string,
   query: string
-): Promise<{ reply: string; matches: Product[] }> {
+): Promise<{ reply: string; matches: Product[]; affiliateLinks?: string[] }> {
   const amazon = await amazonClientFor(env.DB, env, creatorId);
   const tag = amazon.getPartnerTag();
   if (!tag)
@@ -129,14 +129,15 @@ export async function affiliateLookup(
     const reply = direct
       ? `Tagged product link (price and availability unverified):\n\n${direct}\n\n${amazon.getMandatoryDisclosure()}`
       : `${status} Paste the exact Amazon product URL or ASIN and I can tag it without a catalog lookup.`;
-    return { reply, matches: [] };
+    return { reply, matches: [], affiliateLinks: direct ? [direct] : undefined };
   }
+  const affiliateLinks = matches.map(p => amazon.buildAffiliateUrl(p.product_url));
   const reply = [
     `Amazon matches for “${query}”`,
-    ...matches.map((p) => `${p.title}\n${amazon.buildAffiliateUrl(p.product_url)}`),
+    ...matches.map((p, i) => `${p.title}\n${affiliateLinks[i]}`),
     amazon.getMandatoryDisclosure(),
   ].join('\n\n');
-  return { reply, matches };
+  return { reply, matches, affiliateLinks };
 }
 
 export function conversationContext(history: ChatMessage[], project?: Project) {

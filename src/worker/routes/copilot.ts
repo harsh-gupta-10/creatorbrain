@@ -1,3 +1,4 @@
+import { runChatTool } from '../agents/chat-tools';
 import { requestedAgent } from '../agents/saved';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -25,10 +26,18 @@ copilotRoutes.post('/chat', async (c) => {
   const { message: userMessage, mode } = parsed.data;
   const lowerMsg = userMessage.toLowerCase();
   const router = new AIRouter(c.env);
-  const saved = await loadThread(c.env.DB, creator.id, 'copilot', 6);
+  const saved = await loadThread(c.env.DB, creator.id, 'copilot', 12);
   const context = saved.length
     ? conversationContext(saved)
     : JSON.stringify(parsed.data.history?.slice(-6).map((m) => m.content.slice(0, 1000)) || []);
+  const tool = await runChatTool({ env: c.env, creator, message: userMessage, history: saved, origin: new URL(c.req.url).origin });
+  if (tool) {
+    await appendToThread(c.env.DB, creator.id, 'copilot', [
+      { role: 'user', content: userMessage },
+      { role: 'assistant', content: tool.reply, meta: tool.meta },
+    ]);
+    return c.json({ reply: tool.reply, detectedProduct: null, proposedProject: null, suggestedPrompts: [] });
+  }
   const report = await requestedAgent(c.env, creator, userMessage, context);
   if (report) {
     await appendToThread(c.env.DB, creator.id, 'copilot', [
@@ -80,7 +89,7 @@ copilotRoutes.post('/chat', async (c) => {
 
   await appendToThread(c.env.DB, creator.id, 'copilot', [
     { role: 'user', content: userMessage, meta: { mode } },
-    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, suggestedPrompts } },
+    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, suggestedPrompts, affiliateLinks: lookup?.affiliateLinks } },
   ]);
 
   return c.json({

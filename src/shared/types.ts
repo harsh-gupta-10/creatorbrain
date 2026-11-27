@@ -411,7 +411,7 @@ export interface EncryptedCredentials {
 // ==========================================
 
 export const CreateShortLinkSchema = z.object({
-  destination_url: z.string().url(),
+  destination_url: z.string().max(4096).url(),
   slug: z
     .string()
     .min(2)
@@ -439,7 +439,7 @@ export const StudioChatSchema = z.object({
 
 export const ToolGeneratorSchema = z.object({
   toolType: z.enum(['hook', 'script', 'thumbnail', 'caption_hashtag']),
-  topic: z.string().min(2),
-  targetProduct: z.string().optional(),
+  topic: z.string().trim().min(2).max(8000),
+  targetProduct: z.string().max(200).optional(),
   platform: z.enum(['youtube', 'shorts', 'reels', 'instagram']).default('youtube'),
 });
