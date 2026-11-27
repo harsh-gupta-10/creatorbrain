@@ -21,6 +21,16 @@ export interface Env {
   GEMINI_API_KEY?: string;
   GEMINI_MODEL?: string;
   YOUTUBE_API_KEY?: string;
+
+  FLAGSMITH_SDK_KEY?: string;
+  FLAGSMITH_IDENTITY_SECRET?: string;
+  FLAGSMITH_EDGE_API?: string;
+  FLAGSMITH_EVENTS_API?: string;
+  FLAGSMITH_MANAGEMENT_API?: string;
+  FLAGSMITH_MANAGEMENT_KEY?: string;
+  FLAGSMITH_EXPERIMENT_ID?: string;
+  FLAGSMITH_OPERATOR_CREATOR_ID?: string;
+  FLAGSMITH_PROJECT_ID?: string;
 }
 
 /** Set by the /api auth middleware for every signed-in request */

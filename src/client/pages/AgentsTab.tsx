@@ -1,3 +1,4 @@
+import { ExperimentOperator } from '../components/ExperimentOperator';
 import { SavedAgents } from '../components/SavedAgents';
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, Bot, Check, ChevronDown, Clock3, FileText, Lightbulb, Play, Terminal } from 'lucide-react';
@@ -167,6 +168,7 @@ export const AgentsTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }
         )}
       </div>
 
+      {!readOnly && <ExperimentOperator />}
       <SavedAgents onRun={loadTraces} readOnly={readOnly} />
 
       {recommendation && (

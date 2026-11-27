@@ -1,3 +1,4 @@
+import type { ExperimentReadout, RolloutProposal, StudioExperimentEvent } from '../../shared/studio-experiment';
 import type { BrainControl, BrainFinding, ClipMatch, PlanAction, ProjectPlacementLink, PublicationReview, ScriptReviewNote, WatchReview } from '../../shared/creator-workflows';
 import type { ChatSuggestion, ToolMemory } from '../../shared/chat-suggestions';
 import type { AmazonReportFile } from '../../shared/amazon';
@@ -210,6 +211,16 @@ type ReviewAsset = 'short_script' | 'full_script' | 'script_outline';
 const workflowProject = (id: string) => '/api/workflows/project/' + encodeURIComponent(id);
 
 export const api = {
+  experiments: {
+    access: () => fetchJson<{ allowed: boolean }>('/api/experiments/access'),
+    read: () => fetchJson<{ summary: ExperimentReadout }>('/api/experiments/operator'),
+    propose: (prompt: string) => fetchJson<{ summary: ExperimentReadout; proposal?: RolloutProposal; message?: string }>(
+      '/api/experiments/operator/proposal', { method: 'POST', body: JSON.stringify({ prompt }) }),
+    approve: (approvalId: string) => fetchJson<{ success: boolean }>('/api/experiments/operator/approve',
+      { method: 'POST', body: JSON.stringify({ approvalId }) }),
+    event: (ticket: string, event: StudioExperimentEvent) => fetchJson<{ accepted: boolean }>('/api/experiments/studio-event',
+      { method: 'POST', keepalive: true, body: JSON.stringify({ ticket, event }) }),
+  },
   workflows: {
     publication: (id: string) => fetchJson<PublicationReview>(workflowProject(id) + '/publication'),
     publicationOptions: () => fetchJson<{ videos: { id: string; title: string; publishedAt: string }[] }>('/api/workflows/publication-options'),
@@ -434,7 +445,7 @@ export const api = {
   },
   brain: {
     getSuggestions: (projectId?: string, signal?: AbortSignal) =>
-      fetchJson<{ suggestions: ChatSuggestion[] }>(
+      fetchJson<{ suggestions: ChatSuggestion[]; experimentTicket?: string }>(
         `/api/brain/suggestions${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { signal }
       ),
     getGraph: () =>

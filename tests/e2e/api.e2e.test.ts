@@ -627,7 +627,7 @@ describe('Amazon link and earnings tools', () => {
 });
 
 describe('Chat tools', () => {
-  it('shortens the previous Amazon affiliate result, preserves its tag, and tracks the Open Amazon click', async () => {
+  it('redirects Amazon short links directly, preserves the tag, and tracks the click', async () => {
     const owner = client();
     const other = client();
     await signup(owner);
@@ -667,15 +667,17 @@ describe('Chat tools', () => {
     expect(await (await other('/api/brain/graph')).json()).toMatchObject({ toolMemory: [] });
 
 
-    const confirmPage = await fetch(shortLink, { redirect: 'manual' });
-    expect(confirmPage.status).toBe(200);
-    expect(await confirmPage.text()).toContain('Open Amazon');
-    const crossOrigin = await fetch(shortLink, { method: 'POST', headers: { Origin: 'https://example.com' }, redirect: 'manual' });
-    expect(crossOrigin.status).toBe(403);
+    const head = await fetch(shortLink, { method: 'HEAD', redirect: 'manual' });
+    expect(head.status).toBe(302);
+    expect(head.headers.get('Location')).toBe(tagged);
+    const preload = await fetch(shortLink, { headers: { 'Sec-Purpose': 'prefetch' }, redirect: 'manual' });
+    expect(preload.status).toBe(204);
+    expect(preload.headers.get('Location')).toBeNull();
     expect(await (await studio('/link-stats')).json()).toMatchObject({ reply: expect.stringContaining('0 tracked clicks') });
-    const click = await fetch(shortLink, { method: 'POST', headers: { Origin: base }, redirect: 'manual' });
-    expect(click.status).toBe(303);
+    const click = await fetch(shortLink, { redirect: 'manual' });
+    expect(click.status).toBe(302);
     expect(click.headers.get('Location')).toBe(tagged);
+    expect(click.headers.get('Cache-Control')).toBe('no-store');
     await expect.poll(async () => (await (await studio('/link-stats')).json() as {reply: string}).reply)
       .toContain('1 tracked click');
     const stats = await other('/api/copilot/chat', { method: 'POST', json: { message: '/link-stats ' + shortLink } });
@@ -846,4 +848,19 @@ describe('Creator workflows', () => {
     expect((await sample('/api/workflows/memory', { method: 'PUT', json: { state: 'preference', note: 'Test' } })).status).toBe(403);
     expect((await sample('/api/workflows/weekly-plan')).status).toBe(200);
   });
+});
+
+it('keeps the Flagsmith operator private and the shared sample outside the Studio experiment', async () => {
+  const guest = client();
+  expect((await guest('/api/experiments/access')).status).toBe(401);
+  const sample = client();
+  expect((await sample('/api/auth/sample', { method: 'POST' })).status).toBe(200);
+  expect(await (await sample('/api/experiments/access')).json()).toEqual({ allowed: false });
+  expect((await sample('/api/experiments/operator')).status).toBe(404);
+  expect((await sample('/api/experiments/studio-event', { method: 'POST', json: { ticket: 'invalid', event: 'seen' } })).status).toBe(403);
+  const owner = client();
+  await signup(owner);
+  expect(await (await owner('/api/experiments/access')).json()).toEqual({ allowed: false });
+  expect((await owner('/api/experiments/operator/proposal', { method: 'POST', json: { prompt: 'Start the experiment' } })).status).toBe(404);
+  expect((await owner('/api/experiments/studio-event', { method: 'POST', json: { ticket: 'invalid', event: 'seen' } })).status).toBe(400);
 });

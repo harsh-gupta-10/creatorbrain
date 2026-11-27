@@ -6,13 +6,22 @@ dist/
 coverage/
 .vite/
 *.tsbuildinfo
+.eslintcache
+
+# Local test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
 
 # Cloudflare local state and secrets
 .wrangler/
 .cloudflare/
 .dev.vars
+.dev.vars.*
+!.dev.vars.example
 .env
 .env.*
+flagsmith.env
 
 # Local AI tooling (installed skills, editor launch configs)
 .agents/
@@ -28,6 +37,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Launch video output (large media)
+brag/
 brag-output*/
 
 # Superseded brand film

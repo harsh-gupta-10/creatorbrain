@@ -1,3 +1,4 @@
+import { studioAssignment, studioSuggestions } from '../lib/studio-experiment';
 import { findingIdentity, readBrainControls } from '../lib/creator-planning';
 import { getChatSuggestions } from '../agents/suggestions';
 import { readToolMemory } from '../lib/workspace-evidence';
@@ -68,5 +69,11 @@ brainRoutes.get('/suggestions', async (c) => {
         .first<Pick<Project, 'id' | 'title'>>()
     : null;
   if (parsed.data && !project) return c.json({ error: 'Project not found' }, 404);
-  return c.json({ suggestions: await getChatSuggestions(c.env.DB, creator.id, project || undefined) });
+  const suggestions = await getChatSuggestions(c.env.DB, creator.id, project || undefined);
+  if (!project || c.get('isSample') || !suggestions.some(({ id }) => id === 'brain' || id === 'video') ||
+      suggestions.some(({ id }) => id === 'short-link' || id === 'clicks')) return c.json({ suggestions });
+  const assignment = await studioAssignment(c.env, creator.id, project.id);
+  return c.json(assignment
+    ? { suggestions: studioSuggestions(suggestions, assignment.variant), experimentTicket: assignment.ticket }
+    : { suggestions });
 });

@@ -40,7 +40,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const [createdProjectSuccess, setCreatedProjectSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const { logRef, followLatest, updateFollow } = useChatScroll(messages, loading);
-  const suggestions = useChatSuggestions(undefined, loading);
+  const { suggestions } = useChatSuggestions(undefined, loading);
 
   // Restore the saved conversation so a refresh or tab change keeps it
   useEffect(() => {

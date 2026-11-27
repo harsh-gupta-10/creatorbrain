@@ -1,5 +1,5 @@
-# Copy to .dev.vars for `wrangler dev`. .dev.vars is gitignored; never commit real keys.
-# In production set each secret with: npx wrangler secret put <NAME>
+# Copy to .dev.vars for npm run dev:worker. Git ignores local secret files.
+# Add production secrets in the Cloudflare Worker settings.
 
 ENVIRONMENT=development
 
@@ -16,3 +16,11 @@ OPENAI_API_KEY=
 
 # Amazon Associates credentials are NOT environment variables: each creator enters their
 # own tracking ID and API keys in the app, and they are stored encrypted per creator in D1.
+
+# Flagsmith Studio experiment (optional)
+# FLAGSMITH_SDK_KEY=
+# FLAGSMITH_IDENTITY_SECRET=
+# FLAGSMITH_EXPERIMENT_ID=
+# FLAGSMITH_OPERATOR_CREATOR_ID=
+# FLAGSMITH_MANAGEMENT_KEY=
+# FLAGSMITH_PROJECT_ID=

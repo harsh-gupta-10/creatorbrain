@@ -1,5 +1,5 @@
 import type { ProjectToolPanel } from '../components/StudioProjectTools';
-import { ChatSuggestions, useChatSuggestions } from '../components/ChatSuggestions';
+import { ChatSuggestions, useChatSuggestions, reportStudioExperiment } from '../components/ChatSuggestions';
 import { useChatScroll } from '../lib/use-chat-scroll';
 import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
@@ -65,9 +65,11 @@ export const ContentStudioTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = 
   const [openingProject, setOpeningProject] = useState(false);
   const openedProject = useRef('');
   const chatInputRef = useRef<HTMLInputElement>(null);
-  const suggestions = useChatSuggestions(selectedProjectId || null, isGenerating);
+  const chosenSuggestion = useRef<{ prompt: string; ticket: string } | null>(null);
+  const { suggestions, experimentTicket } = useChatSuggestions(selectedProjectId || null, isGenerating);
   const { logRef, followLatest, updateFollow } = useChatScroll(chatMessages, isGenerating);
-  const choosePrompt = (prompt: string) => {
+  const choosePrompt = (prompt: string, ticket?: string) => {
+    chosenSuggestion.current = ticket ? { prompt, ticket } : null;
     setChatInput(prompt);
     chatInputRef.current?.focus({ preventScroll: true });
   };
@@ -107,6 +109,7 @@ export const ContentStudioTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = 
 
   const selectProject = async (id: string) => {
     setToolPanel(undefined);
+    chosenSuggestion.current = null;
     openedProject.current = id;
     setSelectedProjectId(id);
     setOpeningProject(true);
@@ -176,6 +179,7 @@ export const ContentStudioTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = 
     if (!chatInput.trim() || isGenerating || openingProject || !selectedProject) return;
 
     const userText = chatInput.trim();
+    const attribution = chosenSuggestion.current?.prompt.trim() === userText ? chosenSuggestion.current : null;
     followLatest();
     setChatInput('');
     setChatMessages((prev) => [
@@ -193,6 +197,8 @@ export const ContentStudioTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = 
         projectId: selectedProjectId,
         message: userText,
       });
+      if (attribution) void reportStudioExperiment(attribution.ticket, 'sent');
+      chosenSuggestion.current = null;
 
       setChatMessages((prev) => [
         ...prev,
@@ -457,7 +463,7 @@ ${a.content}
           </div>
 
           <div className="shrink-0 border-t border-line px-3 pt-2 pb-1">
-            <ChatSuggestions suggestions={suggestions} onChoose={choosePrompt} disabled={isGenerating || openingProject} />
+            <ChatSuggestions experimentTicket={experimentTicket} suggestions={suggestions} onChoose={choosePrompt} disabled={isGenerating || openingProject} />
             <ChatToolMenu studio disabled={!selectedProject || isGenerating || openingProject} onChoose={choosePrompt} />
           </div>
           <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">

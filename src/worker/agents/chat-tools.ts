@@ -284,7 +284,7 @@ export async function runChatTool(options: {
         saved.shortUrl,
         ...(amazon
           ? [
-              'Share this as an Amazon link. Visitors choose Open Amazon before continuing.',
+              'This short link opens Amazon directly. Label it as an Amazon link when sharing.',
               'As an Amazon Associate I earn from qualifying purchases.',
             ]
           : []),
