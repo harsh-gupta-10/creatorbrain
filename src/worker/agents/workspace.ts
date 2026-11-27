@@ -1,3 +1,4 @@
+import { amazonProductUrl, amazonProductAsin, tagAmazonProduct, ASIN_RE } from '../../shared/amazon';
 import { z } from 'zod';
 import { AIRouter } from '../ai/router';
 import { amazonClientFor } from '../amazon/credentials';
@@ -26,9 +27,29 @@ const actionSchema = z.object({
   product: z.string().trim().max(200),
 });
 
+export function explicitAmazonProduct(message: string): string | undefined {
+  const input = message.trim();
+  if (ASIN_RE.test(input) && /\d/.test(input)) return input;
+  return (
+    input.match(/https:\/\/(?:www\.)?amazon\.(?:co\.uk|com|in|de|ca)\/[^\s<>"\])]+/i)?.[0].replace(/[.,;!?]+$/, '') ||
+    input
+      .match(/\b(?:ASIN\s*[:#]?\s*([A-Z0-9]{10})|(B[A-Z0-9]{9}|\d{10}))\b/i)
+      ?.slice(1)
+      .find(Boolean)
+  );
+}
+
 export async function planChat(router: AIRouter, creatorId: string, message: string, context: string) {
+  const explicit = explicitAmazonProduct(message);
+  const linkRequest = /affiliate link|amazon link|link on amazon/i.test(message);
+  if ((explicit && explicit === message.trim()) || (linkRequest && !/script|description|caption/i.test(message))) {
+    const named = message.match(/(?:link|links)\s+for\s+(.+)/i)?.[1];
+    if (explicit || !named || /^(this|my|the product in|the project)\b/i.test(named)) {
+      return { action: 'link' as const, product: explicit || '' };
+    }
+  }
   try {
-    return await router.generateStructured(
+    const plan = await router.generateStructured(
       [
         {
           role: 'system',
@@ -39,6 +60,7 @@ export async function planChat(router: AIRouter, creatorId: string, message: str
       actionSchema,
       { creatorId, fast: true, maxTokens: 150 }
     );
+    return { ...plan, product: explicit && (plan.action === 'link' || plan.product) ? explicit : plan.product };
   } catch {
     const link = /affiliate|amazon.*link|link.*amazon/i.test(message);
     const action = link
@@ -49,7 +71,7 @@ export async function planChat(router: AIRouter, creatorId: string, message: str
           : 'full_script'
         : 'chat';
     const named = message.match(/(?:link|links)\s+for\s+(.+)/i)?.[1];
-    return { action, product: named && !/^(this|my|the project)\b/i.test(named) ? named.slice(0, 200) : '' } as const;
+    return { action, product: explicit || (named && !/^(this|my|the project)\b/i.test(named) ? named.slice(0, 200) : '') } as const;
   }
 }
 
@@ -73,24 +95,42 @@ export async function affiliateLookup(
   query: string
 ): Promise<{ reply: string; matches: Product[] }> {
   const amazon = await amazonClientFor(env.DB, env, creatorId);
-  if (amazon.isMock())
+  const tag = amazon.getPartnerTag();
+  if (!tag)
     return {
-      reply:
-        'Connect your tracking ID and API credentials in Settings → Amazon affiliate connection to search live products.',
+      reply: 'Connect your tracking ID in Settings → Amazon affiliate connection before building a link.',
       matches: [],
     };
-  if (!query.trim()) return { reply: 'Which product should I look up? Send its name or Amazon ASIN.', matches: [] };
-  const asin = query.match(/\b(B[A-Z0-9]{9}|\d{10})\b/i)?.[1]?.toUpperCase();
-  const products = asin ? await amazon.getItems([asin], creatorId) : await amazon.searchItems(query, creatorId);
-  if (amazon.lastError)
+  if (!query.trim())
     return {
-      reply:
-        'Amazon could not complete this lookup. Check the marketplace and credential version in Settings, then retry.',
+      reply: 'Which product should I look up? Send its name, a full Amazon product URL, or its ASIN.',
       matches: [],
     };
-  const matches = products.filter((p) => !p.is_mock && (!asin || p.asin.toUpperCase() === asin)).slice(0, 3);
-  if (!matches.length)
-    return { reply: `No live Amazon matches for “${query}”. Try the model number or ASIN.`, matches: [] };
+
+  const marketplace = amazon.getMarketplace();
+  const url = amazonProductUrl(query, marketplace);
+  if (!url && /^https?:/i.test(query)) {
+    return { reply: `Paste a full Amazon product URL from ${marketplace} or send its ASIN.`, matches: [] };
+  }
+  const asin = url && amazonProductAsin(url);
+  const direct = url && tagAmazonProduct(url.href, marketplace, tag);
+  const products = amazon.isMock()
+    ? []
+    : asin
+      ? await amazon.getItems([asin], creatorId)
+      : await amazon.searchItems(query, creatorId);
+  const matches = products.filter((p) => !p.is_mock && (!asin || p.asin === asin)).slice(0, 3);
+  if (!matches.length) {
+    const status =
+      amazon.lastError ||
+      (amazon.isMock()
+        ? 'Live product search requires Creators API credentials in Settings.'
+        : 'Amazon returned no live match.');
+    const reply = direct
+      ? `Tagged product link (price and availability unverified):\n\n${direct}\n\n${amazon.getMandatoryDisclosure()}`
+      : `${status} Paste the exact Amazon product URL or ASIN and I can tag it without a catalog lookup.`;
+    return { reply, matches: [] };
+  }
   const reply = [
     `Amazon matches for “${query}”`,
     ...matches.map((p) => `${p.title}\n${amazon.buildAffiliateUrl(p.product_url)}`),

@@ -581,3 +581,47 @@ describe('Creator agents', () => {
     expect(await res.json()).toMatchObject({assets:[],reply:expect.stringContaining('Connect your tracking ID')});
   });
 });
+
+describe('Amazon link and earnings tools', () => {
+  it('builds tagged links in Studio from a project URL with only a tracking ID', async () => {
+    const owner = client();
+    await signup(owner);
+    await owner('/api/settings/amazon', { method: 'PUT', json: { partnerTag: 'fixture-21', marketplace: 'amazon.in' } });
+    const url = 'https://www.amazon.in/dp/B012345678';
+    const tagged = url + '?tag=fixture-21';
+    const build = await owner('/api/amazon/build-link', { method: 'POST', json: { productUrl: 'B012345678' } });
+    expect(await build.json()).toMatchObject({ taggedUrl: tagged });
+    const { project } = await (await owner('/api/studio/projects', {
+      method: 'POST', json: { title: 'A quiet USB hub', brief: 'Product page: ' + url },
+    })).json() as { project: { id: string } };
+    const chat = await owner('/api/studio/chat', {
+      method: 'POST', json: { projectId: project.id, message: 'Find an Amazon affiliate link for the product in this project.' },
+    });
+    expect(chat.status).toBe(200);
+    expect(await chat.json()).toMatchObject({ reply: expect.stringContaining(tagged), assets: [] });
+    expect(await (await owner('/api/amazon/reports')).json()).toEqual({ configured: false, reports: [] });
+  });
+
+  it('imports dated India reports once per day and scopes earnings to the owner and marketplace', async () => {
+    const owner = client();
+    const other = client();
+    await signup(owner);
+    await signup(other);
+    const connect = (marketplace: string) => owner('/api/settings/amazon', {
+      method: 'PUT', json: { partnerTag: 'fixture-21', marketplace },
+    });
+    await connect('amazon.in');
+    await other('/api/settings/amazon', { method: 'PUT', json: { partnerTag: 'other-21', marketplace: 'amazon.in' } });
+    const upload = (csvText: string) => owner('/api/amazon/earnings/import-csv', { method: 'POST', json: { csvText } });
+    const report = 'Date\tItems Dispatched\tTotal Earnings\n26/11/2026\t2\t200.50';
+    expect((await upload(report)).status).toBe(200);
+    expect((await upload(report)).status).toBe(200);
+    expect((await upload('Date,Advertising Fees\n2026-02-30,200')).status).toBe(400);
+    expect(await (await owner('/api/amazon/earnings')).json()).toMatchObject({
+      marketplace: 'amazon.in', earnings: [expect.anything()], summary: { totalCommission: 200.50, totalItems: 2 },
+    });
+    expect(await (await other('/api/amazon/earnings')).json()).toMatchObject({ earnings: [] });
+    await connect('amazon.com');
+    expect(await (await owner('/api/amazon/earnings')).json()).toMatchObject({ earnings: [] });
+  });
+});

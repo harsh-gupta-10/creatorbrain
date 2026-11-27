@@ -14,6 +14,7 @@ import {
   compose,
   draftLabels,
   affiliateLookup,
+  explicitAmazonProduct,
   channelEvidence,
 } from '../agents/workspace';
 import { StudioChatSchema, type Project, type ProjectAsset, type Product, type ShortLink } from '../../shared/types';
@@ -153,12 +154,14 @@ studioRoutes.post('/chat', async (c) => {
         .bind(project.primary_product_id, creator.id)
         .first<Product>()
     : null;
-  const query = plan.product || attached?.asin || project.title;
+  const query =
+    plan.product || attached?.product_url || explicitAmazonProduct(project.brief || '') ||
+    explicitAmazonProduct(project.title) || project.title;
   if (plan.action !== 'bundle') {
     const lookup = plan.action === 'link' || plan.product ? await affiliateLookup(c.env, creator.id, query) : null;
     const match = lookup?.matches.length === 1 ? lookup.matches[0] : null;
     if (match) {
-      const product = { ...match, id: `prod_${creator.id}_${match.asin}` };
+      const product = { ...match, id: `prod_${creator.id}_${new URL(match.product_url).hostname.replace(/^www\./, '')}_${match.asin}` };
       await dbClient.saveProduct(product);
       await dbClient.updateProject(creator.id, projectId, { primary_product_id: product.id });
     }

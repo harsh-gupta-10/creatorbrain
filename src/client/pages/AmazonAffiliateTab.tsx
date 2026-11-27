@@ -1,3 +1,5 @@
+import { AmazonLinkBuilder, AmazonReportsPanel } from '../components/AmazonTools';
+import { AMAZON_CURRENCIES, tagAmazonProduct } from '../../shared/amazon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ShoppingBag, Search, Plus, RefreshCw, ExternalLink, ShieldCheck, Upload, Check, X, Info } from 'lucide-react';
 import { api } from '../lib/api';
@@ -17,27 +19,14 @@ import {
 
 const errMessage = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
-const CURRENCY_BY_MARKETPLACE: Record<string, string> = {
-  'www.amazon.in': 'INR',
-  'www.amazon.com': 'USD',
-  'www.amazon.co.uk': 'GBP',
-  'www.amazon.de': 'EUR',
-  'www.amazon.fr': 'EUR',
-  'www.amazon.it': 'EUR',
-  'www.amazon.es': 'EUR',
-  'www.amazon.ca': 'CAD',
-  'www.amazon.com.au': 'AUD',
-  'www.amazon.co.jp': 'JPY',
-};
-
 function moneyFormatter(marketplace: string) {
-  const currency = CURRENCY_BY_MARKETPLACE[marketplace] || 'INR';
+  const currency = AMAZON_CURRENCIES[marketplace.replace(/^www\./, '')] || 'USD';
   const nf = new Intl.NumberFormat(currency === 'INR' ? 'en-IN' : 'en-US', {
     style: 'currency',
     currency,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
-  return (n: number) => nf.format(Math.round(n || 0));
+  return (n: number) => nf.format(n || 0);
 }
 
 /** Commission per report date, oldest first, last `limit` dates */
@@ -133,6 +122,11 @@ export const AmazonAffiliateTab: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Search state
+  const [mode, setMode] = useState<'products' | 'variations' | 'categories'>('products');
+  const [categories, setCategories] = useState<Awaited<ReturnType<typeof api.amazon.browseCategories>>['categories']>(
+    []
+  );
+  const [searchNotice, setSearchNotice] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -146,6 +140,7 @@ export const AmazonAffiliateTab: React.FC = () => {
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [csvText, setCsvText] = useState('');
   const [importCount, setImportCount] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
   const [csvError, setCsvError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -156,7 +151,7 @@ export const AmazonAffiliateTab: React.FC = () => {
   const loadSettings = async () => {
     try {
       const res = await api.settings.getSettings();
-      setAmazonOn(res.monetization?.amazon === true);
+      setAmazonOn(!!res.amazonConfig?.partnerTag || res.monetization?.amazon === true);
       const tag = res.amazonConfig?.partnerTag || res.monetization?.partnerTag;
       if (tag) setPartnerTag(tag);
       const mkt = res.amazonConfig?.marketplace || res.monetization?.marketplace;
@@ -189,10 +184,22 @@ export const AmazonAffiliateTab: React.FC = () => {
 
     setIsSearching(true);
     setSearchError(null);
+    setSearchNotice('');
+    setSearchResults([]);
+    setCategories([]);
     try {
-      const res = await api.amazon.search(searchQuery.trim());
-      setSearchResults(res.results || []);
-      if (res.isMock) setIsMockMode(true);
+      if (mode === 'categories') {
+        const res = await api.amazon.browseCategories(searchQuery.trim());
+        setCategories(res.categories);
+        if (!res.categories.length) setSearchNotice('No matching browse categories.');
+      } else {
+        const res = await api.amazon.search(searchQuery.trim(), mode);
+        setSearchResults(res.results || []);
+        setIsMockMode(res.isMock);
+        if (res.liveError)
+          setSearchError(`${res.liveError} You can still build a link from an exact ASIN or URL below.`);
+        else if (!res.results.length) setSearchNotice('No products found. Try an exact ASIN or a different search.');
+      }
     } catch (err) {
       setSearchError(errMessage(err, 'Search failed'));
     } finally {
@@ -228,7 +235,8 @@ export const AmazonAffiliateTab: React.FC = () => {
 
   const handleCsvImport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!csvText.trim()) return;
+    if (!csvText.trim() || importing) return;
+    setImporting(true);
     setCsvError(null);
 
     try {
@@ -242,6 +250,8 @@ export const AmazonAffiliateTab: React.FC = () => {
       await loadAmazonData();
     } catch (err) {
       setCsvError(errMessage(err, 'Import failed'));
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -260,10 +270,10 @@ export const AmazonAffiliateTab: React.FC = () => {
     }
     return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
   }, [earnings]);
-  const topMax = topProducts[0]?.[1] || 1;
+  const topMax = Math.max(1, topProducts[0]?.[1] || 0);
 
   const off = amazonOn === false;
-  const taggedUrl = (url: string) => (partnerTag ? `${url}${url.includes('?') ? '&' : '?'}tag=${partnerTag}` : url);
+  const taggedUrl = (url: string) => tagAmazonProduct(url, marketplace, partnerTag) || url;
 
   return (
     <div>
@@ -282,8 +292,8 @@ export const AmazonAffiliateTab: React.FC = () => {
           </>
         }
         actions={
-          !off && (
-            <>
+          <>
+            {!off && (
               <button
                 onClick={handleHealthCheck}
                 disabled={isHealthChecking}
@@ -291,14 +301,14 @@ export const AmazonAffiliateTab: React.FC = () => {
                 className="btn btn-secondary"
               >
                 {isHealthChecking ? <Spinner /> : <RefreshCw {...ICON} className="text-fg-2" />}
-                Check links
+                Refresh prices
               </button>
-              <button onClick={() => setShowCsvModal(true)} className="btn btn-secondary">
-                <Upload {...ICON} className="text-fg-2" />
-                Import earnings
-              </button>
-            </>
-          )
+            )}
+            <button onClick={() => setShowCsvModal(true)} className="btn btn-secondary">
+              <Upload {...ICON} className="text-fg-2" />
+              Import earnings
+            </button>
+          </>
         }
       />
 
@@ -306,8 +316,8 @@ export const AmazonAffiliateTab: React.FC = () => {
         <div className="card mb-8">
           <EmptyState
             icon={<ShoppingBag {...ICON} />}
-            title="Amazon Associates is off"
-            description="Turn it on in Settings to tag product links, track earnings and add buy buttons to your bio page. You can still search the catalog below."
+            title="No tracking ID saved"
+            description="Save your tracking ID in Settings to build tagged product links."
           />
         </div>
       )}
@@ -315,7 +325,7 @@ export const AmazonAffiliateTab: React.FC = () => {
       {isMockMode && (
         <div className="flex items-center gap-2 text-[13px] text-fg-3 mb-6">
           <Info {...ICON} className="shrink-0" />
-          Showing sample catalog data. Add Amazon API keys in Settings for live prices
+          Live catalog access requires Creators API credentials. Sample results are labeled.
         </div>
       )}
 
@@ -334,18 +344,24 @@ export const AmazonAffiliateTab: React.FC = () => {
         )}
       </div>
 
-      {!off && (
+      {(!off || earnings.length > 0) && (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-3">
             <Stat
               label="Referred revenue"
-              value={money(totalRevenue)}
-              note={`${formatCount(totalItems)} items shipped`}
+              value={earnings.length ? money(totalRevenue) : '—'}
+              note={earnings.length ? `${formatCount(totalItems)} items shipped` : 'No reports imported yet'}
             />
             <Stat
               label="Commission"
-              value={money(totalEarnings)}
-              note={totalRevenue ? `${effectiveRate.toFixed(1)}% of referred revenue` : 'No earnings imported yet'}
+              value={earnings.length ? money(totalEarnings) : '—'}
+              note={
+                totalRevenue > 0
+                  ? `${effectiveRate.toFixed(1)}% of referred revenue`
+                  : earnings.length
+                    ? 'From imported reports'
+                    : 'No reports imported yet'
+              }
             />
             <Stat label="Tracked products" value={formatCount(products.length)} />
           </div>
@@ -363,7 +379,7 @@ export const AmazonAffiliateTab: React.FC = () => {
               {series.length === 0 ? (
                 <EmptyState
                   icon={<Upload {...ICON} />}
-                  title="No earnings yet"
+                  title="No earnings reports imported"
                   description="Import your Associates earnings report to see commission over time."
                   action={
                     <button onClick={() => setShowCsvModal(true)} className="btn btn-secondary btn-sm">
@@ -388,7 +404,10 @@ export const AmazonAffiliateTab: React.FC = () => {
                             <span className="meta shrink-0">{money(value)}</span>
                           </div>
                           <div className="mt-1 h-1 rounded-full bg-raised" aria-hidden="true">
-                            <div className="h-1 rounded-full bg-fg-3" style={{ width: `${(value / topMax) * 100}%` }} />
+                            <div
+                              className="h-1 rounded-full bg-fg-3"
+                              style={{ width: `${Math.max(0, (value / topMax) * 100)}%` }}
+                            />
                           </div>
                         </div>
                       ))}
@@ -401,10 +420,38 @@ export const AmazonAffiliateTab: React.FC = () => {
         </>
       )}
 
+      <section className="card p-5 mb-8 space-y-3">
+        <h2 className="font-medium">Amazon report files</h2>
+        <p className="text-fg-2">
+          Check for files Amazon exposes to this connection. To update your totals, import a dated earnings export.
+        </p>
+        <AmazonReportsPanel />
+      </section>
+
       {/* Search */}
       <section className="mb-8">
         <SectionTitle title="Find a product" />
         <div className="card p-5 space-y-4">
+          <label className="block text-[13px]">
+            Catalog tool
+            <select
+              className="input mt-1"
+              value={mode}
+              disabled={isSearching}
+              onChange={(e) => {
+                setMode(e.target.value as typeof mode);
+                setSearchQuery('');
+                setCategories([]);
+                setSearchResults([]);
+                setSearchError(null);
+                setSearchNotice('');
+              }}
+            >
+              <option value="products">Search or look up product</option>
+              <option value="variations">Find product variations</option>
+              <option value="categories">Look up browse categories</option>
+            </select>
+          </label>
           <form onSubmit={handleSearch} className="flex items-center gap-2">
             <div className="relative flex-1">
               <Search {...ICON} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
@@ -412,7 +459,13 @@ export const AmazonAffiliateTab: React.FC = () => {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Product name or ASIN"
+                placeholder={
+                  mode === 'categories'
+                    ? 'Browse node IDs (comma separated)'
+                    : mode === 'variations'
+                      ? 'Parent ASIN'
+                      : 'Product name, ASIN, or full Amazon URL'
+                }
                 aria-label="Search Amazon products"
                 className="input !pl-9"
               />
@@ -423,6 +476,25 @@ export const AmazonAffiliateTab: React.FC = () => {
             </button>
           </form>
 
+          {searchNotice && <p role="status">{searchNotice}</p>}
+          {categories.length > 0 && (
+            <ul className="space-y-2">
+              {categories.map((category) => (
+                <li key={category.id} className="well p-3">
+                  {category.displayName} <span className="meta">{category.id}</span>
+                  {category.children?.length ? (
+                    <ul>
+                      {category.children.map((child) => (
+                        <li key={child.id}>
+                          {child.displayName} <span className="meta">{child.id}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
           {searchError && <ErrorNote>{searchError}</ErrorNote>}
           <p className="sr-only" role="status">
             {!isSearching && searchResults.length > 0 ? `${searchResults.length} products found` : ''}
@@ -449,16 +521,20 @@ export const AmazonAffiliateTab: React.FC = () => {
                       </span>
                     </div>
                   </div>
-                  <button onClick={() => handleImportProduct(prod)} className="btn btn-secondary btn-sm shrink-0">
-                    <Plus {...ICON} />
-                    Add<span className="sr-only"> {prod.title}</span>
-                  </button>
+                  {!prod.is_mock && (
+                    <button onClick={() => handleImportProduct(prod)} className="btn btn-secondary btn-sm shrink-0">
+                      <Plus {...ICON} />
+                      Add<span className="sr-only"> {prod.title}</span>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
           )}
         </div>
       </section>
+
+      <AmazonLinkBuilder marketplace={marketplace} />
 
       {/* Library */}
       {(!off || products.length > 0) && (
@@ -542,11 +618,53 @@ export const AmazonAffiliateTab: React.FC = () => {
             </button>
           </div>
           <p id="csv-help" className="text-[13px] text-fg-2 mb-4">
-            Paste rows from your Associates earnings report. Columns: date, ASIN, product title, items ordered, items
-            shipped, revenue, commission.
+            In Associates Central, download the Earnings report grouped by date for the whole store. Upload a CSV or
+            TSV, or paste its contents. Importing replaces existing rows for the dates in the file.
           </p>
 
           <form onSubmit={handleCsvImport} className="space-y-4">
+            {marketplace === 'amazon.in' && (
+              <a
+                className="underline"
+                href="https://affiliate-program.amazon.in/p/reporting/earnings"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open Amazon India Earnings Report
+              </a>
+            )}
+            <label className="block text-[13px]">
+              Upload earnings report
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values"
+                className="input mt-1 py-2 h-auto"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 1_500_000) {
+                    setCsvText('');
+                    setCsvError('Choose a smaller file or shorter date range.');
+                    return;
+                  }
+                  try {
+                    const bytes = await file.arrayBuffer();
+                    const prefix = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
+                    const encoding =
+                      prefix[0] === 255 && prefix[1] === 254
+                        ? 'utf-16le'
+                        : prefix[0] === 254 && prefix[1] === 255
+                          ? 'utf-16be'
+                          : 'utf-8';
+                    setCsvText(new TextDecoder(encoding).decode(bytes));
+                    setCsvError(null);
+                  } catch {
+                    setCsvText('');
+                    setCsvError('Could not read this file.');
+                  }
+                }}
+              />
+            </label>
             {csvError && <ErrorNote>{csvError}</ErrorNote>}
             {importCount !== null && (
               <div
@@ -572,8 +690,8 @@ export const AmazonAffiliateTab: React.FC = () => {
               <button type="button" onClick={() => setShowCsvModal(false)} className="btn btn-ghost">
                 Cancel
               </button>
-              <button type="submit" className="btn btn-primary">
-                Import
+              <button type="submit" className="btn btn-primary" disabled={importing || !csvText.trim()}>
+                {importing ? 'Importing…' : 'Import'}
               </button>
             </div>
           </form>

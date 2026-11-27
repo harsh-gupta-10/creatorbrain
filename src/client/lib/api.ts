@@ -1,3 +1,4 @@
+import type { AmazonReportFile } from '../../shared/amazon';
 import type { AgentConfig, SavedAgent } from '../../shared/agents';
 import type {
   Creator,
@@ -368,9 +369,9 @@ export const api = {
       fetchJson<{ products: Product[]; isMock: boolean; marketplace: string; partnerTag: string }>(
         '/api/amazon/products'
       ),
-    search: (query: string) =>
-      fetchJson<{ results: Product[]; isMock: boolean; query: string; marketplace: string }>(
-        `/api/amazon/search?q=${encodeURIComponent(query)}`
+    search: (query: string, mode = 'products') =>
+      fetchJson<{ results: Product[]; isMock: boolean; query: string; marketplace: string; liveError: string | null }>(
+        `/api/amazon/search?q=${encodeURIComponent(query)}&mode=${encodeURIComponent(mode)}`
       ),
     importProduct: (product: Partial<Product>) =>
       fetchJson<{ success: boolean; product: Product }>('/api/amazon/import', {
@@ -382,9 +383,17 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    browseCategories: (ids: string) =>
+      fetchJson<{ categories: { id: string; displayName: string; children?: { id: string; displayName: string }[] }[] }>(
+        `/api/amazon/catalog/categories?ids=${encodeURIComponent(ids)}`
+      ),
+    listReports: () => fetchJson<{ configured: boolean; reports: AmazonReportFile[] }>('/api/amazon/reports'),
+    downloadReport: (filename: string) =>
+      fetchJson<{ url: string }>('/api/amazon/reports/download', { method: 'POST', body: JSON.stringify({ filename }) }),
     getEarnings: () =>
       fetchJson<{
         earnings: EarningsReport[];
+        marketplace: string;
         summary: { totalRevenue: number; totalCommission: number; totalItems: number };
       }>('/api/amazon/earnings'),
     importEarningsCsv: (csvText: string) =>

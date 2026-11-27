@@ -178,7 +178,7 @@ settingsRoutes.put('/amazon', async (c) => {
 // Remove stored Amazon API keys (the tracking ID stays)
 settingsRoutes.delete('/amazon/keys', async (c) => {
   const creator = c.get('creator');
-  await saveAmazonCredentials(c.env.DB, c.env, creator.id, { accessKey: '', secretKey: '' });
+  await saveAmazonCredentials(c.env.DB, c.env, creator.id, { accessKey: '', secretKey: '', credentialId: '', credentialSecret: '' });
   return c.json({ success: true });
 });
 

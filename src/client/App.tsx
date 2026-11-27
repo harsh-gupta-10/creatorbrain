@@ -190,14 +190,6 @@ const FullPageLoader: React.FC = () => (
   </div>
 );
 
-function parseMonetization(creator: Creator | null): { amazon?: boolean } {
-  try {
-    return JSON.parse(creator?.monetization_json || '{}');
-  } catch {
-    return {};
-  }
-}
-
 const AppShell: React.FC<{
   activeTab: TabId;
   creator: Creator;
@@ -208,8 +200,7 @@ const AppShell: React.FC<{
   const [menuOpen, setMenuOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
   const firstRender = useRef(true);
-  const usesAmazon = isSample || parseMonetization(creator).amazon === true;
-  const visibleTabs = TABS.filter((t) => t.id !== 'amazon' || usesAmazon || activeTab === 'amazon');
+  const visibleTabs = TABS;
   const current = [...TABS, { id: 'settings', label: 'Settings' } as TabItem].find((t) => t.id === activeTab);
 
   useEffect(() => {

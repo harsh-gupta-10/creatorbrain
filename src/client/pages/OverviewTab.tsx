@@ -1,3 +1,4 @@
+import { AMAZON_CURRENCIES } from '../../shared/amazon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, RotateCw, ExternalLink, SquarePlay, Camera, FolderKanban } from 'lucide-react';
 import { api, type ContentItem } from '../lib/api';
@@ -49,16 +50,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
   const [links, setLinks] = useState<ShortLink[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [graph, setGraph] = useState<GraphData | null>(null);
+  const [amazonEarnings, setAmazonEarnings] = useState<Awaited<ReturnType<typeof api.amazon.getEarnings>> | null>(null);
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [error, setError] = useState('');
 
   const load = async () => {
-    const [content, proj, lnk, lsn, brain] = await Promise.allSettled([
+    const [content, proj, lnk, lsn, brain, amazon] = await Promise.allSettled([
       api.onboarding.getContent(),
       api.studio.getProjects(),
       api.links.getLinks(),
       api.learn.getLessons(),
       api.brain.getGraph(),
+      api.amazon.getEarnings(),
     ]);
     if (content.status === 'fulfilled') {
       setItems(content.value.items);
@@ -72,6 +75,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
       setGraph(brain.value.graph);
       setLearnings(brain.value.learnings || []);
     }
+    if (amazon.status === 'fulfilled') setAmazonEarnings(amazon.value);
     setLoading(false);
   };
 
@@ -214,6 +218,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
           )}
         </div>
       </div>
+
+      {!!amazonEarnings?.earnings.length && <section className="card p-5 mt-6 flex flex-wrap items-end justify-between gap-3">
+        <Stat label="Amazon commission" value={new Intl.NumberFormat('en-IN', {
+          style: 'currency', currency: AMAZON_CURRENCIES[amazonEarnings.marketplace] || 'USD',
+        }).format(amazonEarnings.summary.totalCommission)} note="From imported Associates reports" />
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onNavigateTab('amazon')}>View Amazon earnings</button>
+      </section>}
 
       {/* Recent uploads */}
       <div className="mt-6 card">

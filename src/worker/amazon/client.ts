@@ -1,3 +1,5 @@
+import { z } from 'zod';
+import { amazonProductUrl, tagAmazonProduct, ASIN_RE, type AmazonReportFile } from '../../shared/amazon';
 import type { Product } from '../../shared/types';
 import { MOCK_AMAZON_PRODUCTS } from './fixtures';
 
@@ -100,18 +102,73 @@ export async function signPaapiRequest(opts: {
   };
 }
 
+export class AmazonApiError extends Error {
+  constructor(
+    readonly code: string,
+    message: string
+  ) {
+    super(message);
+  }
+}
+
+function amazonError(
+  status: number,
+  data: { reason?: string; type?: string; errors?: { code?: string }[] },
+  authentication = false
+) {
+  const code = data.reason || data.errors?.[0]?.code || data.type;
+  if (code === 'AssociateNotEligible')
+    return new AmazonApiError(
+      code,
+      'Amazon accepted your credentials, but this Associates account is not eligible for live catalog access.'
+    );
+  if (code === 'InvalidPartnerTag' || code === 'PartnerTagNotMapped')
+    return new AmazonApiError(
+      code,
+      'Amazon rejected the tracking ID for this store. Check the tracking ID and marketplace in Settings.'
+    );
+  if (status === 429)
+    return new AmazonApiError('RateLimited', 'Amazon is limiting requests. Wait a minute and try again.');
+  if (status === 401 || (authentication && status === 400))
+    return new AmazonApiError(
+      'AuthenticationFailed',
+      'Amazon could not authenticate the connection. Check the credential pair and its version.'
+    );
+  if (status === 403)
+    return new AmazonApiError('AccessDenied', 'Amazon denied access to this operation for the selected store.');
+  if (status === 404) return new AmazonApiError('NotFound', 'Amazon could not find that item or report in this store.');
+  return new AmazonApiError('AmazonUnavailable', 'Amazon could not complete this request. Try again later.');
+}
+
+const reportSchema = z.object({
+  filename: z.string().min(1).max(512),
+  reportType: z.string().max(100).optional(),
+  lastModified: z.string().max(80).optional(),
+});
+
 export class AmazonCreatorsClient {
   private credentials?: AmazonCredentials;
   private live: boolean;
   private marketplace: string;
   lastError: string | null = null;
+  lastErrorCode: string | null = null;
+
+  hasCreatorsCredentials(): boolean {
+    return !!(
+      this.credentials?.credentialId &&
+      this.credentials.credentialSecret &&
+      this.credentials.credentialVersion
+    );
+  }
 
   constructor(credentials?: AmazonCredentials) {
     this.credentials = credentials;
     this.marketplace =
       credentials?.marketplace && HOSTS[credentials.marketplace] ? credentials.marketplace : 'amazon.com';
     const hasCreatorsCredentials = !!(
-      credentials?.credentialId && credentials.credentialSecret && credentials.credentialVersion
+      credentials?.credentialId &&
+      credentials.credentialSecret &&
+      credentials.credentialVersion
     );
     const hasLegacyCredentials = !!(credentials?.accessKey && credentials?.secretKey);
     this.live = !!credentials?.partnerTag && (hasCreatorsCredentials || hasLegacyCredentials);
@@ -135,13 +192,16 @@ export class AmazonCreatorsClient {
 
   private async getCreatorsAccessToken(): Promise<string> {
     const { credentialId, credentialSecret, credentialVersion } = this.credentials || {};
-    if (!credentialId || !credentialSecret || !credentialVersion) throw new Error('Creators API credentials are incomplete');
+    if (!credentialId || !credentialSecret || !credentialVersion)
+      throw new AmazonApiError('NotConfigured', 'Save Creators API credentials in Settings first.');
     const key = await sha256(JSON.stringify([credentialId, credentialSecret, credentialVersion]));
     const cached = tokenCache.get(key);
     if (cached && cached.expiresAt > Date.now() + 60_000) return cached.token;
 
     const response = await fetch(TOKEN_ENDPOINTS[credentialVersion], {
       method: 'POST',
+      signal: AbortSignal.timeout(8000),
+      redirect: 'error',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         grant_type: 'client_credentials',
@@ -153,10 +213,9 @@ export class AmazonCreatorsClient {
     const data = (await response.json().catch(() => ({}))) as {
       access_token?: string;
       expires_in?: number;
-      error_description?: string;
     };
     if (!response.ok || !data.access_token) {
-      throw new Error(data.error_description || `Amazon token request failed (${response.status})`);
+      throw amazonError(response.status, {}, true);
     }
     const lifetimeMs = Math.max(60, Math.min(data.expires_in || 3600, 3600)) * 1000;
     tokenCache.set(key, { token: data.access_token, expiresAt: Date.now() + lifetimeMs });
@@ -179,9 +238,11 @@ export class AmazonCreatorsClient {
   }
 
   async searchItems(keywords: string, creatorId: string): Promise<Product[]> {
+    this.lastError = null;
+    this.lastErrorCode = null;
     if (!this.live) return this.sample(creatorId, keywords);
     if (this.credentials?.credentialId && this.credentials.credentialSecret && this.credentials.credentialVersion) {
-      return this.creatorsItems({ keywords: keywords.slice(0,200), itemCount: 10 }, creatorId);
+      return this.creatorsItems('searchItems', { keywords: keywords.slice(0, 200), itemCount: 10 }, creatorId);
     }
 
     const { host, region, currency } = HOSTS[this.marketplace];
@@ -205,7 +266,13 @@ export class AmazonCreatorsClient {
         body,
         target: 'com.amazon.paapi5.v1.ProductAdvertisingAPIv1.SearchItems',
       });
-      const res = await fetch(`https://${host}${path}`, { method: 'POST', headers, body });
+      const res = await fetch(`https://${host}${path}`, {
+        method: 'POST',
+        headers,
+        body,
+        signal: AbortSignal.timeout(8000),
+        redirect: 'error',
+      });
       interface PaapiItem {
         ASIN: string;
         ItemInfo?: { Title?: { DisplayValue?: string }; Features?: { DisplayValues?: string[] } };
@@ -249,40 +316,110 @@ export class AmazonCreatorsClient {
         };
       });
     } catch (err: unknown) {
-      this.lastError = err instanceof Error ? err.message : 'Amazon request failed';
-      console.warn('[Amazon] live search failed, showing sample catalog:', this.lastError);
-      return this.sample(creatorId, keywords);
+      this.lastError =
+        err instanceof Error && err.name === 'TimeoutError'
+          ? 'Amazon timed out.'
+          : 'The legacy Product Advertising API could not complete this request. Connect Creators API credentials in Settings.';
+      this.lastErrorCode = 'LegacyApiFailed';
+      return [];
     }
   }
 
-  private async creatorsItems(query: {keywords: string; itemCount: number} | {itemIds: string[]; itemIdType: 'ASIN'}, creatorId: string): Promise<Product[]> {
-    const { currency } = HOSTS[this.marketplace];
-    const marketplace = `www.${this.marketplace}`;
-    const body = JSON.stringify({
-      ...query,
-      partnerTag: this.credentials!.partnerTag,
-      marketplace,
-      resources: [
-        'images.primary.large',
-        'itemInfo.title',
-        'itemInfo.features',
-        'offersV2.listings.price',
-        'offersV2.listings.availability',
-      ],
-    });
-
+  private async requestCreators<T>(
+    scope: 'catalog' | 'reports',
+    operation: 'searchItems' | 'getItems' | 'getVariations' | 'getBrowseNodes' | 'listReports' | 'getReport',
+    payload?: object
+  ): Promise<T> {
     try {
-      const accessToken = await this.getCreatorsAccessToken();
-      const operation = 'itemIds' in query ? 'getItems' : 'searchItems';
-      const response = await fetch(`https://creatorsapi.amazon/catalog/v1/${operation}`, {
+      const token = await this.getCreatorsAccessToken();
+      const marketplace = `www.${this.marketplace}`;
+      const body = scope === 'catalog' ? { ...payload, marketplace, partnerTag: this.getPartnerTag() } : payload;
+      const response = await fetch(`https://creatorsapi.amazon/${scope}/v1/${operation}`, {
         method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(8000),
         headers: {
-          authorization: `Bearer ${accessToken}`,
-          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
           'x-marketplace': marketplace,
+          accept: 'application/json',
+          ...(body ? { 'content-type': 'application/json' } : {}),
         },
-        body,
+        body: body ? JSON.stringify(body) : undefined,
       });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw amazonError(response.status, data || {});
+      if (!data) throw amazonError(502, {});
+      return data as T;
+    } catch (err) {
+      if (err instanceof AmazonApiError) throw err;
+      throw amazonError(502, {});
+    }
+  }
+
+  async listReports(): Promise<AmazonReportFile[]> {
+    const data = await this.requestCreators<unknown>('reports', 'listReports');
+    const parsed = z.object({ reports: z.array(reportSchema).optional() }).safeParse(data);
+    if (!parsed.success) throw amazonError(502, {});
+    return parsed.data.reports || [];
+  }
+
+  async getReportDownload(filename: string): Promise<string> {
+    const data = await this.requestCreators<{ url?: string }>('reports', 'getReport', { filename });
+    const url = URL.parse(data.url || '');
+    if (
+      !url ||
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      !/(^|\.)s3(?:[.-][a-z0-9-]+)?\.amazonaws\.com$/i.test(url.hostname)
+    )
+      throw amazonError(502, {});
+    return url.href;
+  }
+
+  async getVariations(asin: string, creatorId: string, page: number): Promise<Product[]> {
+    if (!this.getPartnerTag()) {
+      this.lastError = 'Save your Associates tracking ID in Settings first.';
+      this.lastErrorCode = 'NotConfigured';
+      return [];
+    }
+    return this.creatorsItems('getVariations', { asin, variationPage: page }, creatorId);
+  }
+
+  async getBrowseNodes(ids: string[]) {
+    const schema = z.object({
+      browseNodesResult: z
+        .object({
+          browseNodes: z.array(
+            z.object({
+              id: z.string(),
+              displayName: z.string(),
+              children: z.array(z.object({ id: z.string(), displayName: z.string() })).optional(),
+            })
+          ),
+        })
+        .optional(),
+    });
+    const parsed = schema.safeParse(
+      await this.requestCreators<unknown>('catalog', 'getBrowseNodes', {
+        browseNodeIds: ids,
+        resources: ['browseNodes.children'],
+      })
+    );
+    if (!parsed.success) throw amazonError(502, {});
+    return parsed.data.browseNodesResult?.browseNodes || [];
+  }
+
+  private async creatorsItems(
+    operation: 'getItems' | 'searchItems' | 'getVariations',
+    query: object,
+    creatorId: string
+  ): Promise<Product[]> {
+    this.lastError = null;
+    this.lastErrorCode = null;
+    const { currency } = HOSTS[this.marketplace];
+    try {
       interface CreatorsItem {
         asin?: string;
         itemInfo?: {
@@ -302,18 +439,27 @@ export class AmazonCreatorsClient {
         errors?: Array<{ message?: string }>;
         searchResult?: { items?: CreatorsItem[] };
         itemsResult?: { items?: CreatorsItem[] };
+        variationsResult?: { items?: CreatorsItem[] };
       }
-      const data = (await response.json().catch(() => ({}))) as CreatorsSearchResponse;
-      if (!response.ok) {
-        throw new Error(data.errors?.[0]?.message || `Amazon returned ${response.status}`);
-      }
+      const data = await this.requestCreators<CreatorsSearchResponse>('catalog', operation, {
+        ...query,
+        resources: [
+          'images.primary.large',
+          'itemInfo.title',
+          'itemInfo.features',
+          'offersV2.listings.price',
+          'offersV2.listings.availability',
+        ],
+      });
       const now = new Date().toISOString();
-      return (data.itemsResult?.items || data.searchResult?.items || [])
-        .filter((item): item is CreatorsItem & { asin: string } => !!item.asin)
+      return (data.itemsResult?.items || data.searchResult?.items || data.variationsResult?.items || [])
+        .filter((item): item is CreatorsItem & { asin: string } => !!item.asin && ASIN_RE.test(item.asin))
         .map((item): Product => {
           const listing = item.offersV2?.listings?.[0];
-          const availability = listing?.availability?.message ||
-            listing?.availability?.type?.toLowerCase().replaceAll('_', ' ') || 'Check availability';
+          const availability =
+            listing?.availability?.message ||
+            listing?.availability?.type?.toLowerCase().replaceAll('_', ' ') ||
+            'Check availability';
           return {
             id: `prod_${item.asin.toLowerCase()}`,
             creator_id: creatorId,
@@ -323,7 +469,9 @@ export class AmazonCreatorsClient {
             price_timestamp: this.timestamp(),
             currency: listing?.price?.money?.currency || currency,
             image_url: item.images?.primary?.large?.url || '',
-            product_url: item.detailPageURL || `https://www.${this.marketplace}/dp/${item.asin}`,
+            product_url:
+              amazonProductUrl(item.detailPageURL || '', this.marketplace)?.href ||
+              `https://www.${this.marketplace}/dp/${item.asin}`,
             features_json: JSON.stringify(item.itemInfo?.features?.displayValues || []),
             specs_json: '{}',
             pros_cons_json: JSON.stringify({ pros: [], cons: [] }),
@@ -334,9 +482,10 @@ export class AmazonCreatorsClient {
           };
         });
     } catch (err: unknown) {
-      this.lastError = err instanceof Error ? err.message : 'Amazon Creators API request failed';
-      console.warn('[Amazon] Creators API search failed, showing sample catalog:', this.lastError);
-      return 'keywords' in query ? this.sample(creatorId,query.keywords) : [];
+      const failure = err instanceof AmazonApiError ? err : amazonError(502, {});
+      this.lastError = failure.message;
+      this.lastErrorCode = failure.code;
+      return [];
     }
   }
 
@@ -344,23 +493,17 @@ export class AmazonCreatorsClient {
     if (!this.live) return this.sample(creatorId).filter((p) => asins.includes(p.asin));
     if (!asins.length) return [];
     if (this.credentials?.credentialId && this.credentials.credentialSecret && this.credentials.credentialVersion) {
-      return this.creatorsItems({ itemIds: asins.slice(0,10), itemIdType: 'ASIN' }, creatorId);
+      return this.creatorsItems('getItems', { itemIds: asins.slice(0, 10), itemIdType: 'ASIN' }, creatorId);
     }
     const results = await this.searchItems(asins[0], creatorId);
-    return results.filter(product => asins.includes(product.asin));
+    return results.filter((product) => asins.includes(product.asin));
   }
 
   /** Adds the creator's tracking ID. Without one the URL is returned untouched */
   buildAffiliateUrl(originalUrl: string, customPartnerTag?: string): string {
     const tag = customPartnerTag || this.getPartnerTag();
     if (!tag) return originalUrl;
-    try {
-      const u = new URL(originalUrl);
-      u.searchParams.set('tag', tag);
-      return u.toString();
-    } catch {
-      return originalUrl;
-    }
+    return tagAmazonProduct(originalUrl, this.marketplace, tag) || originalUrl;
   }
 
   getMandatoryDisclosure(): string {

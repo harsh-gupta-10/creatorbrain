@@ -210,11 +210,16 @@ export class DBClient {
   async saveProduct(product: Product): Promise<void> {
     await this.db
       .prepare(
-        `INSERT OR REPLACE INTO products (
+        `INSERT INTO products (
           id, creator_id, asin, title, price_str, price_timestamp, currency,
           image_url, product_url, features_json, specs_json, pros_cons_json,
           is_mock, availability, last_checked_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET title=excluded.title, price_str=excluded.price_str,
+          price_timestamp=excluded.price_timestamp, currency=excluded.currency, image_url=excluded.image_url,
+          product_url=excluded.product_url, features_json=excluded.features_json, specs_json=excluded.specs_json,
+          pros_cons_json=excluded.pros_cons_json, is_mock=excluded.is_mock, availability=excluded.availability,
+          last_checked_at=excluded.last_checked_at WHERE products.creator_id=excluded.creator_id`
       )
       .bind(
         product.id,
@@ -444,46 +449,33 @@ export class DBClient {
       .run();
   }
 
-  async getEarningsReports(creatorId: string): Promise<EarningsReport[]> {
+  async getEarningsReports(creatorId: string, marketplace: string): Promise<EarningsReport[]> {
     const res = await this.db
-      .prepare('SELECT * FROM earnings_reports WHERE creator_id = ? ORDER BY report_date DESC')
-      .bind(creatorId)
+      .prepare('SELECT * FROM earnings_reports WHERE creator_id = ? AND marketplace = ? ORDER BY report_date DESC')
+      .bind(creatorId, marketplace)
       .all<EarningsReport>();
     return res.results || [];
   }
 
   async importEarnings(
     creatorId: string,
+    marketplace: string,
     rows: Omit<EarningsReport, 'id' | 'creator_id' | 'created_at'>[]
   ): Promise<number> {
-    const stmts: D1PreparedStatement[] = [];
-    for (const r of rows) {
-      stmts.push(
-        this.db
-          .prepare(
-            `INSERT INTO earnings_reports (
-              id, creator_id, report_date, asin, product_title, items_ordered,
-              items_shipped, revenue, commission, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
-            `earn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            creatorId,
-            r.report_date,
-            r.asin || null,
-            r.product_title || null,
-            r.items_ordered,
-            r.items_shipped,
-            r.revenue,
-            r.commission,
-            new Date().toISOString()
-          )
-      );
-    }
-    if (stmts.length > 0) {
-      await this.db.batch(stmts);
-    }
-    return stmts.length;
+    const dates = [...new Set(rows.map(row => row.report_date))];
+    const stmts = [this.db.prepare(
+      `DELETE FROM earnings_reports WHERE creator_id = ? AND marketplace = ?
+        AND report_date IN (SELECT value FROM json_each(?))`
+    ).bind(creatorId, marketplace, JSON.stringify(dates))];
+    stmts.push(this.db.prepare(`INSERT INTO earnings_reports (
+      id, creator_id, report_date, asin, product_title, items_ordered, items_shipped, revenue, commission, created_at, marketplace
+    ) SELECT json_extract(value, '$.id'), ?, json_extract(value, '$.report_date'), json_extract(value, '$.asin'),
+      json_extract(value, '$.product_title'), json_extract(value, '$.items_ordered'), json_extract(value, '$.items_shipped'),
+      json_extract(value, '$.revenue'), json_extract(value, '$.commission'), ?, ?
+    FROM json_each(?)`).bind(creatorId, new Date().toISOString(), marketplace,
+      JSON.stringify(rows.map(row => ({ ...row, id: `earn_${crypto.randomUUID()}` })))));
+    await this.db.batch(stmts);
+    return rows.length;
   }
 
   async deleteCreatorData(creatorId: string): Promise<void> {

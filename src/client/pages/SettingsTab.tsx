@@ -63,6 +63,8 @@ export const SettingsTab: React.FC = () => {
   const [credentialSecret, setCredentialSecret] = useState('');
   const [credentialVersion, setCredentialVersion] = useState('');
   const [savingAmazon, setSavingAmazon] = useState(false);
+  const [testingAmazon, setTestingAmazon] = useState(false);
+  const [amazonTestStatus, setAmazonTestStatus] = useState('');
 
   const [deleting, setDeleting] = useState(false);
   const [securityPassword, setSecurityPassword] = useState('');
@@ -175,6 +177,7 @@ export const SettingsTab: React.FC = () => {
     e.preventDefault();
     try {
       setSavingAmazon(true);
+      setAmazonTestStatus('');
       setSectionError('amazon', null);
       await api.settings.updateAmazon({
         credentialId: credentialId.trim() || undefined,
@@ -191,6 +194,22 @@ export const SettingsTab: React.FC = () => {
       setSectionError('amazon', errMessage(err, 'Could not save Amazon credentials'));
     } finally {
       setSavingAmazon(false);
+    }
+  };
+
+  const handleTestAmazon = async () => {
+    setTestingAmazon(true);
+    setAmazonTestStatus('');
+    setSectionError('amazon', null);
+    try {
+      const result = await api.amazon.search('notebook');
+      if (result.liveError) setSectionError('amazon', result.liveError);
+      else if (result.isMock) setSectionError('amazon', 'Save both your tracking ID and Creators API credentials before testing live search.');
+      else setAmazonTestStatus(`Amazon accepted the catalog request for ${result.marketplace}.`);
+    } catch (err) {
+      setSectionError('amazon', errMessage(err, 'Could not test Amazon catalog access'));
+    } finally {
+      setTestingAmazon(false);
     }
   };
 
@@ -496,9 +515,9 @@ export const SettingsTab: React.FC = () => {
             <span className="text-fg-2">
               {data?.amazonConfig.hasCredentials
                 ? data.amazonConfig.apiType === 'creators'
-                  ? `Creators API connected · ${data.amazonConfig.credentialVersion ? `v${data.amazonConfig.credentialVersion}` : 'version unavailable'}`
+                  ? `Creators API credentials saved · ${data.amazonConfig.credentialVersion ? `v${data.amazonConfig.credentialVersion}` : 'version unavailable'}`
                   : 'Older Product Advertising API keys stored · add Creators API credentials to switch'
-                : 'Not connected · product search uses sample items'}
+                : 'No catalog credentials saved'}
             </span>
           </div>
 
@@ -598,12 +617,18 @@ export const SettingsTab: React.FC = () => {
           {errors.amazon && <ErrorNote>{errors.amazon}</ErrorNote>}
 
           <div className="flex items-center gap-3">
-            <button type="submit" disabled={savingAmazon} aria-busy={savingAmazon} className="btn btn-secondary btn-sm">
+            <button type="submit" disabled={savingAmazon || testingAmazon} aria-busy={savingAmazon} className="btn btn-secondary btn-sm">
               {savingAmazon && <Spinner />}
               Save Amazon connection
             </button>
+            <button type="button" disabled={savingAmazon || testingAmazon || !data?.amazonConfig.hasCredentials}
+              onClick={handleTestAmazon} className="btn btn-secondary btn-sm">
+              {testingAmazon && <Spinner />}
+              Test saved catalog access
+            </button>
             <SavedNote show={saved?.section === 'amazon'} />
           </div>
+          {amazonTestStatus && <p role="status" className="text-[13px]">{amazonTestStatus}</p>}
         </form>
       </SettingsSection>
 
