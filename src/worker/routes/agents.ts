@@ -1,3 +1,5 @@
+import { readWatchReview, updateWatchReview } from '../lib/competitor-watch';
+import { WorkspaceResultBusy } from '../lib/workspace-results';
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { DBClient } from '../db/queries';
@@ -110,5 +112,26 @@ agentsRoutes.post('/saved/:id/run', async (c) => {
   } catch (error) {
     if (error instanceof AgentRunError) return c.json({ error: error.message }, error.status);
     throw error;
+  }
+});
+
+agentsRoutes.get('/saved/:id/watch', async (c) => {
+  const creatorId = c.get('creator').id;
+  const agent = await c.env.DB.prepare("SELECT id FROM saved_agents WHERE id=? AND creator_id=? AND kind='competitor'")
+    .bind(c.req.param('id'), creatorId).first<{ id: string }>();
+  if (!agent) return c.json({ error: 'Watchlist channel not found.' }, 404);
+  return c.json({ review: await readWatchReview(c.env.DB, creatorId, agent.id) });
+});
+
+agentsRoutes.post('/saved/:id/watch', async (c) => {
+  const creatorId = c.get('creator').id;
+  const agent = await c.env.DB.prepare("SELECT id,channel FROM saved_agents WHERE id=? AND creator_id=? AND kind='competitor'")
+    .bind(c.req.param('id'), creatorId).first<{ id: string; channel: string }>();
+  if (!agent) return c.json({ error: 'Watchlist channel not found.' }, 404);
+  try {
+    return c.json({ review: await updateWatchReview(c.env, creatorId, agent) });
+  } catch (error) {
+    if (error instanceof WorkspaceResultBusy) return c.json({ error: error.message }, 409);
+    return c.json({ error: 'Could not read public uploads right now. Check the YouTube handle and try again.' }, 422);
   }
 });

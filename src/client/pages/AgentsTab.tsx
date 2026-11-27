@@ -86,7 +86,7 @@ const toolLabel = (tool?: string) => {
   return known[tool] || tool.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (letter) => letter.toUpperCase());
 };
 
-export const AgentsTab: React.FC = () => {
+export const AgentsTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
   const [traces, setTraces] = useState<AgentTrace[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRunningAgents, setIsRunningAgents] = useState(false);
@@ -167,7 +167,7 @@ export const AgentsTab: React.FC = () => {
         )}
       </div>
 
-      <SavedAgents onRun={loadTraces} />
+      <SavedAgents onRun={loadTraces} readOnly={readOnly} />
 
       {recommendation && (
         <section className="card p-5 md:p-6 mb-8" aria-labelledby="next-action-title">

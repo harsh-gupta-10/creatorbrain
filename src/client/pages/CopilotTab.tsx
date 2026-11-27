@@ -107,17 +107,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     setLoading(true);
 
     try {
-      const history = messages
-        .filter((m) => !m.isError)
-        .slice(-6)
-        .map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
       const res = await api.copilot.chat({
         message: text,
-        history,
         mode: activeMode,
       });
 

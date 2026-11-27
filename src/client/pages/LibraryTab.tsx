@@ -1,3 +1,4 @@
+import { ClipFinder } from '../components/ClipFinder';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Play,
@@ -149,6 +150,11 @@ export const LibraryTab: React.FC = () => {
           <ErrorNote>{error}</ErrorNote>
         </div>
       )}
+
+      <details className="card p-4 mb-4">
+        <summary className="cursor-pointer font-medium">Find a clip in your videos</summary>
+        <div className="mt-3"><ClipFinder /></div>
+      </details>
 
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <Segmented<Filter>

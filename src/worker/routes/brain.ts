@@ -1,3 +1,4 @@
+import { findingIdentity, readBrainControls } from '../lib/creator-planning';
 import { getChatSuggestions } from '../agents/suggestions';
 import { readToolMemory } from '../lib/workspace-evidence';
 import { z } from 'zod';
@@ -12,11 +13,20 @@ brainRoutes.get('/graph', async (c) => {
   const creator = c.get('creator');
 
   const dbClient = new DBClient(c.env.DB);
-  const [graph, learnings, toolMemory] = await Promise.all([
+  const [original, learnings, toolMemory, controls] = await Promise.all([
     dbClient.getBrainGraph(creator.id),
     dbClient.getLearnings(creator.id, 5),
     readToolMemory(c.env.DB, creator.id),
+    readBrainControls(c.env.DB, creator.id),
   ]);
+  const overrides = new Map(controls.map((item) => [JSON.stringify(findingIdentity(item.type, item.label)), item]));
+  const nodes = original.nodes.flatMap((node) => {
+    const override = overrides.get(JSON.stringify(findingIdentity(node.type, node.label)));
+    if (override?.state === 'dismissed') return [];
+    return [override?.state === 'corrected' ? { ...node, label: override.note, description: override.note } : node];
+  });
+  const ids = new Set(nodes.map(({ id }) => id));
+  const graph = { nodes, edges: original.edges.filter((edge) => ids.has(edge.source_id) && ids.has(edge.target_id)) };
 
   const nodeCounts = {
     total: graph.nodes.length,

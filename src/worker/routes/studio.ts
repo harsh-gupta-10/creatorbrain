@@ -140,7 +140,7 @@ studioRoutes.post('/chat', async (c) => {
   if (!project) return c.json({ error: 'Project not found' }, 404);
 
   const history = await loadThread(c.env.DB, creator.id, `studio:${projectId}`, 12);
-  const context = conversationContext(history, project);
+  const context = conversationContext(history, project, message);
   const report = await requestedAgent(c.env, creator, message, context);
   if (report) {
     await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
@@ -156,7 +156,7 @@ studioRoutes.post('/chat', async (c) => {
         .first<Product>()
     : null;
   const tool = await runChatTool({
-    env: c.env, creator, message, history, origin, topic: project.title,
+    env: c.env, creator, message, history, origin, topic: project.title, project,
     productReference: isShortenRequest(message)
       ? productAsin || attached?.product_url || explicitAmazonProduct(project.brief || '') || explicitAmazonProduct(project.title)
       : undefined,
@@ -170,7 +170,7 @@ studioRoutes.post('/chat', async (c) => {
   }
   const plan = productAsin
     ? { action: 'link' as const, product: productAsin }
-    : await planChat(router, creator.id, message, context);
+    : await planChat(c.env.DB, router, creator.id, message, context);
   const query =
     plan.product || attached?.product_url || explicitAmazonProduct(project.brief || '') ||
     explicitAmazonProduct(project.title) || project.title;
@@ -210,7 +210,7 @@ studioRoutes.post('/chat', async (c) => {
     }
     await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
       { role: 'user', content: message },
-      { role: 'assistant', content: reply, meta: { affiliateLinks: lookup?.affiliateLinks } },
+      { role: 'assistant', content: reply, meta: { affiliateLinks: lookup?.affiliateLinks, reusableAnswer: type === 'chat' && !lookup } },
     ], lookup?.affiliateLinks?.length ? 'affiliate_link' : undefined);
     return c.json({
       reply,

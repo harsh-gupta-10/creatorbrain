@@ -6,7 +6,7 @@
  * input validation, encrypted per-creator Amazon credentials, security headers,
  * and escaping on the public creator page. No external AI or YouTube calls are made.
  */
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { rmSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { unstable_dev } from 'wrangler';
@@ -709,5 +709,141 @@ it('grounds chat suggestions in the sample Brain and imported views', async () =
       expect.objectContaining({ id: 'brain', reason: expect.stringContaining('Brain recorded') }),
       expect.objectContaining({ id: 'video', reason: expect.stringContaining('recorded views') }),
     ]),
+  });
+});
+
+describe('Creator workflows', () => {
+  it('captures publication metrics, creates reusable placement links, and scopes projects and clips to their owner', async () => {
+    const owner = client(), other = client();
+    const { res } = await signup(owner);
+    const { creator } = await res.json() as { creator: { id: string } };
+    await signup(other);
+    const project = (await (await owner('/api/studio/projects', {
+      method: 'POST', json: { title: 'Arduino radio projects', brief: 'A first build.' },
+    })).json() as { project: { id: string } }).project;
+    const draft = 'Line one.\nShow the setup after the result.';
+    const sourceDate = new Date(Date.now() - 7 * 86400000).toISOString();
+    const recorded = new Date().toISOString();
+    const quote = (s: string) => "'" + s.replaceAll("'", "''") + "'";
+    const prefix = 'workflow-' + uniq();
+    const ids = [0, 1, 2, 3].map((n) => prefix + '-' + n);
+    const rows = ids.map((id, index) => [
+      id, creator.id, 'youtube', 'radio' + index, 'Arduino radio ' + index,
+      JSON.stringify([{ start: 23.8, text: 'The Arduino radio is getting its signal from this antenna.' }]),
+      'captions-manual', null, sourceDate, recorded, recorded, recorded
+    ].map((value) => value === null ? String([800, 1000, 1500, 2500][index]) : quote(value)).join(','));
+    execFileSync('npx', ['wrangler', 'd1', 'execute', 'creatorbrain-db', '--local', '--persist-to', PERSIST, '--command', `
+      INSERT INTO content_items(id,creator_id,platform,external_id,title,transcript,transcript_source,views,published_at,created_at,updated_at,analyzed_at)
+      VALUES (${rows.join('),(')});
+      INSERT INTO assets(id,project_id,creator_id,type,title,content,created_at,updated_at)
+      VALUES (${[prefix + '-script', project.id, creator.id, 'short_script', 'Short script', draft, recorded, recorded].map(quote).join(',')});
+      INSERT INTO nodes(id,creator_id,type,label,description,created_at,updated_at,content_item_id)
+      VALUES (${[prefix + '-node', creator.id, 'Hook', 'Open with the test result', 'The video starts with a working signal.', recorded, recorded, ids[0]].map(quote).join(',')});
+    `], { stdio: 'ignore' });
+
+    const path = '/api/workflows/project/' + project.id;
+    expect((await other(path + '/publication')).status).toBe(404);
+    const attach = await owner(path + '/publication', { method: 'PUT', json: { contentId: ids[0] } });
+    expect(attach.status).toBe(200);
+    expect(await attach.json()).toMatchObject({
+      video: { title: 'Arduino radio 0', snapshot: { views: 800 } },
+      baseline: { median: 1500, uploads: 3 },
+    });
+    const options = await (await other('/api/workflows/publication-options')).json();
+    expect(options).toEqual({ videos: [] });
+
+    const kit = () => owner(path + '/link-kit', { method: 'POST', json: { destination: 'https://example.com/radio' } });
+    const firstKit = await kit();
+    expect(firstKit.status).toBe(200);
+    const { links } = await firstKit.json() as { links: Array<{ placement: string; slug: string }> };
+    expect(new Set(links.map(({ slug }) => slug)).size).toBe(3);
+    expect(links.map(({ placement }) => placement).sort()).toEqual(['bio', 'description', 'pinned_comment']);
+    expect(await (await kit()).json()).toEqual({ links });
+    expect((await other(path + '/link-kit')).status).toBe(404);
+    const alias = await fetch(base + '/s/' + links[0].slug, { redirect: 'manual' });
+    expect(alias.headers.get('location')).toBe('https://example.com/radio');
+
+    const clips = await owner('/api/workflows/clips?query=Arduino+radio');
+    expect(clips.status).toBe(200);
+    expect(await clips.json()).toMatchObject({ clips: expect.arrayContaining([
+      expect.objectContaining({ start: 23, url: expect.stringContaining('&t=23s') }),
+    ]) });
+    expect(await (await other('/api/workflows/clips?query=Arduino+radio')).json()).toEqual({ clips: [] });
+
+    const brain = await owner('/api/workflows/memory', { method: 'PUT', json: { state: 'preference', note: 'Speak in Roman Hindi.' } });
+    expect(brain.status).toBe(200);
+    expect(await (await owner('/api/workflows/memory')).json()).toMatchObject({
+      controls: [expect.objectContaining({ state: 'preference', note: 'Speak in Roman Hindi.' })],
+    });
+    expect(await (await other('/api/workflows/memory')).json()).toMatchObject({ controls: [] });
+
+    const memories = await (await owner('/api/workflows/memory')).json();
+    expect(memories).toMatchObject({ findings: [
+      expect.objectContaining({ label: 'Open with the test result', sources: [expect.objectContaining({ title: 'Arduino radio 0' })] }),
+    ] });
+    const correct = { method: 'PUT', json: { state: 'corrected', nodeId: prefix + '-node', note: 'Open with the working radio' } };
+    expect((await other('/api/workflows/memory', correct)).status).toBe(404);
+    expect((await owner('/api/workflows/memory', correct)).status).toBe(200);
+    expect(await (await owner('/api/brain/graph')).json()).toMatchObject({ graph: { nodes: [
+      expect.objectContaining({ label: 'Open with the working radio' }),
+    ] } });
+    expect((await owner('/api/workflows/memory', { method: 'PUT', json: { state: 'dismissed', nodeId: prefix + '-node' } })).status).toBe(200);
+    expect(await (await owner('/api/brain/graph')).json()).toMatchObject({ graph: { nodes: [] } });
+
+    const plan = await (await owner('/api/workflows/weekly-plan')).json() as { actions: { id: string }[] };
+    expect(plan.actions.some((action) => action.id === 'review:' + project.id)).toBe(true);
+    const snooze = await owner('/api/workflows/weekly-plan/snooze', { method: 'POST', json: { id: 'review:' + project.id } });
+    expect(snooze.status).toBe(200);
+    const nextPlan = await snooze.json() as { actions: { id: string }[] };
+    expect(nextPlan.actions.some((action) => action.id === 'review:' + project.id)).toBe(false);
+
+    const { workspaceDigest } = await import('../../src/worker/lib/workspace-results');
+    const draftKey = await workspaceDigest([prefix + '-script', draft]);
+    const edit = { method: 'PATCH', json: { type: 'short_script', line: 2, draftKey, replacement: 'Show the setup first.' } };
+    expect((await other(path + '/script-line', edit)).status).toBe(404);
+    expect((await owner(path + '/script-line', edit)).status).toBe(200);
+    expect((await owner(path + '/script-line', edit)).status).toBe(409);
+    expect(await (await owner('/api/studio/projects/' + project.id)).json()).toMatchObject({
+      assets: [expect.objectContaining({ content: 'Line one.\nShow the setup first.' })],
+    });
+
+    const studio = (message: string) => owner('/api/studio/chat', { method: 'POST', json: { projectId: project.id, message } });
+    expect(await (await studio('/publication')).json()).toMatchObject({ reply: expect.stringContaining('800 recorded views near day seven') });
+    expect(await (await studio('/clips antenna')).json()).toMatchObject({ reply: expect.stringContaining('&t=23s') });
+  }, 60_000);
+
+  it('gates watchlist history by saved agent ownership and keeps sample writes blocked', async () => {
+    const owner = client(), other = client(), sample = client();
+    const { res } = await signup(owner);
+    const { creator } = await res.json() as { creator: { id: string } };
+    await signup(other);
+    const created = await owner('/api/agents/saved', { method: 'POST', json: {
+      kind: 'competitor', channel: '@test', name: 'Watch test uploads', focus: 'Study repair topics',
+    } });
+    const { agent } = await created.json() as { agent: { id: string } };
+    const path = '/api/agents/saved/' + agent.id + '/watch';
+    expect(await (await owner(path)).json()).toEqual({ review: null });
+    expect((await other(path)).status).toBe(404);
+    const channel = { channel: 'Repair videos', url: 'https://www.youtube.com/@test', outliers: [] };
+    const prior = {
+      ...channel, checkedAt: '2026-10-01T09:00:00Z',
+      uploads: [{ id: 'old', title: 'Before', views: 300, url: 'https://www.youtube.com/watch?v=old', publishedAt: '2026-10-01T08:00:00Z' }],
+    };
+    const latest = {
+      ...channel, checkedAt: new Date().toISOString(),
+      uploads: [{ id: 'new', title: 'After', views: 900, url: 'https://www.youtube.com/watch?v=new', publishedAt: '2026-11-01T08:00:00Z' }, ...prior.uploads],
+    };
+    const fixture = [agent.id, creator.id, JSON.stringify(latest), JSON.stringify(prior)]
+      .map((value) => "'" + value.replaceAll("'", "''") + "'").join(',');
+    execFileSync('npx', ['wrangler', 'd1', 'execute', 'creatorbrain-db', '--local', '--persist-to', PERSIST, '--command',
+      'INSERT INTO competitor_watch_snapshots(agent_id,creator_id,current_json,previous_json) VALUES (' + fixture + ');',
+    ], { stdio: 'ignore' });
+    expect(await (await owner(path, { method: 'POST' })).json()).toMatchObject({ review: {
+      previousCheckedAt: prior.checkedAt, newUploads: [expect.objectContaining({ title: 'After' })],
+    } });
+
+    await sample('/api/auth/sample', { method: 'POST' });
+    expect((await sample('/api/workflows/memory', { method: 'PUT', json: { state: 'preference', note: 'Test' } })).status).toBe(403);
+    expect((await sample('/api/workflows/weekly-plan')).status).toBe(200);
   });
 });

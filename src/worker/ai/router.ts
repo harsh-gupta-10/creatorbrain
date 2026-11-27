@@ -26,10 +26,9 @@ export class AIRouter {
   private workersAi?: WorkersAIProvider;
   private mock: MockAIProvider;
   private budgetManager: AIBudgetManager;
-  private kv?: KVNamespace;
+
 
   constructor(env: AIRouterEnv) {
-    this.kv = env.KV;
     this.budgetManager = new AIBudgetManager(env.KV);
     this.mock = new MockAIProvider();
 
@@ -72,39 +71,12 @@ export class AIRouter {
     };
   }
 
-  private async getCachedResult(key: string): Promise<string | null> {
-    if (!this.kv) return null;
-    return await this.kv.get(`ai_cache:${key}`);
-  }
-
-  private async setCachedResult(key: string, val: string): Promise<void> {
-    if (!this.kv) return;
-    // Cache for 24 hours
-    await this.kv.put(`ai_cache:${key}`, val, { expirationTtl: 86400 });
-  }
-
-  private hashPrompt(messages: AIMessage[]): string {
-    const text = messages.map((m) => `${m.role}:${m.content}`).join('|');
-    let hash = 0;
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash << 5) - hash + text.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(36);
-  }
-
   async generateText(
     messages: AIMessage[],
-    options?: AIGenerateOptions & { cacheable?: boolean; preferred?: string; requireLive?: boolean }
+    options?: AIGenerateOptions & { preferred?: string; requireLive?: boolean }
   ): Promise<string> {
     if (options?.creatorId) {
       await this.budgetManager.checkBudget(options.creatorId);
-    }
-
-    const cacheKey = options?.cacheable ? this.hashPrompt(messages) : null;
-    if (cacheKey) {
-      const cached = await this.getCachedResult(cacheKey);
-      if (cached) return cached;
     }
 
     // Determine provider chain based on preference
@@ -131,9 +103,6 @@ export class AIRouter {
             const cost = provider.name === 'claude' ? (options.fast ? 0.001 : 0.015) : 0.001;
             await this.budgetManager.recordUsage(options.creatorId, cost);
           }
-          if (cacheKey) {
-            await this.setCachedResult(cacheKey, text);
-          }
           return text;
         }
       } catch (err: unknown) {
@@ -148,7 +117,7 @@ export class AIRouter {
   async generateStructured<T>(
     messages: AIMessage[],
     schema: z.ZodType<T>,
-    options?: AIGenerateOptions & { preferred?: string }
+    options?: AIGenerateOptions & { preferred?: string; requireLive?: boolean }
   ): Promise<T> {
     if (options?.creatorId) {
       await this.budgetManager.checkBudget(options.creatorId);
@@ -163,7 +132,7 @@ export class AIRouter {
     if (this.claude && !providers.includes(this.claude)) providers.push(this.claude);
     if (this.openai && !providers.includes(this.openai)) providers.push(this.openai);
     if (this.workersAi && !providers.includes(this.workersAi)) providers.push(this.workersAi);
-    providers.push(this.mock);
+    if (!options?.requireLive) providers.push(this.mock);
 
     let lastError: Error | null = null;
     for (const provider of providers) {

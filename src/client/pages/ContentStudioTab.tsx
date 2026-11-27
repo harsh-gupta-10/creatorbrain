@@ -1,10 +1,12 @@
+import type { ProjectToolPanel } from '../components/StudioProjectTools';
 import { ChatSuggestions, useChatSuggestions } from '../components/ChatSuggestions';
 import { useChatScroll } from '../lib/use-chat-scroll';
 import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
+  Wrench,
   Copy,
   Check,
   Download,
@@ -43,7 +45,11 @@ const ASSET_ICONS: Record<AssetType, LucideIcon> = {
   compliance_report: ShieldCheck,
 };
 
-export const ContentStudioTab: React.FC = () => {
+const StudioProjectTools = lazy(() => import('../components/StudioProjectTools'));
+
+export const ContentStudioTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
+  const [toolPanel, setToolPanel] = useState<ProjectToolPanel>();
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -88,7 +94,10 @@ export const ContentStudioTab: React.FC = () => {
       const res = await api.studio.getProjects();
       setProjects(res.projects || []);
       if (res.projects?.length > 0 && !selectedProjectId) {
-        selectProject(res.projects[0].id);
+        const query = new URLSearchParams(window.location.search);
+        const requested = res.projects.find(({ id }) => id === query.get('project'));
+        void selectProject(requested?.id || res.projects[0].id);
+        if (requested && query.get('tools') === 'publication') setToolPanel('publication');
       }
     } catch (err: unknown) {
       console.error('Failed to load projects:', err);
@@ -97,6 +106,7 @@ export const ContentStudioTab: React.FC = () => {
   };
 
   const selectProject = async (id: string) => {
+    setToolPanel(undefined);
     openedProject.current = id;
     setSelectedProjectId(id);
     setOpeningProject(true);
@@ -141,6 +151,17 @@ export const ContentStudioTab: React.FC = () => {
     } finally {
       if (openedProject.current === id) setOpeningProject(false);
     }
+  };
+
+  const refreshProjectContent = async () => {
+    const id = openedProject.current;
+    const res = await api.studio.getProject(id);
+    if (openedProject.current !== id) return;
+    setSelectedProject(res.project);
+    setProjects((rows) => rows.map((row) => row.id === id ? res.project : row));
+    setAssets(res.assets);
+    setEditableContent(res.assets.find((asset) => asset.type === activeAssetType)?.content || '');
+    setIsEditing(false);
   };
 
   const handleAssetTabChange = (type: AssetType) => {
@@ -312,6 +333,9 @@ ${a.content}
               <Plus {...ICON} />
               New project
             </button>
+            <button type="button" className="btn btn-secondary" disabled={!selectedProject || isEditing || isGenerating} onClick={() => setToolPanel('publication')}>
+              <Wrench {...ICON} /> Project tools
+            </button>
             <button onClick={handleExportMarkdown} disabled={!selectedProject} className="btn btn-primary">
               <Download {...ICON} />
               Export Markdown
@@ -434,7 +458,7 @@ ${a.content}
 
           <div className="shrink-0 border-t border-line px-3 pt-2 pb-1">
             <ChatSuggestions suggestions={suggestions} onChoose={choosePrompt} disabled={isGenerating || openingProject} />
-            <ChatToolMenu disabled={!selectedProject || isGenerating || openingProject} onChoose={choosePrompt} />
+            <ChatToolMenu studio disabled={!selectedProject || isGenerating || openingProject} onChoose={choosePrompt} />
           </div>
           <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">
             <input
@@ -592,6 +616,13 @@ ${a.content}
           </div>
         </div>
       </div>
+
+      {toolPanel && selectedProject && (
+        <Suspense fallback={null}>
+          <StudioProjectTools key={selectedProject.id} project={selectedProject} assets={assets} initial={toolPanel}
+            readOnly={readOnly} onClose={() => setToolPanel(undefined)} onChange={refreshProjectContent} />
+        </Suspense>
+      )}
 
       {showNewModal && (
         <Dialog

@@ -1,3 +1,4 @@
+import { WorkspaceResultBusy } from '../lib/workspace-results';
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { ToolGeneratorSchema } from '../../shared/types';
@@ -12,7 +13,8 @@ toolsRoutes.post('/generate', async (c) => {
   try {
     const output = await runQuickTool(c.env, c.get('creator'), parsed.data);
     return c.json({ toolType, topic, platform, output });
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkspaceResultBusy) return c.json({ error: error.message }, 409);
     return c.json({ error: 'Quick Tools could not generate a result. Check the AI provider and daily budget in Settings.' }, 503);
   }
 });

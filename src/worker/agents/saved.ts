@@ -4,8 +4,8 @@ import type { SavedAgent } from '../../shared/agents';
 import type { Env } from '../env';
 import { compose } from './workspace';
 import { AIRouter } from '../ai/router';
-import { fetchYouTubeChannel, fetchChannelWithDataApi } from '../content/youtube';
-import { auditChannel } from '../content/audit';
+import { updateWatchReview } from '../lib/competitor-watch';
+import { WorkspaceResultBusy } from '../lib/workspace-results';
 
 export class AgentRunError extends Error {
   constructor(
@@ -20,20 +20,11 @@ export async function runSavedAgent(env: Env, creator: Creator, agent: SavedAgen
   let source = '';
   if (agent.kind === 'competitor') {
     try {
-      const channel = env.YOUTUBE_API_KEY
-        ? await fetchChannelWithDataApi(agent.channel, env.YOUTUBE_API_KEY, 15).catch(() =>
-            fetchYouTubeChannel(agent.channel)
-          )
-        : await fetchYouTubeChannel(agent.channel);
-      const { stats, outliers } = auditChannel(channel);
-      source = JSON.stringify({
-        channel: channel.title,
-        url: channel.url,
-        stats,
-        outliers: outliers.slice(0, 3),
-        recent: channel.videos.slice(0, 5).map((v) => ({ title: v.title, url: v.url, views: v.views })),
-      });
-    } catch {
+      const review = await updateWatchReview(env, creator.id, agent);
+      if (!review) throw new Error('No public uploads');
+      source = JSON.stringify(review);
+    } catch (error) {
+      if (error instanceof WorkspaceResultBusy) throw error;
       throw new AgentRunError(
         'Could not read public uploads from this YouTube channel. Check the handle or try again later.',
         422
@@ -42,7 +33,7 @@ export async function runSavedAgent(env: Env, creator: Creator, agent: SavedAgen
   }
   const instruction =
     agent.kind === 'competitor'
-      ? 'Compare this channel’s recent uploads with my stored videos. Cite specific titles and links, distinguish observations from hypotheses, and propose one experiment. '
+      ? 'Compare this channel’s recent uploads with my stored videos. Name specific videos and use only supplied video links. Distinguish observations from hypotheses, and propose one experiment. '
       : '';
   let report: string;
   try {
@@ -55,7 +46,8 @@ export async function runSavedAgent(env: Env, creator: Creator, agent: SavedAgen
       agent.kind === 'competitor' ? 'chat' : agent.kind,
       source
     );
-  } catch {
+  } catch (error) {
+    if (error instanceof WorkspaceResultBusy) throw error;
     throw new AgentRunError(
       'The writing provider is unavailable or the daily budget has been reached. Try again later.',
       503

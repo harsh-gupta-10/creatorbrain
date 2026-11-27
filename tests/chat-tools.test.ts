@@ -19,7 +19,7 @@ describe('Creator chat tools', () => {
   );
 
   it('runs the shared Quick Tool and saves its output in the matching tool thread', async () => {
-    const bind = vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue({ results: [] }), first: vi.fn().mockResolvedValue(null) });
+    const bind = vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue({ results: [] }), first: vi.fn().mockResolvedValue(null), run: vi.fn().mockResolvedValue({ meta: { changes: 1 } }) });
     const db = { prepare: vi.fn().mockReturnValue({ bind }), batch: vi.fn() } as unknown as D1Database;
     const ai = vi.fn().mockResolvedValue({ response: 'Show the reveal first.' });
     const env = { DB: db, AI: { run: ai } } as unknown as Env;

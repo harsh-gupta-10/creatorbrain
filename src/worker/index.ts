@@ -1,4 +1,5 @@
 import { Hono, type Context } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { authRoutes } from './routes/auth';
 import { onboardingRoutes } from './routes/onboarding';
 import { studioRoutes } from './routes/studio';
@@ -15,6 +16,8 @@ import { copilotRoutes } from './routes/copilot';
 import { contentRoutes } from './routes/content';
 import { publicRoutes } from './routes/public';
 import { dealsRoutes } from './routes/deals';
+import { WorkspaceResultBusy } from './lib/workspace-results';
+import { workflowsRoutes } from './routes/workflows';
 import { chatRoutes } from './routes/chats';
 import { analyzeContentItem, pendingItems } from './content/analyze';
 import { AIRouter } from './ai/router';
@@ -37,6 +40,12 @@ import { isAmazonDestination } from './lib/short-links';
 export type { Env };
 
 const app = new Hono<AppEnv>();
+app.onError((error, c) => {
+  if (error instanceof WorkspaceResultBusy) return c.json({ error: error.message }, 409);
+  if (error instanceof HTTPException) return error.getResponse();
+  console.error(error);
+  return c.json({ error: 'Something went wrong. Try again.' }, 500);
+});
 
 // The SPA and the API share one origin, so no CORS headers are sent.
 app.use('*', securityHeaders);
@@ -78,6 +87,7 @@ app.route('/api/content', contentRoutes);
 app.route('/api/public', publicRoutes);
 app.route('/api/deals', dealsRoutes);
 app.route('/api/chats', chatRoutes);
+app.route('/api/workflows', workflowsRoutes);
 
 // ==========================================
 // SHORT LINK TRANSPARENT REDIRECT (/s/:slug)
@@ -487,6 +497,11 @@ export default {
 
     const router = new AIRouter(env);
     const work = async () => {
+      await env.DB.batch([
+        env.DB.prepare('DELETE FROM workspace_results WHERE rowid IN (SELECT rowid FROM workspace_results WHERE expires_at<=? LIMIT 1500)')
+          .bind(Math.floor(Date.now() / 1000)),
+        env.DB.prepare('DELETE FROM weekly_plan_snoozes WHERE until_date<=?').bind(new Date().toISOString()),
+      ]).catch(() => {});
       for (const row of results || []) {
         try {
           const count = await refreshYouTubeContent(env.DB, row.id, row.youtube_input, env);

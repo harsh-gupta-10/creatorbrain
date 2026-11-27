@@ -1,3 +1,4 @@
+import { WeeklyCreatorPlan } from '../components/WeeklyCreatorPlan';
 import { AMAZON_CURRENCIES } from '../../shared/amazon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, RotateCw, ExternalLink, SquarePlay, Camera, FolderKanban } from 'lucide-react';
@@ -138,6 +139,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ creator, onNavigateTab
           <ErrorNote>{error}</ErrorNote>
         </div>
       )}
+
+      <WeeklyCreatorPlan readOnly={!!isSample} />
 
       {/* Stats */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

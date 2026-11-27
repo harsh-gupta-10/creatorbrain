@@ -1,3 +1,4 @@
+import type { BrainControl, BrainFinding, ClipMatch, PlanAction, ProjectPlacementLink, PublicationReview, ScriptReviewNote, WatchReview } from '../../shared/creator-workflows';
 import type { ChatSuggestion, ToolMemory } from '../../shared/chat-suggestions';
 import type { AmazonReportFile } from '../../shared/amazon';
 import type { AgentConfig, SavedAgent } from '../../shared/agents';
@@ -205,7 +206,31 @@ export interface SavedMessage {
   created_at: string;
 }
 
+type ReviewAsset = 'short_script' | 'full_script' | 'script_outline';
+const workflowProject = (id: string) => '/api/workflows/project/' + encodeURIComponent(id);
+
 export const api = {
+  workflows: {
+    publication: (id: string) => fetchJson<PublicationReview>(workflowProject(id) + '/publication'),
+    publicationOptions: () => fetchJson<{ videos: { id: string; title: string; publishedAt: string }[] }>('/api/workflows/publication-options'),
+    attachVideo: (id: string, contentId: string | null) =>
+      fetchJson<PublicationReview>(workflowProject(id) + '/publication', { method: 'PUT', body: JSON.stringify({ contentId }) }),
+    links: (id: string) => fetchJson<{ links: ProjectPlacementLink[] }>(workflowProject(id) + '/link-kit'),
+    makeLinks: (id: string, destination: string) => fetchJson<{ links: ProjectPlacementLink[] }>(workflowProject(id) + '/link-kit',
+      { method: 'POST', body: JSON.stringify({ destination }) }),
+    clips: (query: string) => fetchJson<{ clips: ClipMatch[] }>('/api/workflows/clips?' + new URLSearchParams({ query })),
+    review: (id: string, type: ReviewAsset) => fetchJson<{ notes: ScriptReviewNote[]; reused: boolean; draftKey: string }>(
+      workflowProject(id) + '/script-review', { method: 'POST', body: JSON.stringify({ type }) }),
+    applyLine: (id: string, type: ReviewAsset, draftKey: string, line: number, replacement: string) =>
+      fetchJson<{ draftKey: string }>(workflowProject(id) + '/script-line', { method: 'PATCH', body: JSON.stringify({ type, draftKey, line, replacement }) }),
+    memory: () => fetchJson<{ controls: BrainControl[]; findings: BrainFinding[] }>('/api/workflows/memory'),
+    setMemory: (state: BrainControl['state'], nodeId?: string, note?: string) => fetchJson<{ success: boolean }>('/api/workflows/memory',
+      { method: 'PUT', body: JSON.stringify({ state, nodeId, note }) }),
+    resetMemory: (key: string) => fetchJson<{ success: boolean }>('/api/workflows/memory/' + encodeURIComponent(key), { method: 'DELETE' }),
+    plan: () => fetchJson<{ actions: PlanAction[] }>('/api/workflows/weekly-plan'),
+    snooze: (id: string) => fetchJson<{ actions: PlanAction[] }>('/api/workflows/weekly-plan/snooze',
+      { method: 'POST', body: JSON.stringify({ id }) }),
+  },
   chats: {
     get: (thread: string) =>
       fetchJson<{ thread: string; messages: SavedMessage[] }>(`/api/chats/${encodeURIComponent(thread)}`),
@@ -448,6 +473,8 @@ export const api = {
       }),
   },
   agents: {
+    watch: (id: string, refresh = false) => fetchJson<{ review: WatchReview | null }>(
+      '/api/agents/saved/' + encodeURIComponent(id) + '/watch', { method: refresh ? 'POST' : 'GET' }),
     list: () => fetchJson<{agents:SavedAgent[]}>('/api/agents/saved'),
     create: (config:AgentConfig) => fetchJson<{agent:SavedAgent}>('/api/agents/saved',{method:'POST',body:JSON.stringify(config)}),
     run: (id:string) => fetchJson<{agent:SavedAgent}>(`/api/agents/saved/${id}/run`,{method:'POST'}),

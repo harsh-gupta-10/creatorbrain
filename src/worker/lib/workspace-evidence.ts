@@ -1,3 +1,4 @@
+import { findingKey, readBrainControls } from './creator-planning';
 import { WORKSPACE_TOOLS, type ToolMemory, type WorkspaceTool } from '../../shared/chat-suggestions';
 
 export const TOOL_MEMORY_SOURCE = 'Workspace tools';
@@ -35,12 +36,12 @@ export async function readToolMemory(db: D1Database, creatorId: string): Promise
 }
 
 export async function readWorkspaceEvidence(db: D1Database, creatorId: string) {
-  const [signals, learnings, video, links] = await Promise.all([
+  const [signals, learnings, video, links, controls] = await Promise.all([
     db
       .prepare(
         `SELECT type,label,substr(description,1,300) AS description FROM nodes
       WHERE creator_id=? AND type IN ('Strength','Gap','Topic','Style','Hook','Audience')
-      ORDER BY confidence DESC, updated_at DESC, id LIMIT 8`
+      ORDER BY confidence DESC, updated_at DESC, id LIMIT 30`
       )
       .bind(creatorId)
       .all<{ type: string; label: string; description: string | null }>(),
@@ -68,6 +69,25 @@ export async function readWorkspaceEvidence(db: D1Database, creatorId: string) {
       )
       .bind(creatorId)
       .first<{ slug: string; domain: string; clicks: number }>(),
+    readBrainControls(db, creatorId),
   ]);
-  return { signals: signals.results, learnings: learnings.results, topRecentUpload: video, topActiveLink: links };
+  const preferences = controls.filter(({ state }) => state === 'preference').slice(0, 10).map(({ note }) => note);
+  const moderated = new Map(controls.map((control) => [control.key, control]));
+  const seen = new Set<string>();
+  const accepted = [];
+  const descriptions = new Map<string, string | null>();
+  for (const signal of signals.results) {
+    const key = await findingKey(signal.type, signal.label);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    descriptions.set(key, signal.description);
+    if (!moderated.has(key)) accepted.push(signal);
+  }
+  const chosen = controls.filter(({ state }) => state === 'pinned' || state === 'corrected').map(({ key, type, label, note, state }) => ({
+    type, label: state === 'corrected' ? note : label, description: state === 'corrected' ? note : descriptions.get(key) ?? null,
+  }));
+  return {
+    signals: [...chosen, ...accepted].slice(0, 8), preferences,
+    learnings: learnings.results, topRecentUpload: video, topActiveLink: links,
+  };
 }

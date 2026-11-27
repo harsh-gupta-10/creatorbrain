@@ -27,9 +27,9 @@ copilotRoutes.post('/chat', async (c) => {
   const lowerMsg = userMessage.toLowerCase();
   const router = new AIRouter(c.env);
   const saved = await loadThread(c.env.DB, creator.id, 'copilot', 12);
-  const context = saved.length
-    ? conversationContext(saved)
-    : JSON.stringify(parsed.data.history?.slice(-6).map((m) => m.content.slice(0, 1000)) || []);
+  const context = !saved.length && parsed.data.history?.length
+    ? JSON.stringify(parsed.data.history.slice(-6).map((m) => m.content.slice(0, 1000)))
+    : conversationContext(saved, undefined, userMessage, mode);
   const tool = await runChatTool({ env: c.env, creator, message: userMessage, history: saved, origin: new URL(c.req.url).origin });
   if (tool) {
     await appendToThread(c.env.DB, creator.id, 'copilot', [
@@ -46,7 +46,7 @@ copilotRoutes.post('/chat', async (c) => {
     ]);
     return c.json({ reply: report, detectedProduct: null, proposedProject: null, suggestedPrompts: [] });
   }
-  const plan = await planChat(router, creator.id, userMessage, context);
+  const plan = await planChat(c.env.DB, router, creator.id, userMessage, context);
   const lookup = plan.action === 'link' || plan.product ? await affiliateLookup(c.env, creator.id, plan.product) : null;
   const replyText =
     plan.action === 'link'
@@ -81,7 +81,7 @@ copilotRoutes.post('/chat', async (c) => {
 
   await appendToThread(c.env.DB, creator.id, 'copilot', [
     { role: 'user', content: userMessage, meta: { mode } },
-    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, affiliateLinks: lookup?.affiliateLinks } },
+    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, affiliateLinks: lookup?.affiliateLinks, reusableAnswer: plan.action === 'chat' && !lookup } },
   ], lookup?.affiliateLinks?.length ? 'affiliate_link' : undefined);
 
   return c.json({

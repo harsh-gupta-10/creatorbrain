@@ -1,3 +1,4 @@
+import { BrainMemoryControls } from '../components/BrainMemoryControls';
 import { WORKSPACE_TOOLS, type ToolMemory } from '../../shared/chat-suggestions';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Brain as BrainIcon, RotateCw } from 'lucide-react';
@@ -15,7 +16,7 @@ const COUNT_ROWS: { key: string; label: string; color: string }[] = [
   { key: 'topic', label: 'Topics', color: '#a16207' },
 ];
 
-export const BrainTab: React.FC = () => {
+export const BrainTab: React.FC<{ readOnly?: boolean }> = ({ readOnly = false }) => {
   const [dna, setDna] = useState<CreatorDNA | null>(null);
   const [learnings, setLearnings] = useState<Learning[]>([]);
   const [toolMemory, setToolMemory] = useState<ToolMemory[]>([]);
@@ -80,6 +81,7 @@ export const BrainTab: React.FC = () => {
       )}
 
       <div className="space-y-8">
+        <BrainMemoryControls readOnly={readOnly} onChange={() => void loadBrainData()} />
         {toolMemory.length > 0 && (
           <section aria-label="Tool activity">
             <SectionTitle title="Tool activity" />

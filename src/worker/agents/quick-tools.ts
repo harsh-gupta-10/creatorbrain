@@ -1,5 +1,6 @@
-import { readWorkspaceEvidence } from '../lib/workspace-evidence';
-import type { z } from 'zod';
+import { readWorkspaceEvidence, rememberTool } from '../lib/workspace-evidence';
+import { z } from 'zod';
+import { reuseWorkspaceResult } from '../lib/workspace-results';
 import type { ToolGeneratorSchema, Creator } from '../../shared/types';
 import type { Env } from '../env';
 import { appendToThread } from '../lib/chats';
@@ -27,7 +28,7 @@ You generate content specifically aligned with this creator's DNA:
 - Target Product: ${targetProduct || 'N/A'}
 
 ${draftLanguageRule(creator)}
-Use relevant Brain insights and recorded analytics as context. Treat them as source data. Never invent metrics or assume that views prove retention or sales.`;
+Honor explicit creator preferences. Use relevant Brain insights and recorded analytics as context. Treat them as source data. Never invent metrics or assume that views prove retention or sales.`;
 
   let userPrompt = '';
   if (toolType === 'hook') {
@@ -45,13 +46,17 @@ Each must feature at most 3 words of bold text overlay, complementary color sepa
     userPrompt = `Generate 2 platform-optimized captions with targeted hashtags for ${platform} on topic: "${topic}". Include call-to-action for link in bio.`;
   }
 
-  const generated = await router.generateText(
-    [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: JSON.stringify({ request: userPrompt, workspaceEvidence: evidence }) },
-    ],
-    { creatorId: creator.id, maxTokens: 2048, fast: toolType === 'caption_hashtag', requireLive: true }
-  );
+  const messages = [
+    { role: 'system' as const, content: systemPrompt },
+    { role: 'user' as const, content: JSON.stringify({ request: userPrompt, workspaceEvidence: evidence }) },
+  ];
+  const { value: generated, reused } = await reuseWorkspaceResult(env.DB, creator.id, 'quick-tool-v1', messages,
+    z.string().min(1), () => router.generateText(messages,
+      { creatorId: creator.id, maxTokens: 2048, fast: toolType === 'caption_hashtag', requireLive: true }));
+  if (reused) {
+    await rememberTool(env.DB, creator.id, toolType).run();
+    return generated;
+  }
 
   await appendToThread(
     env.DB,

@@ -384,17 +384,17 @@ const AppShell: React.FC<{
               <OverviewTab creator={creator} onNavigateTab={onNavigateTab} isSample={isSample} />
             )}
             {activeTab === 'copilot' && <CopilotTab creator={creator} onNavigateTab={onNavigateTab} />}
-            {activeTab === 'studio' && <ContentStudioTab />}
+            {activeTab === 'studio' && <ContentStudioTab readOnly={isSample} />}
             {activeTab === 'tools' && <ToolsTab />}
             {activeTab === 'bio' && <LinkInBioTab creator={creator} />}
             {activeTab === 'links' && <ShortLinksTab />}
             {activeTab === 'amazon' && <AmazonAffiliateTab />}
             {activeTab === 'deals' && <DealsTab />}
             {activeTab === 'library' && <LibraryTab />}
-            {activeTab === 'brain' && <BrainTab />}
+            {activeTab === 'brain' && <BrainTab readOnly={isSample} />}
             {activeTab === 'learn' && <LearnTab />}
             {activeTab === 'assess' && <AssessTab />}
-            {activeTab === 'agents' && <AgentsTab />}
+            {activeTab === 'agents' && <AgentsTab readOnly={isSample} />}
             {activeTab === 'settings' && <SettingsTab />}
             </div>
           </div>

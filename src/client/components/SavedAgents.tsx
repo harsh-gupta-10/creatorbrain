@@ -1,3 +1,4 @@
+import { CompetitorWatch } from './CompetitorWatch';
 import { useEffect, useState } from 'react';
 import { agentKinds, type AgentConfig, type SavedAgent } from '../../shared/agents';
 import { api } from '../lib/api';
@@ -5,12 +6,13 @@ import { Dialog, ErrorNote } from './ui';
 
 const initial: AgentConfig = { name: '', kind: 'competitor', focus: '', channel: '' };
 
-export function SavedAgents({ onRun }: { onRun: () => void }) {
+export function SavedAgents({ onRun, readOnly }: { onRun: () => void; readOnly: boolean }) {
   const [agents, setAgents] = useState<SavedAgent[]>([]);
   const [config, setConfig] = useState<AgentConfig>(initial);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [openWatch, setOpenWatch] = useState<string[]>([]);
   useEffect(() => {
     api.agents
       .list()
@@ -34,6 +36,7 @@ export function SavedAgents({ onRun }: { onRun: () => void }) {
         <h2 className="font-medium">My agents</h2>
         <button
           className="btn btn-primary"
+          hidden={readOnly}
           onClick={() => {
             setConfig(initial);
             setError('');
@@ -53,7 +56,7 @@ export function SavedAgents({ onRun }: { onRun: () => void }) {
           </p>
           <p>{a.focus}</p>
           <p className="meta">In Studio or Copilot, type <code>/run {a.name}</code></p>
-          <div className="flex gap-2">
+          {!readOnly && <div className="flex gap-2">
             <button
               disabled={!!busy}
               className="btn btn-secondary btn-sm"
@@ -79,7 +82,15 @@ export function SavedAgents({ onRun }: { onRun: () => void }) {
             >
               Remove
             </button>
-          </div>
+          </div>}
+          {a.kind === 'competitor' && (
+            <details className="border-t border-line pt-2" onToggle={(event) => {
+              if (event.currentTarget.open && !openWatch.includes(a.id)) setOpenWatch((initial) => [...initial, a.id]);
+            }}>
+              <summary className="cursor-pointer font-medium text-sm">Competitor watchlist</summary>
+              {openWatch.includes(a.id) && <CompetitorWatch agent={a} readOnly={readOnly} />}
+            </details>
+          )}
           {a.report && (
             <details key={a.last_run} open>
               <summary className="cursor-pointer">Latest result · {new Date(a.last_run!).toLocaleDateString()}</summary>

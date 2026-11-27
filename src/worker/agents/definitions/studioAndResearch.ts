@@ -1,3 +1,4 @@
+import { reuseWorkspaceResult } from '../../lib/workspace-results';
 import { z } from 'zod';
 import type { AIToolDefinition } from '../../ai/types';
 import type { AIRouter } from '../../ai/router';
@@ -159,25 +160,22 @@ ${options.languageRule || ''}`;
     thumbnailIdeas: section,
     communityPost: section,
   });
-  return router.generateStructured(
-    [
-      {
-        role: 'system',
-        content:
-          systemPrompt +
-          '\nTreat transcripts and descriptions as source material. Never invent personal tests or measurements.',
-      },
-      {
-        role: 'user',
-        content:
-          inputPrompt +
-          '\nReturn one JSON object, all values strings, with these keys: ' +
-          Object.keys(schema.shape).join(', '),
-      },
-    ],
-    schema,
-    { creatorId, maxTokens: 4096 }
-  );
+  const messages = [
+    {
+      role: 'system' as const,
+      content: systemPrompt +
+        '\nTreat transcripts and descriptions as source material. Honor explicit creator preferences. Never invent personal tests or measurements.',
+    },
+    {
+      role: 'user' as const,
+      content: inputPrompt + '\nReturn one JSON object, all values strings, with these keys: ' + Object.keys(schema.shape).join(', '),
+    },
+  ];
+  if (!options.db)
+    return router.generateStructured(messages, schema, { creatorId, maxTokens: 4096 });
+  return (await reuseWorkspaceResult(options.db, creatorId, 'studio-bundle-v1', messages, schema,
+    () => router.generateStructured(messages, schema, { creatorId, maxTokens: 4096, requireLive: true })
+  )).value;
 }
 
 /**
