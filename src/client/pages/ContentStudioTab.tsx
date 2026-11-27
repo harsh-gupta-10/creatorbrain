@@ -1,6 +1,8 @@
+import { ChatSuggestions, useChatSuggestions } from '../components/ChatSuggestions';
+import { useChatScroll } from '../lib/use-chat-scroll';
 import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowUp,
   Copy,
@@ -54,6 +56,15 @@ export const ContentStudioTab: React.FC = () => {
     { role: 'user' | 'agent'; text: string; time: string; isError?: boolean }[]
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [openingProject, setOpeningProject] = useState(false);
+  const openedProject = useRef('');
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const suggestions = useChatSuggestions(selectedProjectId || null, isGenerating);
+  const { logRef, followLatest, updateFollow } = useChatScroll(chatMessages, isGenerating);
+  const choosePrompt = (prompt: string) => {
+    setChatInput(prompt);
+    chatInputRef.current?.focus({ preventScroll: true });
+  };
 
   // Asset Editing State
   const [editableContent, setEditableContent] = useState('');
@@ -86,9 +97,21 @@ export const ContentStudioTab: React.FC = () => {
   };
 
   const selectProject = async (id: string) => {
+    openedProject.current = id;
     setSelectedProjectId(id);
+    setOpeningProject(true);
+    setSelectedProject(null);
+    setChatMessages([]);
+    setAssets([]);
+    setEditableContent('');
+    setIsEditing(false);
+    setChatInput('');
+    followLatest();
     try {
-      const res = await api.studio.getProject(id);
+      const [res, { messages: saved }] = await Promise.all([
+        api.studio.getProject(id), api.chats.get(`studio:${id}`).catch(() => ({ messages: [] })),
+      ]);
+      if (openedProject.current !== id) return;
       setSelectedProject(res.project);
       setAssets(res.assets || []);
 
@@ -103,30 +126,20 @@ export const ContentStudioTab: React.FC = () => {
         text: `Working on "${res.project.title}". Ask for product research, a script in your voice, new title options or a disclosure check.`,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
-      setChatMessages([intro]);
-      // Restore this project's saved conversation
-      api.chats
-        .get(`studio:${res.project.id}`)
-        .then(({ messages: saved }) => {
-          if (!saved.length) return;
-          setChatMessages([
-            intro,
-            ...saved.map((m) => ({
-              role: m.role === 'user' ? ('user' as const) : ('agent' as const),
-              text: m.content,
-              time: new Date(m.created_at).toLocaleString([], {
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-            })),
-          ]);
-        })
-        .catch(() => {});
+      setChatMessages([
+        intro,
+        ...saved.map(m => ({
+          role: m.role === 'user' ? 'user' as const : 'agent' as const,
+          text: m.content,
+          time: new Date(m.created_at).toLocaleString([], {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+          }),
+        })),
+      ]);
     } catch (err: unknown) {
-      console.error('Failed to select project:', err);
-      setError(err instanceof Error ? err.message : 'Could not open the project');
+      if (openedProject.current === id) setError(err instanceof Error ? err.message : 'Could not open the project');
+    } finally {
+      if (openedProject.current === id) setOpeningProject(false);
     }
   };
 
@@ -139,9 +152,10 @@ export const ContentStudioTab: React.FC = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isGenerating || !selectedProjectId) return;
+    if (!chatInput.trim() || isGenerating || openingProject || !selectedProject) return;
 
     const userText = chatInput.trim();
+    followLatest();
     setChatInput('');
     setChatMessages((prev) => [
       ...prev,
@@ -281,7 +295,7 @@ ${a.content}
   const currentAsset = assets.find((a) => a.type === activeAssetType);
 
   return (
-    <div className="w-full">
+    <div className="w-full lg:h-full lg:flex lg:flex-col">
       <PageHeader
         title="Content Studio"
         description="One project per video. Draft every asset with the studio agent, then edit, copy or export"
@@ -321,7 +335,8 @@ ${a.content}
             id="studio-project"
             value={selectedProjectId}
             onChange={(e) => selectProject(e.target.value)}
-            className="input w-auto min-w-0 max-w-sm font-medium"
+            disabled={isGenerating}
+            className="input w-auto min-w-0 max-w-full sm:max-w-sm font-medium"
           >
             {projects.length === 0 && <option value="">No projects yet</option>}
             {projects.map((p) => (
@@ -360,9 +375,9 @@ ${a.content}
         <p className="text-[13px] text-fg-2 min-w-0 truncate">{selectedProject?.brief || 'No brief yet'}</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        <div className="lg:col-span-5 h-[620px] panel flex flex-col overflow-hidden">
-          <div className="h-12 px-4 border-b border-line flex items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 lg:flex-1 lg:min-h-[26rem] gap-4 lg:gap-6">
+        <div className="lg:col-span-5 h-[min(38rem,76dvh)] min-w-0 min-h-0 lg:h-auto panel flex flex-col overflow-hidden">
+          <div className="h-12 shrink-0 px-4 border-b border-line flex items-center justify-between">
             <h2 id="studio-agent-title" className="text-[13px] font-medium text-fg">
               Studio agent
             </h2>
@@ -370,7 +385,9 @@ ${a.content}
           </div>
 
           <div
-            className="flex-1 overflow-y-auto p-4 space-y-4"
+            ref={logRef}
+            onScroll={updateFollow}
+            className="relative min-h-0 flex-1 overflow-y-auto lg:overscroll-y-contain p-4 space-y-4"
             role="log"
             aria-live="polite"
             aria-relevant="additions"
@@ -387,7 +404,7 @@ ${a.content}
             {chatMessages.map((msg, i) =>
               msg.role === 'user' ? (
                 <div key={i} className="flex flex-col items-end gap-1">
-                  <div className="max-w-[88%] rounded-[12px] bg-raised px-3 py-2 text-fg whitespace-pre-wrap">
+                  <div className="max-w-[88%] break-words rounded-[12px] bg-raised px-3 py-2 text-fg whitespace-pre-wrap">
                     <span className="sr-only">You said: </span>
                     {msg.text}
                   </div>
@@ -398,7 +415,7 @@ ${a.content}
                   {msg.isError ? (
                     <ErrorNote>{msg.text}</ErrorNote>
                   ) : (
-                    <div className="text-fg-2 whitespace-pre-wrap">
+                    <div className="text-fg-2 break-words whitespace-pre-wrap">
                       <span className="sr-only">Studio agent: </span>
                       <ChatLinks text={msg.text} />
                     </div>
@@ -415,30 +432,24 @@ ${a.content}
             )}
           </div>
 
-          <div className="flex flex-wrap gap-1 px-3 pb-2" aria-label="Suggested requests">
-            {[
-              ['Affiliate link', 'Find an Amazon affiliate link for the product in this project.'],
-              ['Short script', 'Write a 45-second script for this project in my voice.'],
-              ['Full script', 'Write a full spoken script for this project in my voice.'],
-            ].map(([label, prompt]) => <button key={label} type="button" className="btn btn-secondary btn-sm"
-              disabled={!selectedProjectId || isGenerating} onClick={() => setChatInput(prompt)}>{label}</button>)}
-          </div>
-          <div className="px-3 pb-1">
-            <ChatToolMenu disabled={!selectedProjectId || isGenerating} onChoose={setChatInput} />
+          <div className="shrink-0 border-t border-line px-3 pt-2 pb-1">
+            <ChatSuggestions suggestions={suggestions} onChoose={choosePrompt} disabled={isGenerating || openingProject} />
+            <ChatToolMenu disabled={!selectedProject || isGenerating || openingProject} onChoose={choosePrompt} />
           </div>
           <form onSubmit={handleSendMessage} className="p-3 border-t border-line flex items-center gap-2">
             <input
+              ref={chatInputRef}
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               placeholder="Ask the studio agent"
               aria-label="Message the studio agent"
-              disabled={!selectedProjectId}
+              disabled={!selectedProject || openingProject}
               className="input flex-1"
             />
             <button
               type="submit"
-              disabled={isGenerating || !chatInput.trim()}
+              disabled={isGenerating || openingProject || !selectedProject || !chatInput.trim()}
               aria-label="Send"
               className="btn btn-accent w-9 px-0 shrink-0"
             >
@@ -447,7 +458,7 @@ ${a.content}
           </form>
         </div>
 
-        <div className="lg:col-span-7 h-[620px] panel flex flex-col overflow-hidden">
+        <div className="lg:col-span-7 h-[min(38rem,76dvh)] min-w-0 min-h-0 lg:h-auto panel flex flex-col overflow-hidden">
           <div
             className="border-b border-line p-2 flex flex-wrap items-center gap-1"
             role="tablist"
@@ -556,7 +567,9 @@ ${a.content}
               </div>
             </div>
 
-            <div className="flex-1 p-4 overflow-y-auto">
+            <div className="relative min-h-0 flex-1 p-4 overflow-y-auto lg:overscroll-y-contain"
+              tabIndex={0}
+              aria-label="Draft content">
               {isEditing ? (
                 <textarea
                   value={editableContent}
@@ -565,7 +578,7 @@ ${a.content}
                   className="input h-full font-mono text-[13px] resize-none"
                 />
               ) : editableContent ? (
-                <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap select-text">
+                <pre className="font-mono text-[13px] leading-5 text-fg whitespace-pre-wrap break-words select-text">
                   {editableContent}
                 </pre>
               ) : (

@@ -643,6 +643,15 @@ describe('Chat tools', () => {
     const destination = 'https://www.amazon.in/dp/B012345678?th=1';
     const tagged = destination + '&tag=fixture-21';
     expect(await (await studio(destination)).json()).toMatchObject({ reply: expect.stringContaining(tagged) });
+    const suggestions = `/api/brain/suggestions?projectId=${project.id}`;
+    expect(await (await owner(suggestions)).json()).toMatchObject({
+      suggestions: expect.arrayContaining([expect.objectContaining({ id: 'short-link', prompt: 'Make this a short link' })]),
+    });
+    expect((await other(suggestions)).status).toBe(404);
+    expect(await (await owner('/api/brain/graph')).json()).toMatchObject({
+      toolMemory: expect.arrayContaining([expect.objectContaining({ tool: 'affiliate_link' })]),
+    });
+
 
     const created = await studio('i want short link');
     expect(created.status).toBe(200);
@@ -652,6 +661,11 @@ describe('Chat tools', () => {
     const result = await (await owner('/api/links')).json() as { links: { id: string; slug: string; destination_url: string }[] };
     expect(result.links).toHaveLength(1);
     expect(result.links[0].destination_url).toBe(tagged);
+    expect(await (await owner(suggestions)).json()).toMatchObject({
+      suggestions: expect.arrayContaining([expect.objectContaining({ id: 'clicks', prompt: '/link-stats ' + result.links[0].slug })]),
+    });
+    expect(await (await other('/api/brain/graph')).json()).toMatchObject({ toolMemory: [] });
+
 
     const confirmPage = await fetch(shortLink, { redirect: 'manual' });
     expect(confirmPage.status).toBe(200);
@@ -682,5 +696,18 @@ describe('Chat tools', () => {
     expect(links).toHaveLength(1);
     expect(links[0].destination_url).toBe(destination);
     expect((await fetch(base + '/s/' + links[0].slug, { redirect: 'manual' })).headers.get('Location')).toBe(destination);
+  });
+});
+
+it('grounds chat suggestions in the sample Brain and imported views', async () => {
+  const sample = client();
+  expect((await sample('/api/auth/sample', { method: 'POST' })).status).toBe(200);
+  const result = await sample('/api/brain/suggestions');
+  expect(result.status).toBe(200);
+  expect(await result.json()).toMatchObject({
+    suggestions: expect.arrayContaining([
+      expect.objectContaining({ id: 'brain', reason: expect.stringContaining('Brain recorded') }),
+      expect.objectContaining({ id: 'video', reason: expect.stringContaining('recorded views') }),
+    ]),
   });
 });

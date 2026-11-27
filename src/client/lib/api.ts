@@ -1,3 +1,4 @@
+import type { ChatSuggestion, ToolMemory } from '../../shared/chat-suggestions';
 import type { AmazonReportFile } from '../../shared/amazon';
 import type { AgentConfig, SavedAgent } from '../../shared/agents';
 import type {
@@ -407,10 +408,15 @@ export const api = {
       }),
   },
   brain: {
+    getSuggestions: (projectId?: string, signal?: AbortSignal) =>
+      fetchJson<{ suggestions: ChatSuggestion[] }>(
+        `/api/brain/suggestions${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`, { signal }
+      ),
     getGraph: () =>
       fetchJson<{
         graph: GraphData;
         learnings: Learning[];
+        toolMemory: ToolMemory[];
         nodeCounts: Record<string, number>;
         creatorDNA: CreatorDNA | null;
       }>('/api/brain/graph'),

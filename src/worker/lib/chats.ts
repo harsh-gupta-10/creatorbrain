@@ -1,3 +1,6 @@
+import type { WorkspaceTool } from '../../shared/chat-suggestions';
+import { rememberTool } from './workspace-evidence';
+
 // Saved conversations. Every assistant surface writes here so a refresh or a tab
 // change brings the conversation back exactly as it was.
 
@@ -41,7 +44,8 @@ export async function appendToThread(
   db: D1Database,
   creatorId: string,
   thread: string,
-  messages: { role: 'user' | 'assistant'; content: string; meta?: Record<string, unknown> | null }[]
+  messages: { role: 'user' | 'assistant'; content: string; meta?: Record<string, unknown> | null }[],
+  tool?: WorkspaceTool
 ): Promise<void> {
   if (!THREAD_RE.test(thread) || !messages.length) return;
   const base = Date.now();
@@ -69,6 +73,7 @@ export async function appendToThread(
       )
       .bind(creatorId, thread, creatorId, thread)
   );
+  if (tool) stmts.push(rememberTool(db, creatorId, tool));
   await db.batch(stmts);
 }
 

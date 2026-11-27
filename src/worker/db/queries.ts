@@ -1,3 +1,4 @@
+import { TOOL_MEMORY_SOURCE } from '../lib/workspace-evidence';
 import type {
   Creator,
   GraphData,
@@ -60,8 +61,8 @@ export class DBClient {
 
   async getLearnings(creatorId: string, limit = 5): Promise<Learning[]> {
     const res = await this.db
-      .prepare('SELECT * FROM learnings WHERE creator_id = ? ORDER BY created_at DESC LIMIT ?')
-      .bind(creatorId, limit)
+      .prepare('SELECT * FROM learnings WHERE creator_id = ? AND source_agent <> ? ORDER BY created_at DESC LIMIT ?')
+      .bind(creatorId, TOOL_MEMORY_SOURCE, limit)
       .all<Learning>();
     return res.results || [];
   }

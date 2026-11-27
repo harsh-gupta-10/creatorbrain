@@ -1,3 +1,4 @@
+import { rememberTool } from '../lib/workspace-evidence';
 import type { Creator } from '../../shared/types';
 import type { SavedAgent } from '../../shared/agents';
 import type { Env } from '../env';
@@ -72,6 +73,7 @@ export async function runSavedAgent(env: Env, creator: Creator, agent: SavedAgen
       `INSERT INTO agent_traces(id,creator_id,agent_name,task_description,step_number,total_steps,tool_called,output_summary,status,created_at)
       VALUES (?,?,?,?,1,1,?,?,'success',?)`
     ).bind(crypto.randomUUID(), creator.id, agent.name, agent.focus, agent.kind, report.slice(0, 300), now),
+    rememberTool(env.DB, creator.id, 'saved_agent'),
   ]);
   return { ...agent, report, last_run: now };
 }

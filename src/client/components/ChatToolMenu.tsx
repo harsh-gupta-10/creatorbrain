@@ -1,6 +1,7 @@
 const shortcuts = [
   ['Shorten last link', 'Make this a short link'],
   ['Check link clicks', '/link-stats'],
+  ['Brain and analytics', '/insights'],
   ['Hooks', '/tool hook '],
   ['Script outline', '/tool script '],
   ['Thumbnail ideas', '/tool thumbnail '],

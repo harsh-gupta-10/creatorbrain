@@ -19,7 +19,7 @@ describe('Creator chat tools', () => {
   );
 
   it('runs the shared Quick Tool and saves its output in the matching tool thread', async () => {
-    const bind = vi.fn().mockReturnValue({});
+    const bind = vi.fn().mockReturnValue({ all: vi.fn().mockResolvedValue({ results: [] }), first: vi.fn().mockResolvedValue(null) });
     const db = { prepare: vi.fn().mockReturnValue({ bind }), batch: vi.fn() } as unknown as D1Database;
     const ai = vi.fn().mockResolvedValue({ response: 'Show the reveal first.' });
     const env = { DB: db, AI: { run: ai } } as unknown as Env;
@@ -36,6 +36,7 @@ describe('Creator chat tools', () => {
       expect(
         bind.mock.calls.some((args) => args[2] === `tools:${command === 'captions' ? 'caption_hashtag' : command}`)
       ).toBe(true);
+      expect(bind.mock.calls.some(([id]) => id === `tool_memory:${command === 'captions' ? 'caption_hashtag' : command}:owner`)).toBe(true);
     }
     expect(ai).toHaveBeenCalledTimes(4);
     await expect(

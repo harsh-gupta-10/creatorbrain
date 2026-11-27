@@ -35,7 +35,7 @@ copilotRoutes.post('/chat', async (c) => {
     await appendToThread(c.env.DB, creator.id, 'copilot', [
       { role: 'user', content: userMessage },
       { role: 'assistant', content: tool.reply, meta: tool.meta },
-    ]);
+    ], tool.rememberedTool);
     return c.json({ reply: tool.reply, detectedProduct: null, proposedProject: null, suggestedPrompts: [] });
   }
   const report = await requestedAgent(c.env, creator, userMessage, context);
@@ -62,14 +62,6 @@ copilotRoutes.post('/chat', async (c) => {
         );
   const detectedProduct = lookup?.matches[0] || null;
 
-  // Generate actionable suggestions
-  const suggestedPrompts = [
-    'Turn this idea into a Content Studio project',
-    'Write 5 title options in my voice',
-    'Draft a 45-second YouTube Short script',
-    'Find best Amazon affiliate deals for this',
-  ];
-
   // If user asked to create a project, extract title & brief
   let proposedProject: { title: string; brief: string } | null = null;
   if (
@@ -89,13 +81,13 @@ copilotRoutes.post('/chat', async (c) => {
 
   await appendToThread(c.env.DB, creator.id, 'copilot', [
     { role: 'user', content: userMessage, meta: { mode } },
-    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, suggestedPrompts, affiliateLinks: lookup?.affiliateLinks } },
-  ]);
+    { role: 'assistant', content: replyText, meta: { detectedProduct, proposedProject, affiliateLinks: lookup?.affiliateLinks } },
+  ], lookup?.affiliateLinks?.length ? 'affiliate_link' : undefined);
 
   return c.json({
     reply: replyText,
     detectedProduct,
     proposedProject,
-    suggestedPrompts,
+    suggestedPrompts: [],
   });
 });

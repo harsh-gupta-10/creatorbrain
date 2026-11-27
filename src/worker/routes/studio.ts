@@ -1,3 +1,4 @@
+import { readWorkspaceEvidence } from '../lib/workspace-evidence';
 import { requestedAgent } from '../agents/saved';
 import { Hono } from 'hono';
 import { appendToThread, loadThread } from '../lib/chats';
@@ -164,7 +165,7 @@ studioRoutes.post('/chat', async (c) => {
     await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
       { role: 'user', content: message },
       { role: 'assistant', content: tool.reply, meta: tool.meta },
-    ]);
+    ], tool.rememberedTool);
     return c.json({ reply: tool.reply, project, assets, product: null, shortLink: tool.shortLink || null });
   }
   const plan = productAsin
@@ -210,7 +211,7 @@ studioRoutes.post('/chat', async (c) => {
     await appendToThread(c.env.DB, creator.id, `studio:${projectId}`, [
       { role: 'user', content: message },
       { role: 'assistant', content: reply, meta: { affiliateLinks: lookup?.affiliateLinks } },
-    ]);
+    ], lookup?.affiliateLinks?.length ? 'affiliate_link' : undefined);
     return c.json({
       reply,
       updatedAsset,
@@ -234,6 +235,7 @@ studioRoutes.post('/chat', async (c) => {
       context,
       request: message,
       evidence: await channelEvidence(c.env.DB, creator.id, project.title),
+      workspaceEvidence: await readWorkspaceEvidence(c.env.DB, creator.id),
     }),
     product,
     dna,

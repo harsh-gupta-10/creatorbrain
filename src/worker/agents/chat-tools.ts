@@ -1,3 +1,5 @@
+import { readWorkspaceEvidence } from '../lib/workspace-evidence';
+import type { WorkspaceTool } from '../../shared/chat-suggestions';
 import { amazonProductUrl, tagAmazonProduct } from '../../shared/amazon';
 import { ToolGeneratorSchema, type Creator, type ShortLink } from '../../shared/types';
 import { amazonClientFor } from '../amazon/credentials';
@@ -11,6 +13,7 @@ type ToolResult = {
   reply: string;
   shortLink?: string;
   meta?: Record<string, unknown>;
+  rememberedTool?: WorkspaceTool;
 };
 
 const quickNames: Record<string, QuickToolInput['toolType']> = {
@@ -27,6 +30,7 @@ export const CHAT_TOOLS_HELP = [
   'Click counts: type /link-stats with a short link or its slug, or ask for clicks on the last short link.',
   'Quick Tools: type /tool hook, /tool script, /tool thumbnail, or /tool captions, followed by a topic.',
   'Amazon: ask for an affiliate link or paste an Amazon product URL or ASIN.',
+  'Brain and analytics: type /insights to see recorded signals from this workspace.',
   'Saved Agents: type /run followed by the name of your agent.',
 ].join('\n\n');
 
@@ -96,7 +100,25 @@ export async function runChatTool(options: {
   const { env, creator, message, history, origin, topic, productReference } = options;
   const input = message.trim();
   if (/^(?:\/tools|(?:show|list) (?:my |available )?(?:chat )?tools)[?.!]*$/i.test(input)) {
-    return { reply: CHAT_TOOLS_HELP };
+    return { reply: CHAT_TOOLS_HELP, meta: { observational: true } };
+  }
+  if (/^\/insights[?.!]*$/i.test(input)) {
+    const { signals, topRecentUpload, topActiveLink } = await readWorkspaceEvidence(env.DB, creator.id);
+    const findings = signals.slice(0, 2).map((item) => `Brain finding (${item.type}): ${item.label}`);
+    if (topRecentUpload)
+      findings.push(
+        `Most-viewed of your latest imported uploads: “${topRecentUpload.title}” with ${topRecentUpload.views.toLocaleString('en-US')} recorded views.`
+      );
+    if (topActiveLink)
+      findings.push(
+        `Top active short link: ${topActiveLink.clicks.toLocaleString('en-US')} tracked clicks to ${topActiveLink.domain}. Use /link-stats ${topActiveLink.slug} for the link.`
+      );
+    return {
+      reply: findings.length
+        ? findings.join('\n\n')
+        : 'Study your YouTube channel or create a short link to start collecting workspace insights.',
+      meta: { observational: true },
+    };
   }
   if (/^\/link-stats(?:\s|$)|\b(?:clicks|analytics|stats)\b.{0,45}\bshort[ -]link\b/i.test(input)) {
     const explicit = input.match(/^\/link-stats\s+(\S+)/i)?.[1] || urlsIn(input)[0];
@@ -113,6 +135,8 @@ export async function runChatTool(options: {
       .first<Pick<ShortLink, 'total_clicks' | 'destination_domain'>>();
     if (!link) return { reply: 'I couldn’t find that short link in your workspace.' };
     return {
+      rememberedTool: 'link_stats',
+      meta: { observational: true },
       reply: `Your link to ${link.destination_domain} has ${link.total_clicks} tracked ${link.total_clicks === 1 ? 'click' : 'clicks'}.\n\n${origin}/s/${slug}`,
     };
   }

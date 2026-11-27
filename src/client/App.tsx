@@ -199,6 +199,7 @@ const AppShell: React.FC<{
 }> = ({ activeTab, creator, isSample, onSessionChanged, onSignOut }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const mainRef = useRef<HTMLElement>(null);
+  const workspaceRef = useRef<HTMLDivElement>(null);
   const firstRender = useRef(true);
   const visibleTabs = TABS;
   const current = [...TABS, { id: 'settings', label: 'Settings' } as TabItem].find((t) => t.id === activeTab);
@@ -214,6 +215,7 @@ const AppShell: React.FC<{
       firstRender.current = false;
       return;
     }
+    workspaceRef.current?.scrollTo(0, 0);
     mainRef.current?.focus({ preventScroll: true });
   }, [activeTab]);
 
@@ -258,13 +260,13 @@ const AppShell: React.FC<{
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-page text-fg md:flex">
+    <div className="relative min-h-dvh bg-page text-fg md:flex md:h-dvh md:overflow-hidden">
       <SkipLink />
       {/* Sidebar */}
       <aside
         id="app-sidebar"
         aria-label="Sidebar"
-        className={`fixed inset-y-0 left-0 z-40 w-[248px] bg-surface border-r border-line flex flex-col transition-[transform,visibility] duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0 md:visible ${
+        className={`fixed inset-y-0 left-0 z-40 w-[248px] bg-surface border-r border-line flex flex-col transition-[transform,visibility] duration-200 md:static md:h-full md:shrink-0 md:translate-x-0 md:visible ${
           menuOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'
         }`}
       >
@@ -281,7 +283,7 @@ const AppShell: React.FC<{
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 pb-4" aria-label="Workspace">
+        <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4" aria-label="Workspace">
           {groups.map((group) => (
             <div key={group} role="group" aria-labelledby={`nav-group-${group}`}>
               <div id={`nav-group-${group}`} className="px-2 pt-6 pb-2 text-[12px] text-fg-3">
@@ -344,7 +346,7 @@ const AppShell: React.FC<{
         />
       )}
 
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
         <header className="md:hidden sticky top-0 z-20 h-14 px-4 flex items-center gap-3 bg-surface border-b border-line">
           <button
             className="btn btn-ghost btn-sm px-2"
@@ -359,7 +361,7 @@ const AppShell: React.FC<{
         </header>
 
         {/* Main */}
-        <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 min-w-0 flex flex-col outline-none">
+        <main id="main" ref={mainRef} tabIndex={-1} className="flex-1 min-w-0 min-h-0 flex flex-col outline-none">
           {isSample && (
             <div className="border-b border-line bg-surface">
               <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-2 flex flex-wrap items-center justify-between gap-2">
@@ -375,7 +377,9 @@ const AppShell: React.FC<{
 
           {!isSample && <StudyBanner youtubeInput={creator.youtube_input} onChannelChanged={onSessionChanged} />}
 
-          <div key={activeTab} className="rise-in flex-1 w-full max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8">
+          <div ref={workspaceRef} className="relative flex-1 md:min-h-0 md:overflow-y-auto md:overscroll-contain">
+            <div key={activeTab} className="w-full max-w-[1440px] mx-auto px-4 md:px-8 py-6 md:py-8 lg:h-full">
+
             {activeTab === 'overview' && (
               <OverviewTab creator={creator} onNavigateTab={onNavigateTab} isSample={isSample} />
             )}
@@ -392,6 +396,7 @@ const AppShell: React.FC<{
             {activeTab === 'assess' && <AssessTab />}
             {activeTab === 'agents' && <AgentsTab />}
             {activeTab === 'settings' && <SettingsTab />}
+            </div>
           </div>
         </main>
       </div>

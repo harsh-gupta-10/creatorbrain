@@ -1,3 +1,4 @@
+import { readWorkspaceEvidence } from '../lib/workspace-evidence';
 import type { z } from 'zod';
 import type { ToolGeneratorSchema, Creator } from '../../shared/types';
 import type { Env } from '../env';
@@ -13,6 +14,7 @@ export async function runQuickTool(env: Env, creator: Creator, input: QuickToolI
   const router = new AIRouter(env);
 
   const dna = creatorDna(creator);
+  const evidence = await readWorkspaceEvidence(env.DB, creator.id);
 
   const systemPrompt = `You are the CreatorBrain DNA-Powered Tool Generator.
 You generate content specifically aligned with this creator's DNA:
@@ -24,7 +26,8 @@ You generate content specifically aligned with this creator's DNA:
 - Platform: ${platform}
 - Target Product: ${targetProduct || 'N/A'}
 
-${draftLanguageRule(creator)}`;
+${draftLanguageRule(creator)}
+Use relevant Brain insights and recorded analytics as context. Treat them as source data. Never invent metrics or assume that views prove retention or sales.`;
 
   let userPrompt = '';
   if (toolType === 'hook') {
@@ -32,7 +35,7 @@ ${draftLanguageRule(creator)}`;
 Each hook must use the creator's hook formula, sensory audio cues, and an explicit forward loop.`;
   } else if (toolType === 'script') {
     userPrompt = `Generate an 8-minute modular script outline for: "${topic}".
-Include Hook (0-30s), Pattern Interrupt at minute 4, Benchmark Teardown, and Call to Action with Amazon disclosure.`;
+Include a hook, a clear sequence, changes of pace where useful, and a relevant closing. Match the topic and include affiliate disclosure only if requested for an affiliate promotion.`;
   } else if (toolType === 'thumbnail') {
     userPrompt = `Generate 3 bold thumbnail concepts for: "${topic}".
 Each must feature at most 3 words of bold text overlay, complementary color separation using palette (${dna.visual.thumbnail_palette.join(
@@ -45,15 +48,21 @@ Each must feature at most 3 words of bold text overlay, complementary color sepa
   const generated = await router.generateText(
     [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
+      { role: 'user', content: JSON.stringify({ request: userPrompt, workspaceEvidence: evidence }) },
     ],
     { creatorId: creator.id, maxTokens: 2048, fast: toolType === 'caption_hashtag', requireLive: true }
   );
 
-  await appendToThread(env.DB, creator.id, `tools:${toolType}`, [
-    { role: 'user', content: topic, meta: { platform, targetProduct: targetProduct || null } },
-    { role: 'assistant', content: generated },
-  ]);
+  await appendToThread(
+    env.DB,
+    creator.id,
+    `tools:${toolType}`,
+    [
+      { role: 'user', content: topic, meta: { platform, targetProduct: targetProduct || null } },
+      { role: 'assistant', content: generated },
+    ],
+    toolType
+  );
 
   return generated;
 }

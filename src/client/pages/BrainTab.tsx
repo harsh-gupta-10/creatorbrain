@@ -1,3 +1,4 @@
+import { WORKSPACE_TOOLS, type ToolMemory } from '../../shared/chat-suggestions';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Brain as BrainIcon, RotateCw } from 'lucide-react';
 import { useStudyRefresh } from '../components/StudyBanner';
@@ -17,6 +18,7 @@ const COUNT_ROWS: { key: string; label: string; color: string }[] = [
 export const BrainTab: React.FC = () => {
   const [dna, setDna] = useState<CreatorDNA | null>(null);
   const [learnings, setLearnings] = useState<Learning[]>([]);
+  const [toolMemory, setToolMemory] = useState<ToolMemory[]>([]);
   const [graphData, setGraphData] = useState<{ nodes: GraphNode[]; edges: GraphEdge[] }>({
     nodes: [],
     edges: [],
@@ -37,6 +39,7 @@ export const BrainTab: React.FC = () => {
       const graphRes = await api.brain.getGraph();
       setDna(graphRes.creatorDNA);
       setLearnings(graphRes.learnings || []);
+      setToolMemory(graphRes.toolMemory || []);
       setGraphData({
         nodes: graphRes.graph?.nodes || [],
         edges: graphRes.graph?.edges || [],
@@ -77,6 +80,20 @@ export const BrainTab: React.FC = () => {
       )}
 
       <div className="space-y-8">
+        {toolMemory.length > 0 && (
+          <section aria-label="Tool activity">
+            <SectionTitle title="Tool activity" />
+            <p className="text-[13px] text-fg-2 mb-3">Studio and Copilot use your successful tool activity to suggest what to do next.</p>
+            <ul className="card divide-y divide-line">
+              {toolMemory.map(item => (
+                <li key={item.tool} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2.5">
+                  <span>{WORKSPACE_TOOLS[item.tool]}</span>
+                  <time className="meta" dateTime={item.lastUsedAt}>Last used {formatDate(item.lastUsedAt)}</time>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {/* Graph: the one rich visual on this screen */}
         <section className="panel overflow-hidden" aria-labelledby="brain-graph-heading">
           <h2 id="brain-graph-heading" className="sr-only">

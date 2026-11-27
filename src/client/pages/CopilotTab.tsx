@@ -1,3 +1,5 @@
+import { ChatSuggestions, useChatSuggestions } from '../components/ChatSuggestions';
+import { useChatScroll } from '../lib/use-chat-scroll';
 import { ChatToolMenu } from '../components/ChatToolMenu';
 import { ChatLinks } from '../components/ChatLinks';
 import React, { useState, useRef, useEffect } from 'react';
@@ -27,7 +29,7 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
     {
       id: 'welcome',
       role: 'assistant',
-      content: `${creator?.name ? `Working from ${creator.name}'s published videos and posts${creator.niche ? ` (${creator.niche})` : ''}.` : 'Working from your published videos and posts.'}\n\nDescribe a video you are considering, a product comparison or a retention problem. I can:\n- Suggest angles and hooks in your voice\n- Find live Amazon products and your affiliate links\n- Plan pacing around where viewers usually drop off\n- Turn the idea into a Content Studio project\n\nWhat are you working on?`,
+      content: `${creator?.name ? `Working from ${creator.name}'s published videos and posts${creator.niche ? ` (${creator.niche})` : ''}.` : 'Working from your published videos and posts.'}\n\nDescribe a video you are considering, a product comparison or a retention problem. I can:\n- Suggest angles and hooks in your voice\n- Find live Amazon products and your affiliate links\n- Suggest pacing using your videos and available analytics\n- Turn the idea into a Content Studio project\n\nWhat are you working on?`,
       time: 'Just now',
     },
   ]);
@@ -37,7 +39,8 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   const [activeMode, setActiveMode] = useState<'brainstorm' | 'script' | 'review' | 'strategy'>('brainstorm');
   const [createdProjectSuccess, setCreatedProjectSuccess] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { logRef, followLatest, updateFollow } = useChatScroll(messages, loading);
+  const suggestions = useChatSuggestions(undefined, loading);
 
   // Restore the saved conversation so a refresh or tab change keeps it
   useEffect(() => {
@@ -82,45 +85,15 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   };
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    messagesEndRef.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
+  const choosePrompt = (prompt: string) => {
+    setInput(prompt);
+    textareaRef.current?.focus({ preventScroll: true });
   };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
-
-  const starterPrompts = [
-    {
-      label: 'Compare two phones',
-      prompt:
-        'I want to review the Motorola Edge 50 Fusion vs Vivo T3 Pro 5G for college students under ₹25k. Give me 3 angles and teardown points.',
-      mode: 'brainstorm' as const,
-    },
-    {
-      label: 'Hook for a Mac mini test',
-      prompt:
-        'Testing the base M4 Mac Mini for 4K video editing. What is the most contrarian hook to test if 256GB SSD is really enough?',
-      mode: 'script' as const,
-    },
-    {
-      label: 'Fix the minute 4 drop',
-      prompt:
-        'My viewers drop off between minutes 3:45 and 5:00. How do I build a forward loop and pattern interrupt for my next phone teardown?',
-      mode: 'strategy' as const,
-    },
-    {
-      label: 'Budget gear kit',
-      prompt:
-        'Suggest a budget YouTube creator gear kit on Amazon India under ₹15,000 that I can recommend to my student audience.',
-      mode: 'review' as const,
-    },
-  ];
 
   const handleSend = async (textToSend?: string) => {
     const text = (textToSend || input).trim();
     if (!text || loading) return;
+    followLatest();
 
     const userMsg: Message = {
       id: `msg_${Date.now()}_u`,
@@ -268,10 +241,10 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
   };
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col lg:h-full">
       <PageHeader
         title="Copilot"
-        description="Talk through a video idea. Answers draw on your published content and live Amazon data"
+        description="Plan your next video with Brain findings, past uploads and tools from your workspace"
         actions={
           <>
             <ScriptLanguagePicker />
@@ -312,14 +285,16 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
       </div>
 
       <section
-        className="panel flex flex-col h-[calc(100vh-240px)] min-h-[480px] overflow-hidden"
+        className="panel flex flex-col h-[min(40rem,80dvh)] lg:h-auto lg:flex-1 lg:min-h-[26rem] overflow-hidden"
         aria-labelledby="copilot-conversation"
       >
         <h2 id="copilot-conversation" className="sr-only">
           Conversation
         </h2>
         <div
-          className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-6"
+          ref={logRef}
+          onScroll={updateFollow}
+          className="relative flex-1 min-h-0 overflow-y-auto lg:overscroll-y-contain px-4 sm:px-6 py-6"
           role="log"
           aria-live="polite"
           aria-relevant="additions"
@@ -419,35 +394,13 @@ export const CopilotTab: React.FC<CopilotTabProps> = ({ creator, onNavigateTab }
               </div>
             )}
 
-            <div ref={messagesEndRef} />
           </div>
         </div>
 
-        <div className="border-t border-line px-4 sm:px-6 py-4">
+        <div className="shrink-0 border-t border-line px-4 sm:px-6 pt-2 pb-3">
           <div className="max-w-3xl mx-auto space-y-3">
-            {messages.length <= 2 && (
-              <div className="flex flex-wrap gap-2">
-                {starterPrompts.map((item, idx) => (
-                  <button
-                    key={idx}
-                    title={item.prompt}
-                    onClick={() => {
-                      setActiveMode(item.mode);
-                      handleSend(item.prompt);
-                    }}
-                    disabled={loading}
-                    className="btn btn-secondary btn-sm"
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <ChatToolMenu disabled={loading} onChoose={prompt => {
-              setInput(prompt);
-              textareaRef.current?.focus();
-            }} />
+            <ChatSuggestions suggestions={suggestions} onChoose={choosePrompt} disabled={loading} />
+            <ChatToolMenu disabled={loading} onChoose={choosePrompt} />
             <form
               onSubmit={(e) => {
                 e.preventDefault();

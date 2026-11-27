@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -97,7 +98,7 @@ export const Dialog: React.FC<{
     const field = node?.querySelector<HTMLElement>(
       'input:not([disabled]), textarea:not([disabled]), select:not([disabled])'
     );
-    (field || focusables()[0] || node)?.focus();
+    (field || focusables()[0] || node)?.focus({ preventScroll: true });
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -124,12 +125,12 @@ export const Dialog: React.FC<{
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('keydown', onKey);
-      if (previous && document.contains(previous)) previous.focus();
+      if (previous && document.contains(previous)) previous.focus({ preventScroll: true });
     };
   }, []);
 
-  return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${backdropClassName}`}>
+  return createPortal(
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 overscroll-contain ${backdropClassName}`}>
       <div
         ref={ref}
         role="dialog"
@@ -137,11 +138,12 @@ export const Dialog: React.FC<{
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         tabIndex={-1}
-        className={`outline-none ${className}`}
+        className={`outline-none max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain ${className}`}
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
@@ -159,7 +161,7 @@ export const PageHeader: React.FC<{
       <h1 className="text-[24px] leading-[32px] font-medium tracking-[-0.01em] text-fg">{title}</h1>
       {description && <p className="mt-1 text-fg-2 max-w-2xl">{description}</p>}
     </div>
-    {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
+    {actions && <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div>}
   </div>
 );
 

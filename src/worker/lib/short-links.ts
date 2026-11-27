@@ -1,3 +1,4 @@
+import { rememberTool } from './workspace-evidence';
 import type { z } from 'zod';
 import { AMAZON_MARKETPLACES } from '../../shared/amazon';
 import { CreateShortLinkSchema, type ShortLink } from '../../shared/types';
@@ -66,7 +67,10 @@ export async function saveShortLink(
       created_at: new Date().toISOString(),
     };
     const saved = await db.createShortLink(link, reuse && !slug && !expires_at);
-    if (saved) return { shortLink: saved, shortUrl: `${origin}/s/${saved.slug}` };
+    if (saved) {
+      await rememberTool(env.DB, creatorId, 'short_link').run();
+      return { shortLink: saved, shortUrl: `${origin}/s/${saved.slug}` };
+    }
     if (slug) throw new ShortLinkError(`Custom slug "${slug}" is already in use. Please pick another.`, 409);
   }
   throw new ShortLinkError('Could not allocate a short link. Please try again.', 409);
